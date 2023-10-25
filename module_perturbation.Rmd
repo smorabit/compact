@@ -1,0 +1,1737 @@
+
+
+```{r eval=FALSE}
+
+# load R packages
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+#library(tidyverse)
+#library(cowplot)
+library(Matrix)
+#library(viridis)
+#library(RColorBrewer)
+#library(patchwork)
+#library(ggpubr)
+##library(RColorBrewer)
+###library(WGCNA)
+#library(monocle3)
+#library(SeuratWrappers)
+#library(harmony)
+theme_set(theme_cowplot())
+
+#library(distr)
+#library(VGAM)
+#library(pscl)
+
+# globally suppress warnings
+options(warn=-1)
+
+library(velocyto.R)
+#library(tictoc)
+
+# stuff for velociraptor 
+library(scRNAseq)
+library(scuttle)
+library(scran)
+library(velociraptor)
+library(scater)
+
+
+# scp R/* hpc3:/dfs7/swaruplab/smorabit/analysis/galilean/bin/
+
+# load pseudotime functions
+scripts <- dir("/dfs7/swaruplab/smorabit/analysis/galilean/bin/")
+for(script in scripts){
+  source(paste0("/dfs7/swaruplab/smorabit/analysis/galilean/bin/", script))
+}
+
+# load the perturbation functions 
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
+
+# spatial plotting functions
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/spatial_functions.R')
+source("/pub/smorabit/hdWGCNA/bin/spatial_functions.R")
+
+
+#detach("package:hdWGCNA", unload=TRUE)
+# devtools::install_github('smorabit/hdWGCNA', ref='dev')
+library(hdWGCNA)
+
+
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/')
+
+# output directories
+data_dir <- "data/"
+fig_dir <- 'figures/'
+
+# re-load
+seurat_mg <- readRDS(file=paste0(data_dir, 'AD_MG_scWGCNA.rds'))
+net <- GetNetworkData(seurat_mg)
+net$TOMFiles <- '/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/TOM/_ConsensusTOM-block.1.rda'
+seurat_mg <- SetNetworkData(seurat_mg, net)
+
+# load AD dataset
+seurat_AD <- readRDS(file="/dfs7/swaruplab/smorabit/analysis/ADDS_2021/splitseq/integration/data/AD_integrated.rds" )
+
+
+load('/dfs7/swaruplab/smorabit/analysis/AD_NucSeq_2019/batch_correction/liger/update/celltype-analysis/data/color_scheme.rda')
+cp <- unlist(color_scheme_snRNA_celltype)
+cp[names(cp) == 'EX'] <- 'turquoise'
+color_df <- data.frame(
+  group = names(cp),
+  colour = cp
+)
+color_df['PER',] <- c('PER', 'orange')
+color_df['END',] <- c('END', 'darkorange')
+
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/')
+
+
+
+```
+
+
+Plotting the delta expression after the simulation + signal propagation
+
+```{r eval=FALSE}
+
+# options:
+assay = 'RNA'
+slot = 'counts'
+perturbation_name = 'perturb'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- -1
+n_iters=3
+
+modules <- GetModules(seurat_mg)
+features <- modules %>% subset(module == mod) %>% .$gene_name
+hub_genes <- GetHubGenes(seurat_mg, n_hubs=n_hubs) %>% subset(module == mod) %>% .$gene_name
+
+
+# subset to 2000 cells just to make it go faster:
+cells.keep <- sample(colnames(seurat_obj), 2000)
+seurat_mg <- seurat_obj[,cells.keep]
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+# run the perturbation
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = 'perturb',
+    graph = 'RNA_nn',
+    n_iters=n_iters
+)
+
+# plot kME versus the fold change:
+hubs <- GetHubGenes(seurat_mg, n_hubs=Inf, wgcna_name=wgcna_name) %>% 
+  subset(module == mod) %>% 
+  mutate(hub = ifelse(gene_name %in% hub_genes, 'hub', 'other'))
+
+
+# compute the delta 
+X <- GetAssayData(seurat_mg, assay=assay, slot=slot)[hubs$gene_name,]
+X_per <- GetAssayData(seurat_mg, assay=perturbation_name, slot=slot)[hubs$gene_name,]
+
+delta <- X_per - X
+
+
+# what's the median delta value per gene?
+plot_df <- reshape2::melt(as.matrix(delta)) %>% 
+  group_by(Var1) %>% 
+  summarise(delta = mean(value)) %>%
+  dplyr::rename(gene_name = Var1)
+
+plot_df <- dplyr::left_join(
+  x = plot_df,
+  y = hubs,
+  by = 'gene_name'
+)
+
+p <- plot_df %>% 
+  ggplot(aes(x = delta, y = kME, color = hub)) + 
+  #geom_vline(xintercept=0, linetype='solid', color='black') +
+  geom_point() + 
+  geom_smooth(
+    data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME),
+    method = 'lm',
+    color = 'black'
+    ) + 
+    ggpubr::stat_cor(
+      data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME)
+    ) + 
+    theme(
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_rect(color='black', fill=NA, linewidth=1),
+      panel.grid.major = element_line(linewidth=0.25, color='lightgrey')
+    ) + 
+    xlab(bquote("Perturbation delta")) +
+    ylab('kME')
+
+pdf(paste0(fig_dir, 'test_kme_delta_compare_neg4.pdf'), width=7, height=4)
+p
+dev.off()
+
+
+
+```
+
+
+Working on a function for vector field plotting
+
+```{r eval=FALSE}
+
+
+# options:
+assay = 'RNA'
+slot = 'counts'
+perturbation_name = 'perturb'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- -1
+n_iters=3
+
+modules <- GetModules(seurat_mg)
+features <- modules %>% subset(module == mod) %>% .$gene_name
+hub_genes <- GetHubGenes(seurat_mg, n_hubs=n_hubs) %>% subset(module == mod) %>% .$gene_name
+
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+# run a knock-down of the top 10 hub genes from MG-M4
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = 'perturb',
+    graph = 'RNA_nn'
+)
+
+
+
+###########################################################################
+# Plotting the results
+# 
+# (need to make this into proprer functions later)
+###########################################################################
+
+vectors <- PerturbationVectors(
+  seurat_mg,
+  perturbation_name = 'perturb'
+)
+ars <- vectors$ars 
+arsd <- vectors$arsd
+
+# run velocirapter grid arrow function
+emb <- seurat_mg@reductions$umap@cell.embeddings
+emb <- emb[rownames(ars),]
+grid.df <- gridVectors(emb, arsd)
+
+
+
+################################################################################
+# ggplot
+################################################################################
+
+library(viridis)
+
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256))
+g <- ggplot_build(p)
+g_df <- g$data[[1]]
+
+plot_df$color <- g_df$colour
+cell.colors <- plot_df$color; names(cell.colors) <- rownames(plot_df)
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=0.5) +
+  scale_color_gradientn(colors=plasma(256)) +
+  geom_segment(
+    data = grid.df,
+    inherit.aes=FALSE,
+    aes(x=start.UMAP_1, y=start.UMAP_2, xend=end.xd, yend=end.yd), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+
+pdf(paste0(fig_dir, 'test_velo_gg_mg-M4_downtreg_allgenes.pdf'), width=6, height=3)
+p
+dev.off()
+
+
+
+
+
+
+
+
+
+
+```
+
+Testing scvelo as a backend for helper functions, using velociraptor 
+
+First, run the perturbation code in the above block to get the perturbation expression 
+matrix.
+
+```{r eval=FALSE}
+
+
+seurat_to_sce <- as.SingleCellExperiment(seurat_mg[,rownames(emb)])
+
+# compute the delta 
+X <- GetAssayData(seurat_mg, assay=assay, slot=slot)[features,rownames(emb)]
+X_norm <- GetAssayData(seurat_mg, assay=assay, slot='data')[features,rownames(emb)]
+X_per <- GetAssayData(seurat_mg, assay=perturbation_name, slot=slot)[features,rownames(emb)]
+
+delta <- X_per - X
+
+
+sce_mg <- SingleCellExperiment(
+  list(counts = X, logcounts = X_norm, perturb = X_per, delta = delta)
+)
+reducedDims(sce_mg) <- reducedDims(seurat_to_sce)
+
+
+
+# sce_mg <- logNormCounts(sce_mg, assay.type=1)
+# dec <- modelGeneVar(sce_mg)
+# top.hvgs <- getTopHVGs(dec, n=2000)
+
+# sce_mg <- runPCA(sce_mg, subset_row=top.hvgs)
+# sce_mg <- runUMAP(sce_mg, dimred="PCA")
+
+
+library(basilisk)
+library(DelayedArray)
+library(zellkonverter)
+
+# run scvelo
+out <- scvelo_helper(
+    sce_mg, 
+    #subset.row=top.hvgs, 
+    count_assay="counts",
+    perturb_assay = "perturb",
+    velocity_assay = 'delta',
+    dimred_name = "HARMONY"
+)
+
+velo.out_test <- out[[1]]
+adata <- out[[2]]p
+velo_graph <- out[[3]]
+
+
+
+
+velo.out_mg <- velo.out_test
+
+
+velo_meta <- colData(velo.out_mg)
+colData(sce_mg) <- cbind(colData(sce_mg), velo_meta)
+sce_mg$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+embedded <- embedVelocity(reducedDim(sce_mg, "UMAP"), velo.out_mg)
+grid.df <- gridVectors(reducedDim(sce_mg, "UMAP"), embedded)
+
+
+
+
+
+
+
+# run scvelo with all the functions
+out2 <- scvelo_helper(
+    sce_mg, 
+    #subset.row=top.hvgs, 
+    count_assay="counts",
+    perturb_assay = "perturb",
+    velocity_assay = 'delta',
+    dimred_name = "HARMONY"
+)
+
+velo.out_test2 <- out2[[1]]
+adata2 <- out2[[2]]
+velo_graph2 <- out2[[3]]
+all.equal(velo_graph, velo_graph2)
+
+#################################################################################
+# Todo: why does the velocity confidence step fail?
+# 
+# it fails on my custom function, basically if I don't run the velocity function.
+################################################################################
+
+sce_mg <- SingleCellExperiment(
+  list(spliced = X, unspliced = X_per)
+)
+reducedDims(sce_mg) <- reducedDims(seurat_to_sce)
+
+velo.out <- scvelo(
+    sce_mg, 
+   # subset.row=top.hvgs, 
+    assay.X="spliced"
+)
+velo.out
+
+
+
+velo.out_mg <- velo.out
+
+
+velo_meta <- colData(velo.out_mg)
+colData(sce_mg) <- cbind(colData(sce_mg), velo_meta)
+sce_mg$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+embedded <- embedVelocity(reducedDim(sce_mg, "UMAP"), velo.out_mg)
+grid.df <- gridVectors(reducedDim(sce_mg, "UMAP"), embedded)
+
+
+
+
+
+
+#velo.out_test
+
+colPairs(velo.out_test)
+
+
+
+scvelo_dependencies <- c("alabaster==0.7.12",
+    "anndata==0.7.4",
+    "Babel==2.8.0",
+    "brotlipy==0.7.0",
+    "certifi==2020.6.20",
+    "cffi==1.14.1",
+    "chardet==3.0.4",
+    "colorama==0.4.3",
+    "cryptography==3.1",
+    "cycler==0.10.0",
+    "decorator==4.4.2",
+    "docutils==0.16",
+    "h5py==2.10.0",
+    "idna==2.10",
+    "imagesize==1.2.0",
+    "importlib-metadata==1.7.0",
+    "Jinja2==2.11.2",
+    "joblib==0.16.0",
+    "kiwisolver==1.2.0",
+    "llvmlite==0.34.0",
+    "loompy==2.0.16",
+    "MarkupSafe==1.1.1",
+    "matplotlib==3.3.1",
+    "mock==4.0.2",
+    "natsort==7.0.1",
+    "networkx==2.5",
+    "numba==0.51.2",
+    "numexpr==2.7.1",
+    "numpy==1.19.1",
+    "olefile==0.46",
+    "packaging==20.4",
+    "pandas==1.1.2",
+    "patsy==0.5.1",
+    "Pillow==7.2.0",
+    "pip==20.2.3",
+    "pycparser==2.20",
+    "Pygments==2.7.0",
+    "pyOpenSSL==19.1.0",
+    "pyparsing==2.4.7",
+    "PySocks==1.7.1",
+    "python-dateutil==2.8.1",
+    "pytz==2020.1",
+    "requests==2.24.0",
+    "scanpy==1.6.0",
+    "scikit-learn==0.23.2",
+    "scipy==1.5.2",
+    "scvelo==0.2.2",
+    "seaborn==0.11.0",
+    "setuptools-scm==4.1.2",
+    "sinfo==0.3.1",
+    "six==1.15.0",
+    "snowballstemmer==2.0.0",
+    "Sphinx==3.2.1",
+    "sphinxcontrib-applehelp==1.0.2",
+    "sphinxcontrib-devhelp==1.0.2",
+    "sphinxcontrib-htmlhelp==1.0.3",
+    "sphinxcontrib-jsmath==1.0.1",
+    "sphinxcontrib-qthelp==1.0.3",
+    "sphinxcontrib-serializinghtml==1.1.4",
+    "statsmodels==0.12.0",
+    "stdlib-list==0.6.0",
+    "threadpoolctl==2.1.0",
+    "toml==0.10.1",
+    "tornado==6.0.4",
+    "tqdm==4.49.0",
+    "typing_extensions==3.10.0.0",
+    "umap-learn==0.4.6",
+    "urllib3==1.25.10",
+    "wheel==0.35.1",
+    "zipp==3.1.0")
+
+velo.env <- BasiliskEnvironment("env", "velociraptor",
+    packages=scvelo_dependencies, channels = c("bioconda", "conda-forge"))
+
+
+
+
+velo.out_mg <- velo.out_test
+
+
+velo_meta <- colData(velo.out_mg)
+colData(sce_mg) <- cbind(colData(sce_mg), velo_meta)
+sce_mg$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+embedded <- embedVelocity(reducedDim(sce_mg, "UMAP"), velo.out_mg)
+grid.df <- gridVectors(reducedDim(sce_mg, "UMAP"), embedded)
+
+
+
+library(ggplot2)
+
+feats <- colnames(velo_meta)
+plot_list <- list()
+for(feat in feats){
+  plot_list[[feat]] <- 
+  plotUMAP(sce_mg, colour_by=feat) +
+    geom_segment(data=grid.df, mapping=aes(x=start.UMAP_1, y=start.UMAP_2, 
+        xend=end.UMAP_1, yend=end.UMAP_2), arrow=arrow(length=unit(0.05, "inches"))) + 
+    ggtitle(feat) + NoLegend()
+} 
+
+
+
+pdf(paste0(fig_dir, 'velocirapter_test_mg4_combined_downreg.pdf'), width=18, height=9)
+patchwork::wrap_plots(plot_list, ncol=4)
+dev.off()
+
+
+
+
+
+###################################################
+# using the velociraptor
+###################################################
+
+sce_mg <- SingleCellExperiment(
+  list(spliced = X, unspliced = X_per)
+)
+reducedDims(sce_mg) <- reducedDims(seurat_to_sce)
+
+
+# run scvelo with velocirapter 
+velo.out_mg <- scvelo(
+    sce_mg, 
+    #subset.row=top.hvgs, 
+    assay.X="spliced",
+    use.dimred = "HARMONY"
+)
+velo.out_mg
+
+velo_meta <- colData(velo.out_mg)
+colData(sce_mg) <- cbind(colData(sce_mg), velo_meta)
+sce_mg$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+embedded <- embedVelocity(reducedDim(sce_mg, "UMAP"), velo.out_mg)
+grid.df <- gridVectors(reducedDim(sce_mg, "UMAP"), embedded)
+
+library(ggplot2)
+
+feats <- colnames(velo_meta)
+plot_list <- list()
+for(feat in feats){
+  plot_list[[feat]] <- 
+  plotUMAP(sce_mg, colour_by=feat) +
+    geom_segment(data=grid.df, mapping=aes(x=start.UMAP_1, y=start.UMAP_2, 
+        xend=end.UMAP_1, yend=end.UMAP_2), arrow=arrow(length=unit(0.05, "inches"))) + 
+    ggtitle(feat) + NoLegend()
+} 
+
+
+
+pdf(paste0(fig_dir, 'velocirapter_test_mg1_combined_upreg.pdf'), width=18, height=9)
+patchwork::wrap_plots(plot_list, ncol=4)
+dev.off()
+
+velo <- assay(velo.out_mg, 'velocity')
+
+
+#  with velociraptor? 
+sce_mg <- as.SingleCellExperiment(seurat_mg)
+
+
+
+sce_perturb <- altExp(sce_mg)
+sce_mg@assays$perturb_counts <- counts(sce_perturb)
+
+sce_mg['test'] <- counts(sce_perturb)
+
+
+
+
+
+
+
+
+
+# some settings
+n.cores <- 4
+arrow.scale <- 1
+grid.n <- 25
+grid.sd <- NULL
+min.arrow.size <- NULL
+max.grid.arrow.length <- NULL
+min.grid.cell.mass=1
+arrow.lwd <- 1
+
+# get the 2D embedding
+emb <- seurat_mg@reductions$umap@cell.embeddings
+
+# get the graph from the seurat object
+tp <- Graphs(seurat_mg, 'perturb_tp')
+tp <- velo_graph
+arsd <- data.frame(t(embArrows(emb,tp,arrow.scale,n.cores)))
+rownames(arsd) <- rownames(emb);
+
+ars <- data.frame(cbind(emb,emb+arsd));
+colnames(ars) <- c('x0','y0','x1','y1')
+colnames(arsd) <- c('xd','yd')
+rownames(ars) <- rownames(emb);
+
+# exclude NAs:
+ars <- na.omit(ars)
+arsd <- na.omit(arsd)
+
+################################################################################
+# create arrow grid
+################################################################################
+
+rx <- range(c(range(ars$x0),range(ars$x1)))
+ry <- range(c(range(ars$y0),range(ars$y1)))
+gx <- seq(rx[1],rx[2],length.out=grid.n)
+gy <- seq(ry[1],ry[2],length.out=grid.n)
+
+# for each grid point calculate Gaussian-weighted delta average
+if(is.null(grid.sd)) {
+  grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
+#  cat("grid.sd=",grid.sd," ")
+}
+
+if(is.null(min.arrow.size)) {
+  min.arrow.size <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)*1e-2;
+  cat("min.arrow.size=",min.arrow.size," ")
+}
+
+if(is.null(max.grid.arrow.length)) {
+  max.grid.arrow.length <- sqrt(sum((par('pin')/c(length(gx),length(gy)))^2))*0.25
+  cat("max.grid.arrow.length=",max.grid.arrow.length," ")
+}
+
+
+garrows <- do.call(rbind,lapply(gx,function(x) {
+
+ # cell distances (rows:cells, columns: grid points)
+ cd <- sqrt(outer(emb[,2],-gy,'+')^2 + (x-emb[,1])^2)
+ cw <- dnorm(cd,sd=grid.sd)
+
+ # calculate x and y delta expectations
+ gw <- Matrix::colSums(cw)
+ cws <- pmax(1,Matrix::colSums(cw));
+ gxd <- Matrix::colSums(cw*arsd$xd)/cws
+ gyd <- Matrix::colSums(cw*arsd$yd)/cws
+
+ al <- sqrt(gxd^2+gyd^2);
+ vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
+
+
+ # run this to get all grid 
+ #vg <- vg == vg
+
+ # this subsets by valid points
+ cbind(rep(x,sum(vg)),gy[vg],x+gxd[vg],gy[vg]+gyd[vg])
+
+}))
+colnames(garrows) <- c('x0','y0','x1','y1')
+
+################################################################################
+# ggplot
+################################################################################
+
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg$pseudotime
+
+plot_df <- plot_df[rownames(ars),]
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256))
+g <- ggplot_build(p)
+g_df <- g$data[[1]]
+
+plot_df$color <- g_df$colour
+cell.colors <- plot_df$color; names(cell.colors) <- rownames(plot_df)
+
+
+
+
+# compute arrow lengths
+alen <- pmin(max.grid.arrow.length,sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2))
+
+
+arrow_df <- as.data.frame(garrows)
+arrow_df$length <- alen
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=0.5) +
+  scale_color_gradientn(colors=plasma(256)) +
+  geom_segment(
+    data = arrow_df,
+    inherit.aes=FALSE,
+    aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle('MG-M4 knock-down')
+
+
+pdf(paste0(fig_dir, 'test_velo_gg4_downsample.pdf'), width=6, height=3)
+p
+dev.off()
+
+
+
+```
+
+
+Apply perturbation for top 10 hub genes in module M4
+
+```{r eval=FALSE}
+
+# update TOM path:
+
+perturb_dir <- -1
+
+# settings for the analysis
+cur_mod <- 'MG-M4'
+n_hubs <- 10
+
+# get modules
+modules <- GetModules(seurat_mg)
+
+# get the TOM
+TOM <- GetTOM(seurat_mg)
+
+# get top n hub genes in selected module
+hubs <- GetHubGenes(seurat_mg, n=n_hubs) %>%
+  subset(module == cur_mod)
+hub_genes <- hubs$gene_name
+
+# get the non-hubs in this module:
+non_hub_genes <- subset(modules, module == cur_mod & !(gene_name %in% hub_genes)) %>% .$gene_name
+module_genes <- subset(modules, module == cur_mod) %>% .$gene_name
+
+# get kMEs for this module:
+cur_kMEs <- subset(modules, module == cur_mod)
+cur_kMEs <- cur_kMEs[,c('gene_name', paste0('kME_', cur_mod))]
+names(cur_kMEs)[2] <- 'kME'
+kMEs <- cur_kMEs$kME
+names(kMEs) <- cur_kMEs$gene_name
+
+
+################################################################################
+# Apply the perturbation to each of these hub genes:
+################################################################################
+
+ncells <- ncol(seurat_mg)
+
+# get the expression matrix:
+exp <- GetAssayData(seurat_mg, slot='counts', assay = "RNA")
+
+# split the exp matrix by hubs and non-hubs
+exp_hubs <- exp[hub_genes,]
+exp_non <- exp[!(rownames(exp) %in% hub_genes),]
+
+# simulated data:
+sim_data <- do.call(rbind, lapply(hub_genes, function(cur_gene){
+
+  print(cur_gene)
+
+  # expression vec for this gene:
+  cur_x <- exp_hubs[cur_gene,]
+
+  # fit data to zero-inflated negative binomial distribution
+  zinb_model <- pscl::zeroinfl(cur_x ~ rep(0, ncells) | 1, dist='negbin')
+
+  # get the parameters for simulating data from this model
+  theta <- zinb_model$theta
+  zero_intercept <- plogis(zinb_model$coefficients$zero)
+
+  # simulating data based on the zinb model fit
+  ysim <- VGAM::rzinegbin(
+    n = ncells,
+    munb = mean(cur_x),
+    size = theta,
+    pstr0 = zero_intercept
+  )
+
+  # should I cast from dense to sparse here?
+  ysim
+
+}))
+rownames(sim_data) <- hub_genes
+
+# convert to sparse matrix:
+sim_data <- Matrix(sim_data, sparse=TRUE)
+
+# is this a knock-in or knock-down?
+sim_data <- sim_data * perturb_dir
+
+# apply the perturbation to the expression matrix
+delta_hub <- exp_hubs + sim_data
+delta_hub[delta_hub < 0 ] <- 0
+
+# update the expression matrix with the perturbed values
+exp_new <- rbind(delta_hub, exp_non)
+exp_new <- exp_new[rownames(exp),]
+
+# test <- ApplyPerturbation(
+#     seurat_obj,
+#     features = hub_genes,
+#     perturb_dir <- -1 # apply knock-down
+# )
+
+
+
+################################################################################
+# Signal propagation to other genes in this module
+#
+# Problem: this currently is working on counts, but I think we should run
+# the above block on counts but run this on normalized data?
+# or we have to pick rounding up / down
+################################################################################
+
+exp_new_backup <- exp_new
+n_iters <- 3
+
+# get the TOM for the non hub genes
+cur_TOM <- TOM[module_genes, module_genes]
+
+# set the TOM to zero for non hub genes so only the connections with the
+# perturbed hub genes play a role
+cur_TOM[,non_hub_genes] <- 0
+cur_TOM[hub_genes,] <- 0
+
+# get the expression matrix for this module as the starting point
+exp_cur <- exp_new[module_genes,]
+
+# run the signaling processing step iteratively
+for(i in 1:n_iters){
+  print(i)
+  # compute the dot product between the TOM coefficients and the exp matrix
+  cur_delta <- cur_TOM %*% exp_cur
+  cur_delta[cur_delta < 0] <- 0
+
+  # direction of perturbation
+  cur_delta <- cur_delta * perturb_dir
+
+  # ceiing (take this out if we are doing normalized not counts)
+  cur_delta <- ceiling(cur_delta)
+
+  # TODO: scale delta by kMEs?
+
+  # update the expression matrix:
+  exp_update <- exp_cur + cur_delta
+  exp_update[exp_update < 0] <- 0
+
+  exp_cur <- exp_update
+
+}
+
+quantile(exp_cur[hub_genes[10],])
+quantile(exp_new[hub_genes[10],])
+
+
+# update the expression matrix:
+# Maybe make this an option in the function?
+exp_simulated <- rbind(
+  exp_new[!(rownames(exp_new) %in% module_genes),], # genes that aren't in this module
+  exp_cur # genes from this module with perturbations
+)
+
+# make sure the order matches the original expression matrix
+exp_simulated <- exp_simulated[rownames(exp),]
+all.equal(as.character(rownames(exp_simulated)), as.character(rownames(exp)))
+
+# check one of the non hub genes (should have been perturbed)
+quantile(exp_simulated[non_hub_genes[1],])
+quantile(exp[non_hub_genes[1],])
+
+# check one of the hub genes
+quantile(exp_simulated[hub_genes[1],])
+quantile(exp_new[hub_genes[1],])
+quantile(exp[hub_genes[1],])
+
+
+################################################################################
+# Make perturbation assay in the Seurat object
+# for plotting
+################################################################################
+
+  # add perturbation assay to the Seurat object:
+    perturb_assay <- CreateAssayObject(
+        exp_simulated,
+        assay = 'perturb'
+    )
+    seurat_mg[['perturb']] <- perturb_assay
+
+
+# Vln Plots for 2 perturbed hub genes:
+DefaultAssay(seurat_mg) <- 'perturb'
+seurat_mg <- NormalizeData(seurat_mg)
+
+gene1 <- 'PTPRC'
+gene2 <- 'LPP'
+
+p1p <- VlnPlot(seurat_mg, features = hub_genes[1], pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+p2p <- VlnPlot(seurat_mg, features = hub_genes[2], pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+
+p3p <- VlnPlot(seurat_mg, features = gene1, pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+p4p <- VlnPlot(seurat_mg, features = gene2, pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+
+
+DefaultAssay(seurat_mg) <- 'RNA'
+
+p1e <- VlnPlot(seurat_mg, features = hub_genes[1], pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+p2e <- VlnPlot(seurat_mg, features = hub_genes[2], pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+
+p3e <- VlnPlot(seurat_mg, features = gene1, pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+p4e <- VlnPlot(seurat_mg, features = gene2, pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('')
+
+
+pdf(paste0(fig_dir, 'test_perturbation_vln_stack.pdf'), width=4, height=8)
+(p1e | p1p) /
+(p2e | p2p) /
+(p3e | p3p) /
+(p4e | p4p)
+dev.off()
+
+
+```
+
+
+Estimate transition prob function
+
+* Cell Oracle manuscript kind of describes this but not in much detail
+* Velocyto is having a hard time installing so I might have to put their code into
+  my own functions...
+* Might actually be best to "translate" cell oracle python code to R to do this?
+
+What it looks like the cell oracle function does
+* Computes a KNN in embedding space
+* Computes the "transition probability matrix" based on the correlation of
+  the original expression matrix with the perturbed expression matrix (delta).
+  - Maybe I should be saving the delta matrix as well as the perturbed matrix?
+* They also have an option to do this on random data as a negative control
+
+* Relevant Cell Oracle code on line 371 of this file:
+  https://github.com/morris-lab/CellOracle/blob/master/celloracle/trajectory/modified_VelocytoLoom_class.py
+* Cell Oracle runs the colDeltaCor function from Velocyto.py, Line 11 of the following file
+  - https://github.com/velocyto-team/velocyto.py/blob/master/velocyto/estimation.py
+
+First I will try to just compute the transition probabilities since that seems
+doable.
+* Cell Oracle is using a function called colDeltaCor which is straight from Velocyto,
+  but it is implemented in C++ so I am not sure what it does... The R version of Velocyto
+  also has this function so if I can install Velocyto then I am good to go and I don't have
+  to re-implement it...
+
+Based on this function from Velocyto.R
+* show.velocity.on.embedding.cor
+
+```{r eval=FALSE}
+
+
+
+################################################################################
+# Velocyo C++ helper functions
+# Is there a way that we could remove the dependency on Velocyto?
+################################################################################
+
+colDeltaCor <- function(e, d, nthreads = 1L) {
+    .Call('_velocyto_R_colDeltaCor', PACKAGE = 'velocyto.R', e, d, nthreads)
+}
+
+embArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
+    .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)
+}
+
+################################################################################
+# Settings
+################################################################################
+
+# settings
+corr.sigma=0.05
+n.cores <- 4
+arrow.scale <- 1
+grid.n <- 50
+grid.sd <- NULL
+min.arrow.size <- NULL
+max.grid.arrow.length <- NULL
+min.grid.cell.mass=1
+arrow.lwd <- 1
+do.par <- TRUE
+
+# UMAP embedding:
+emb <- seurat_mg@reductions$umap@cell.embeddings
+show.cell <- NULL
+
+
+
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg$pseudotime
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256))
+g <- ggplot_build(p)
+g_df <- g$data[[1]]
+
+plot_df$color <- g_df$colour
+cell.colors <- plot_df$color; names(cell.colors) <- rownames(plot_df)
+
+
+if(is.null(show.cell)) {celcol <- cell.colors[rownames(emb)] }
+
+
+################################################################################
+# 1. Compute delta projections
+################################################################################
+
+exp_cur <- GetAssayData(seurat_mg, assay='RNA', slot='data')[module_genes,] %>% as.matrix()
+exp_simulated_cur <- GetAssayData(seurat_mg, assay='perturb', slot='data')[module_genes,] %>% as.matrix()
+
+# this small one runs but the bigger one takes a while and throws a million warnings
+tic()
+cc <- colDeltaCor(exp_cur, exp_simulated_cur, nthreads=4)
+colDetlaCor_elapsed <- toc() # 126 seconds
+
+# fill the diagnoal with zeros
+diag(cc) <- 0
+
+cc_velocyto <- cc 
+cc <- cc_velocyto
+
+# make a cell neighborhood graph:
+
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+# get the cell neighborhood graph:
+nn <- Graphs(seurat_mg, slot='RNA_nn')
+nn <- Matrix(nn)
+diag(nn) <- 1
+emb.knn <- nn
+
+# compute transition probs between cells
+tp <- exp(cc/corr.sigma)*emb.knn
+tp <- t(t(tp)/Matrix::colSums(tp)); # tp shows transition from a given column cell to different row cells
+tp <- as(tp,'dgCMatrix')
+
+# add rownames / colnames 
+rownames(tp) <- colnames(seurat_mg)
+colnames(tp) <- colnames(seurat_mg)
+
+#tp <- Seurat::as.Graph(tp)
+# perturbation_name <- 'perturb_nn'
+# seurat_mg@graphs[perturbation_name] <- tp
+# seurat_mg@graphs <- tp
+# seurat_mg@graphs[perturbation_name] <- tp
+
+
+# do I have to normalize tp from 0 to 1??
+# it loooks likt it's range 0-1 already 
+range(tp)
+
+
+
+#tp <- Graphs(seurat_mg, 'perturb_tp')
+arsd <- data.frame(t(embArrows(emb,tp,arrow.scale,n.cores)))
+rownames(arsd) <- rownames(emb);
+
+
+
+ars <- data.frame(cbind(emb,emb+arsd));
+colnames(ars) <- c('x0','y0','x1','y1')
+colnames(arsd) <- c('xd','yd')
+rownames(ars) <- rownames(emb);
+
+
+################################################################################
+# Grid summary of the arrows:
+################################################################################
+
+rx <- range(c(range(ars$x0),range(ars$x1)))
+ry <- range(c(range(ars$y0),range(ars$y1)))
+gx <- seq(rx[1],rx[2],length.out=grid.n)
+gy <- seq(ry[1],ry[2],length.out=grid.n)
+
+
+# for each grid point calculate Gaussian-weighted delta average
+if(is.null(grid.sd)) {
+  grid.sd <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)/2
+#  cat("grid.sd=",grid.sd," ")
+}
+
+if(is.null(min.arrow.size)) {
+  min.arrow.size <- sqrt((gx[2]-gx[1])^2 + (gy[2]-gy[1])^2)*1e-2;
+  cat("min.arrow.size=",min.arrow.size," ")
+}
+
+if(is.null(max.grid.arrow.length)) {
+  max.grid.arrow.length <- sqrt(sum((par('pin')/c(length(gx),length(gy)))^2))*0.25
+  cat("max.grid.arrow.length=",max.grid.arrow.length," ")
+}
+
+
+garrows <- do.call(rbind,lapply(gx,function(x) {
+
+ # cell distances (rows:cells, columns: grid points)
+ cd <- sqrt(outer(emb[,2],-gy,'+')^2 + (x-emb[,1])^2)
+ cw <- dnorm(cd,sd=grid.sd)
+
+ # calculate x and y delta expectations
+ gw <- Matrix::colSums(cw)
+ cws <- pmax(1,Matrix::colSums(cw));
+ gxd <- Matrix::colSums(cw*arsd$xd)/cws
+ gyd <- Matrix::colSums(cw*arsd$yd)/cws
+
+ al <- sqrt(gxd^2+gyd^2);
+ vg <- gw>=min.grid.cell.mass & al>=min.arrow.size
+
+
+ # run this to get all grid 
+ #vg <- vg == vg
+
+ # this subsets by valid points
+ cbind(rep(x,sum(vg)),gy[vg],x+gxd[vg],gy[vg]+gyd[vg])
+
+}))
+colnames(garrows) <- c('x0','y0','x1','y1')
+
+################################################################################
+# Use their plotting function (base R)
+################################################################################
+
+# # compute arrow lengths
+# alen <- pmin(max.grid.arrow.length,sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2))
+
+# #plot settings:
+# xlab <- 'UMAP1'; ylab <- 'UMAP2'
+# cell.border.alpha=0.
+
+# # plot with base R (make a ggplot version later)
+# pdf(paste0(fig_dir, 'test_velo2.pdf'), width=5, height=5)
+
+# if(do.par) par(mfrow=c(1,1), mar = c(3.5,3.5,2.5,1.5), mgp = c(2,0.65,0), cex = 0.85);
+# celcol <- cell.colors[rownames(emb)]
+# plot(
+#   emb,
+#   bg=ac(celcol,alpha=0.25),
+#   pch=21,col=ac(1,alpha=cell.border.alpha), xlab=xlab, ylab=ylab);
+# #plot(-10:10, -10:10)
+# suppressWarnings(lapply(1:nrow(garrows),function(i) arrows(garrows[i,1],garrows[i,2],garrows[i,3],garrows[i,4],length=alen[i],lwd=arrow.lwd, col='black')))
+# points(rep(gx,each=length(gy)),rep(gy,length(gx)),pch='.',cex=1e-1,col=ac(1,alpha=0.4))
+# #points(rep(gx, each=length(gy)), rep(gy, length(gx)))
+# #points(emb[,1], emb[,2])
+# #plot(emb[,1], emb[,2])
+# dev.off()
+
+
+
+
+
+
+
+
+
+################################################################################
+# Make my own ggplot func to plot the arrow grid:
+#
+# This blogpost is where I got the code for the arrow plots:
+# https://semba-blog.netlify.app/03/20/2019/plotting-streamlines-of-surface-current-with-ggplot2-and-metr-package/
+################################################################################
+
+
+library(metR)
+
+
+
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg$pseudotime
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256))
+g <- ggplot_build(p)
+g_df <- g$data[[1]]
+
+plot_df$color <- g_df$colour
+cell.colors <- plot_df$color; names(cell.colors) <- rownames(plot_df)
+
+
+
+
+# compute arrow lengths
+alen <- pmin(max.grid.arrow.length,sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2))
+
+
+arrow_df <- as.data.frame(garrows)
+arrow_df$length <- alen
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256)) +
+  geom_segment(
+    data = arrow_df,
+    inherit.aes=FALSE,
+    aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle('MG-M4 knock-down')
+
+
+pdf(paste0(fig_dir, 'test_velo_gg4_ree.pdf'), width=6, height=3)
+p
+dev.off()
+
+
+
+################################################################################
+# Plot the streamlines
+##############################################################################
+
+require(oce)
+require(ocedata)
+require(sf)
+require(lubridate)
+require(data.table)
+
+# compute arrow lengths
+alen <- sqrt( ((garrows[,3]-garrows[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((garrows[,4]-garrows[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2)
+
+
+arrow_df <- as.data.frame(garrows)
+arrow_df$length <- alen 
+
+arrow_df[, c("t.dx", "t.dy") := Derivate(length ~ x0 + y0,
+                                            cyclical = c(TRUE, FALSE))]
+
+
+arrow_df <- data.table(arrow_df)
+arrow_df[, c('t.dx', 't.dy') 
+    := Derivate(length ~ x0 + y0, cyclical = c(FALSE, FALSE), data = arrow_df)] #, equispaced=FALSE)
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256)) +
+  metR::geom_streamline(
+    data = arrow_df, 
+    inherit.aes=FALSE,
+    aes(
+        x = x0,
+        y = y0,
+        dx = t.dy,
+        dy = -t.dx
+    )
+   )+
+#   geom_segment(
+#     data = arrow_df,
+#     inherit.aes=FALSE,
+#     aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+#   ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle('MG-M4 knock-down')
+
+
+pdf(paste0(fig_dir, 'test_velo_gg3_stream.pdf'), width=10, height=10)
+p
+dev.off()
+
+
+
+
+data(temperature)
+temperature[, air.z := Anomaly(air), by = .(lat, lev)]
+
+temperature[, c("t.dx", "t.dy") := Derivate(air.z ~ lon + lat,
+                                            cyclical = c(TRUE, FALSE)), by = lev]
+
+
+(g <- ggplot(temperature[lev == 500], aes(lon, lat)) +
+    geom_contour_fill(aes(z = air.z)) +
+    geom_vector(aes(dx = t.dx, dy = t.dy), skip.x = 2, 
+                skip.y = 1) +
+    scale_mag())
+
+
+(g <- ggplot(temperature[lev == 500], aes(lon, lat)) +
+     geom_contour_fill(aes(z = air.z)) +
+     geom_streamline(aes(dx = t.dy, dy = -t.dx), L = 10, res = 2,   
+                     arrow.length = 0.3, xwrap = c(0, 360)))
+
+
+pdf(paste0(fig_dir, 'test_velo_gg3_stream.pdf'), width=6, height=3)
+g
+dev.off()
+
+
+
+
+ggplot() +
+  geom_raster(data = uv.se, aes(x = lon, y = lat, fill = vel), interpolate = TRUE)+
+  geom_segment(data = uv.se, aes(x = lon, xend = lon + u/1.2, y = lat, yend = lat+v/1.2), 
+               arrow = arrow(angle = 20, length = unit(.2, "cm"), type = "open"))+
+  geom_sf(data = wio,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-15,-6), xlim = c(39, 52))+
+  scale_fill_gradientn(name = "Speed\n(m/s)",colours = oceColorsVelocity(120), 
+                       limits = c(0,1.6), breaks =seq(0.1,1.6,.3))+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+
+  labs(x = "", y = "")
+
+
+
+
+
+################################################################################
+# Make my own ggplot func to plot the arrows on each point
+################################################################################
+
+
+
+arrow_df <- as.data.frame(ars)
+
+# compute arrow lengths
+alen <- sqrt( ((arrow_df[,3]-arrow_df[,1]) * par('pin')[1] / diff(par('usr')[c(1,2)]) )^2 + ((arrow_df[,4]-arrow_df[,2])*par('pin')[2] / diff(par('usr')[c(3,4)]) )^2)
+
+arrow_df$lev <- as.numeric(seurat_mg$pseudotime_bins_10)
+arrow_df$length <- alen
+arrow_df <- data.table(arrow_df)
+
+Derivate(length ~ x0 + y0, cyclical = c(FALSE, FALSE), data = arrow_df, equispaced=FALSE)
+
+arrow_df[, c("t.dx", "t.dy") := Derivate(length ~ x0 + y0,
+                                            cyclical = c(FALSE, FALSE)), by = lev]
+
+
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(size=1, alpha=0.5) +
+  scale_color_gradientn(colors=plasma(256)) +
+  geom_segment(
+    data = arrow_df,
+    inherit.aes=FALSE,
+    aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")),
+    size=0.25
+  ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle('MG-M4 knock-down')
+
+
+pdf(paste0(fig_dir, 'test_velo_gg_allarrows2.pdf'), width=10, height=5)
+p
+dev.off()
+
+```
+
+
+
+
+
+
+Old below:
+
+
+
+
+
+Testing the fold-change of the perturbation 
+
+```{r eval=FALSE}
+
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+
+###########################################################################
+# New code to compute the avg. log2 fold-change of all the perturbed genes 
+###########################################################################
+
+# options:
+assay = 'RNA'
+perturb_assay = 'perturb'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- -1
+n_iters=6
+
+
+# subset to 2000 cells just to make it go faster:
+cells.keep <- sample(colnames(seurat_obj), 2000)
+seurat_mg <- seurat_obj[,cells.keep]
+
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+
+# the perturbation
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = 'perturb',
+    graph = 'RNA_nn',
+    n_iters=n_iters
+)
+
+
+# get modules 
+modules <- GetModules(seurat_mg, wgcna_name)
+
+# get top n hub genes in selected module 
+hubs <- GetHubGenes(seurat_mg, n=n_hubs, wgcna_name=wgcna_name) %>% 
+    subset(module == mod)
+hub_genes <- hubs$gene_name
+
+# get the non-hubs in this module:
+non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
+module_genes <- subset(modules, module == mod) %>% .$gene_name
+
+# get expression matrices:
+X <- GetAssayData(seurat_mg, assay=assay)[module_genes,]
+X_per <- GetAssayData(seurat_mg, assay= perturb_assay)[module_genes,]
+
+colnames(X) <- as.character(1:ncol(X))
+colnames(X_per) <- as.character(paste0('p', 1:ncol(X)))
+
+# make a new seurat obj 
+X_tmp <- cbind(X, X_per)
+seurat_tmp <- CreateSeuratObject(X_tmp)
+seurat_tmp$group <- c(rep('obs', ncol(X)), rep('per', ncol(X_per)))
+seurat_tmp$group <- factor(seurat_tmp$group, levels=c('per', 'obs'))
+Idents(seurat_tmp) <- seurat_tmp$group
+
+fc <- Seurat::FoldChange(seurat_tmp, ident.1 = 'per')
+fc$gene_name <- rownames(fc)
+
+quantile(fc$avg_log2FC)
+
+# what's the FC of the hub genes?
+subset(fc, gene_name %in% hub_genes)
+
+
+# plot kME versus the fold change:
+plot_df <- GetHubGenes(seurat_mg, n_hubs=Inf, wgcna_name=wgcna_name) %>% 
+  subset(module == mod) %>% 
+  mutate(hub = ifelse(gene_name %in% hub_genes, 'hub', 'other'))
+
+plot_df <- dplyr::left_join(
+  x = plot_df,
+  y = fc,
+  by = 'gene_name'
+)
+
+p <- plot_df %>% 
+  ggplot(aes(x = avg_log2FC, y = kME, color = hub)) + 
+  geom_vline(xintercept=0, linetype='solid', color='black') +
+  geom_point() + 
+  geom_smooth(
+    data = plot_df, inherit.aes = FALSE,
+    aes(x=avg_log2FC, y=kME),
+    method = 'lm',
+    color = 'black'
+    ) + 
+    ggpubr::stat_cor(
+      data = plot_df, inherit.aes = FALSE,
+    aes(x=avg_log2FC, y=kME)
+    ) + 
+    theme(
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_rect(color='black', fill=NA, linewidth=1),
+      panel.grid.major = element_line(linewidth=0.25, color='lightgrey')
+    ) + 
+    xlab(bquote("Perturbation avg. log"[2]~"(fold change)")) +
+    ylab('kME')
+
+pdf(paste0(fig_dir, 'test_kme_fc_compare_downreg5.pdf'), width=7, height=4)
+p
+dev.off()
+
+###########################################################################
+# Test2: upregulate a module
+###########################################################################
+
+
+# options:
+assay = 'RNA'
+perturb_assay = 'perturb'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- 1
+n_iters=6
+
+# subset to 2000 cells just to make it go faster:
+cells.keep <- sample(colnames(seurat_obj), 2000)
+seurat_mg <- seurat_obj[,cells.keep]
+
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+# the perturbation
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = 'perturb',
+    graph = 'RNA_nn',
+    n_iters=n_iters
+)
+
+
+
+# get modules 
+modules <- GetModules(seurat_mg, wgcna_name)
+
+# get top n hub genes in selected module 
+hubs <- GetHubGenes(seurat_mg, n=n_hubs, wgcna_name=wgcna_name) %>% 
+    subset(module == mod)
+hub_genes <- hubs$gene_name
+
+# get the non-hubs in this module:
+non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
+module_genes <- subset(modules, module == mod) %>% .$gene_name
+
+# get expression matrices:
+X <- GetAssayData(seurat_mg, assay=assay)[module_genes,]
+X_per <- GetAssayData(seurat_mg, assay= perturb_assay)[module_genes,]
+
+colnames(X) <- as.character(1:ncol(X))
+colnames(X_per) <- as.character(paste0('p', 1:ncol(X)))
+
+# make a new seurat obj 
+X_tmp <- cbind(X, X_per)
+seurat_tmp <- CreateSeuratObject(X_tmp)
+seurat_tmp$group <- c(rep('obs', ncol(X)), rep('per', ncol(X_per)))
+seurat_tmp$group <- factor(seurat_tmp$group, levels=c('per', 'obs'))
+Idents(seurat_tmp) <- seurat_tmp$group
+
+fc <- Seurat::FoldChange(seurat_tmp, ident.1 = 'per')
+fc$gene_name <- rownames(fc)
+
+quantile(fc$avg_log2FC)
+
+# what's the FC of the hub genes?
+subset(fc, gene_name %in% hub_genes)
+
+
+# plot kME versus the fold change:
+plot_df <- GetHubGenes(seurat_mg, n_hubs=Inf, wgcna_name=wgcna_name) %>% 
+  subset(module == mod) %>% 
+  mutate(hub = ifelse(gene_name %in% hub_genes, 'hub', 'other'))
+
+plot_df <- dplyr::left_join(
+  x = plot_df,
+  y = fc,
+  by = 'gene_name'
+)
+
+
+p <- plot_df %>% 
+  ggplot(aes(x = avg_log2FC, y = kME, color = hub)) + 
+  geom_vline(xintercept=0, linetype='solid', color='black') +
+  geom_point() + 
+  geom_smooth(
+    data = plot_df, inherit.aes = FALSE,
+    aes(x=avg_log2FC, y=kME),
+    method = 'lm',
+    color = 'black'
+    ) + 
+    ggpubr::stat_cor(
+      data = plot_df, inherit.aes = FALSE,
+    aes(x=avg_log2FC, y=kME)
+    ) + 
+    theme(
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_rect(color='black', fill=NA, linewidth=1),
+      panel.grid.major = element_line(linewidth=0.25, color='lightgrey')
+    ) + 
+    xlab(bquote("Perturbation avg. log"[2]~"(fold change)")) +
+    ylab('kME')
+
+pdf(paste0(fig_dir, 'test_kme_fc_compare_upreg2.pdf'), width=7, height=4)
+p
+dev.off()
+
+
+
+
+```
+
+
+
+
+
+Module perturbation simulation analysis
+
+
+```{r eval=FALSE}
+
+# looking at this page:
+# https://data.library.virginia.edu/simulating-data-for-count-models/
+
+
+setwd("/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb")
+
+
+
+# zero-inflated negative binomial model
+cur_gene <- 'CSF1R'
+scale_factor <- 10000
+
+# expression vec for this gene:
+cur_x <- FetchData(seurat_mg, cur_gene, slot='counts')[,1]
+ncells <- length(cur_x)
+
+# what is the mean of the non-zero
+nonzero_mean <- mean(cur_x[cur_x != 0])
+zero_prop <- sum(cur_x == 0) / ncells
+
+# divide by
+cur_xnorm <- log1p(scale_factor * (cur_x / FetchData(seurat_mg, 'nCount_RNA')[,1]))
+head(cur_xnorm)
+
+
+# fit data to zero-inflated negative binomial distribution
+
+# dataset <- as.numeric(as.factor(seurat_mg$Study))
+dataset <- rep(0, ncells)
+m <- pscl::zeroinfl(cur_x ~ dataset | 1, dist='negbin')
+summary(m)
+
+# get the parameters for simulating the data
+theta <- m$theta
+zero_intercept <- plogis(m$coefficients$zero)
+
+# simulating data
+ysim <- rzinegbin(
+  n = ncells,
+  # munb = nonzero_mean,
+  munb = mean(cur_x),
+  size = theta,
+  pstr0 = zero_intercept
+)
+length(ysim)
+sum(ysim == 0) / ncells
+zero_prop
+
+sim_nonzero_mean <- mean(ysim[ysim != 0])
+sim_nonzero_mean
+nonzero_mean
+
+var(ysim)
+var(cur_x)
+
+
+# normalize
+ysim_norm <- log1p(scale_factor*(ysim / FetchData(seurat_mg, 'nCount_RNA')[,1]))
+
+pdf(paste0(fig_dir, 'test_perturbation_zinb.pdf'), width=6, height=6)
+par(mfcol=c(2,1))
+hist(ysim, breaks=max(ysim))
+hist(cur_x, breaks=max(cur_x), col="grey", main="")
+dev.off()
+
+pdf(paste0(fig_dir, 'test_perturbation_zinb_norm.pdf'), width=6, height=6)
+par(mfcol=c(2,1))
+hist(ysim_norm, breaks=10)
+hist(cur_xnorm, breaks=10, col="grey", main="")
+dev.off()
+
+
+seurat_mg$test_sim <- ysim_norm
+
+# compute the knock-in
+cur_perturb <- cur_x + ysim
+cur_perturb_norm <- log1p(scale_factor*(cur_perturb / FetchData(seurat_mg, 'nCount_RNA')[,1]))
+seurat_mg$test_perturb_up <- cur_perturb_norm
+
+# compute the knock-down
+cur_perturb <- cur_x - ysim; cur_perturb[cur_perturb < 0] <- 0
+cur_perturb_norm <- log1p(scale_factor*(cur_perturb / FetchData(seurat_mg, 'nCount_RNA')[,1]))
+seurat_mg$test_perturb_down <- cur_perturb_norm
+
+p1 <- VlnPlot(seurat_mg, features = 'CSF1R', pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('') + scale_y_continuous(limits=c(0,ceiling(max(cur_perturb_norm))))
+p2 <- VlnPlot(seurat_mg, features = 'test_perturb_up', pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('') + scale_y_continuous(limits=c(0,ceiling(max(cur_perturb_norm))))
+p3 <- VlnPlot(seurat_mg, features = 'test_perturb_down', pt.size=0, group.by = 'cell_type') +
+  NoLegend() + xlab('') + ylab('') + scale_y_continuous(limits=c(0,ceiling(max(cur_perturb_norm))))
+
+pdf(paste0(fig_dir, 'test_perturbation_vln.pdf'), width=6, height=4)
+p1 | p2 | p3
+dev.off()
+
+
+
+```
