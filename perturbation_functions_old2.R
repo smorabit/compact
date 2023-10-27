@@ -1,4 +1,5 @@
 
+
 #' ModulePerturbation
 #'
 #' This function enables in-silico gene expression perturbation analysis using 
@@ -10,11 +11,9 @@
 #' @param mod Name of the co-expression module to perturb
 #' @param perturb_dir A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.
 #' @param perturbation_name A name for the in-silico perturbation that will be stored in the Seurat obejct
-#' @param graph Name of the cell-cell graph in the Graphs(seurat_obj)
-#' @param group.by A string containing the name of a column in the Seurat object with cell groups (clusters, cell types, etc).
-#' @param group_name A string containing a group present in the provided group.by column. A character vector can be provided to select multiple groups at a time.
 #' @param n_hubs The number of hub genes to perturb from the selected co-expression module.
 #' @param n_iters The number of times to apply the signal propagation.
+#' @param graph Name of the cell-cell graph in the Graphs(seurat_obj)
 #' @param corr_sigma A numeric scaling factor for the correlation matrix.
 #' @param n_threads Number of threads for the correlation calculation
 #' @param slot Slot to extract data for aggregation. Default = 'counts'
@@ -48,15 +47,12 @@ ModulePerturbation <- function(
     perturb_dir,
     perturbation_name,
     graph,
-    group.by = NULL,
-    group_name = NULL,
     n_hubs = 5,
     n_iters = 3,
     corr_sigma=0.05,
     n_threads=4,
     slot = 'counts',
     assay = 'RNA',
-    #all_features=FALSE,
     return_delta = FALSE, # TODO: this does nothing for now
     wgcna_name=NULL
 ){
@@ -103,15 +99,6 @@ ModulePerturbation <- function(
     non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
     module_genes <- subset(modules, module == mod) %>% .$gene_name
 
-    # which cells are we selecting to apply the perturbation?
-    if(is.null(group.by)){
-      cells_use <- colnames(seurat_obj)
-    } else{
-        cells_use <- seurat_obj@meta.data %>% 
-          subset(get(group.by) %in% group_name) %>%
-          rownames
-    }
-
     ###########################################################################
     # Set up the observed expression matrix
     # TODO: make this into its own function
@@ -130,9 +117,6 @@ ModulePerturbation <- function(
         exp,
         features = hub_genes,
         perturb_dir = perturb_dir,
-        cells_use = cells_use,
-       # group.by = group.by,
-       # group_name = group_name,
         slot = slot,
         assay = assay
     )
@@ -152,22 +136,12 @@ ModulePerturbation <- function(
     print('Applying signal propagation throughout co-expression network...')
     exp_prop <- ApplyPropagation(
         seurat_obj,
-        exp[module_genes,cells_use],
-        exp_per[module_genes,cells_use],
+        exp[module_genes,],
+        exp_per[module_genes,],
         network = cur_TOM,
         perturb_dir = perturb_dir,
         n_iters = n_iters
     )
-
-    exp_prop2 <- exp_prop
-
-    # something messed up happens after here
-
-    if(!all(colnames(seurat_obj) %in% cells_use)){
-        exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]
-        exp_prop <- cbind(exp_prop, exp_prop_other)
-        exp_prop <- exp_prop[,colnames(seurat_obj)]
-    }
 
     # append the expression matrices:
     exp_simulated <- rbind(
@@ -176,7 +150,7 @@ ModulePerturbation <- function(
     )
 
     # make sure the order matches the original expression matrix
-    exp_simulated <- exp_simulated[rownames(seurat_obj),colnames(seurat_obj)]
+    exp_simulated <- exp_simulated[rownames(seurat_obj),]
 
     # add perturbation assay to the Seurat object:
     perturb_assay <- CreateAssayObject(
@@ -192,18 +166,18 @@ ModulePerturbation <- function(
     # Part 3: compute transition probabilities
     ###########################################################################
 
-    # print('Computing cell-cell transition probabilities based on the perturbation...')
+    print('Computing cell-cell transition probabilities based on the perturbation...')
     seurat_obj <- PerturbationTransitions(
         seurat_obj,
         perturbation_name,
         features=module_genes,
         graph=graph, 
-        #all_features=all_features,
         corr_sigma=corr_sigma,
         n_threads=n_threads,
         slot='data', # should we make this an option?
         assay=assay
     )
+
 
     # return the Seurat object
     seurat_obj
@@ -233,12 +207,10 @@ ApplyPerturbation <- function(
     exp,
     features,
     perturb_dir,
-    cells_use=NULL,
-   # group.by = NULL,
-   # group_name = NULL,
     slot = 'counts',
     assay = 'RNA'
 ){
+
 
    # if we are doing a knock-out:
     if(perturb_dir == 0){
@@ -246,18 +218,9 @@ ApplyPerturbation <- function(
         return(exp)
     }
 
-    # which cells are we using?
-    # if(is.null(group.by)){
-    #   cells_use <- colnames(seurat_obj)
-    # } else{
-    #     cells_use <- seurat_obj@meta.data %>% 
-    #       subset(get(group.by) %in% group_name) %>%
-    #       rownames
-    # }
-
     # split the exp matrix based on selected features
-    exp_hubs <- exp[features,cells_use]
-    exp_non <- exp[!(rownames(exp) %in% features),cells_use]
+    exp_hubs <- exp[features,]
+    exp_non <- exp[!(rownames(exp) %in% features),]
 
     # initialize progress bar
     pb <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
@@ -271,7 +234,7 @@ ApplyPerturbation <- function(
         feature <- features[i]
 
         # model expression as a ZINB
-        model <- ModelZINB(seurat_obj, feature=feature, cells_use=cells_use, slot=slot)
+        model <- ModelZINB(seurat_obj, feature=feature, slot=slot)
         
         # simulate data by samping the distribution 
         ysim <- SampleZINB(model)
@@ -301,14 +264,7 @@ ApplyPerturbation <- function(
 
     # update the expression matrix with the perturbed values
     exp_new <- rbind(delta_hub, exp_non)
-
-    #get the data for the cells that we did not perturb
-    if(!all(colnames(seurat_obj) %in% cells_use)){
-      exp_other <- exp[,!(colnames(exp) %in% cells_use)]
-      exp_new <- cbind(exp_new, exp_other)
-    }
-
-    exp_new <- exp_new[rownames(exp),colnames(seurat_obj)]
+    exp_new <- exp_new[rownames(exp),]
 
     # return the expression matrix where the perturbation has been applied: 
     exp_new
@@ -385,7 +341,6 @@ ApplyPropagation <- function(
 #' 
 #' @param seurat_obj A Seurat object
 #' @param feature The selected feature to model, must be present in rownames(seurat_obj)
-#' @param feature List of cell barcodes from the Seurat object
 #' @param slot Slot to extract data for aggregation. Default = 'counts'
 #' 
 #' @details 
@@ -398,7 +353,6 @@ ApplyPropagation <- function(
 ModelZINB <- function(
     seurat_obj,
     feature,
-    cells_use=NULL,
     slot = 'counts'
 ){
 
@@ -412,13 +366,8 @@ ModelZINB <- function(
         stop(paste0("Invalid feature, ", feature, " not found in rownames(seurat_obj)."))
     }
 
-    if(is.null(cells_use)){
-        cells_use <- colnames(seurat_obj)
-    }
-
     # get the expression profile for this feature
-    cur_x <- FetchData(seurat_obj, feature , slot=slot, cells=cells_use)[,1]
-    
+    cur_x <- FetchData(seurat_obj, feature , slot='counts')[,1]
 
     # fit data to zero-inflated negative binomial distribution
     zinb_model <- pscl::zeroinfl(cur_x ~ rep(0, length(cur_x)) | 1, dist='negbin')
@@ -439,7 +388,7 @@ ModelZINB <- function(
 #'
 #' @import VGAM
 #' @import pscl
-#' SampleZINB
+#' ModelZINB
 SampleZINB <- function(
     model,
     ncells = NULL
@@ -490,7 +439,6 @@ PerturbationTransitions <- function(
     perturbation_name,
     features,
     graph, # graph in the seurat object
-   # all_features = FALSE,
     corr_sigma=0.05,
     n_threads=4,
     slot='data',
@@ -501,10 +449,6 @@ PerturbationTransitions <- function(
     cell_graph <- Graphs(seurat_obj, slot=graph)
     cell_graph <- Matrix(cell_graph)
     diag(cell_graph) <- 1
-
-    # if(all_features){
-    #     features <- rownames(seurat_obj)
-    # }
    
     # get the observed and the perturbed expression matrices:
     exp_obs <- GetAssayData(seurat_obj, assay=assay, slot=slot)
@@ -515,10 +459,8 @@ PerturbationTransitions <- function(
     exp_obs <- as.matrix(exp_obs[features,])
     exp_per <- as.matrix(exp_per[features,])
 
-    delta <- exp_per - exp_obs
-
     # run the Velocyto colDeltaCor function
-    cc <- colDeltaCor(exp_obs, delta, nthreads=n_threads)
+    cc <- colDeltaCor(exp_obs, exp_per, nthreads=n_threads)
 
     # fill the diagnoal with zeros (cells won't transition to self)
     diag(cc) <- 0

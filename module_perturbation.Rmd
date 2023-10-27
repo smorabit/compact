@@ -7,6 +7,7 @@ library(Seurat)
 library(ggplot2)
 library(cowplot)
 library(dplyr)
+library(tictoc)
 #library(tidyverse)
 #library(cowplot)
 library(Matrix)
@@ -42,10 +43,10 @@ library(scater)
 # scp R/* hpc3:/dfs7/swaruplab/smorabit/analysis/galilean/bin/
 
 # load pseudotime functions
-scripts <- dir("/dfs7/swaruplab/smorabit/analysis/galilean/bin/")
-for(script in scripts){
-  source(paste0("/dfs7/swaruplab/smorabit/analysis/galilean/bin/", script))
-}
+# scripts <- dir("/dfs7/swaruplab/smorabit/analysis/galilean/bin/")
+# for(script in scripts){
+#   source(paste0("/dfs7/swaruplab/smorabit/analysis/galilean/bin/", script))
+# }
 
 # load the perturbation functions 
 source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
@@ -67,7 +68,7 @@ data_dir <- "data/"
 fig_dir <- 'figures/'
 
 # re-load
-seurat_mg <- readRDS(file=paste0(data_dir, 'AD_MG_scWGCNA.rds'))
+seurat_mg <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/data/AD_MG_scWGCNA.rds')
 net <- GetNetworkData(seurat_mg)
 net$TOMFiles <- '/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/TOM/_ConsensusTOM-block.1.rda'
 seurat_mg <- SetNetworkData(seurat_mg, net)
@@ -97,6 +98,8 @@ Plotting the delta expression after the simulation + signal propagation
 
 ```{r eval=FALSE}
 
+
+
 # options:
 assay = 'RNA'
 slot = 'counts'
@@ -116,11 +119,13 @@ hub_genes <- GetHubGenes(seurat_mg, n_hubs=n_hubs) %>% subset(module == mod) %>%
 # subset to 2000 cells just to make it go faster:
 cells.keep <- sample(colnames(seurat_obj), 2000)
 seurat_mg <- seurat_obj[,cells.keep]
+seurat_mg <- seurat_obj
 
 # make a cell neighborhood graph:
 seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
 
 # run the perturbation
+tic()
 seurat_mg <- ModulePerturbation(
     seurat_mg, 
     mod = mod,
@@ -130,6 +135,8 @@ seurat_mg <- ModulePerturbation(
     graph = 'RNA_nn',
     n_iters=n_iters
 )
+time <- toc()
+
 
 # plot kME versus the fold change:
 hubs <- GetHubGenes(seurat_mg, n_hubs=Inf, wgcna_name=wgcna_name) %>% 
@@ -192,6 +199,11 @@ Working on a function for vector field plotting
 
 ```{r eval=FALSE}
 
+# re-load
+seurat_mg <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/data/AD_MG_scWGCNA.rds')
+net <- GetNetworkData(seurat_mg)
+net$TOMFiles <- '/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/TOM/_ConsensusTOM-block.1.rda'
+seurat_mg <- SetNetworkData(seurat_mg, net)
 
 # options:
 assay = 'RNA'
@@ -201,13 +213,12 @@ seurat_obj = seurat_mg
 mod = 'MG-M4'
 wgcna_name <- 'MG'
 n_hubs <- 10
-perturb_dir <- -1
-n_iters=3
+perturb_dir <- -2
+n_iters=6
 
 modules <- GetModules(seurat_mg)
 features <- modules %>% subset(module == mod) %>% .$gene_name
 hub_genes <- GetHubGenes(seurat_mg, n_hubs=n_hubs) %>% subset(module == mod) %>% .$gene_name
-
 
 # make a cell neighborhood graph:
 seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
@@ -240,7 +251,7 @@ arsd <- vectors$arsd
 # run velocirapter grid arrow function
 emb <- seurat_mg@reductions$umap@cell.embeddings
 emb <- emb[rownames(ars),]
-grid.df <- gridVectors(emb, arsd)
+grid.df <- velociraptor::gridVectors(emb, arsd)
 
 
 
@@ -278,7 +289,229 @@ p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
   ggtitle(paste0(mod))
 
 
-pdf(paste0(fig_dir, 'test_velo_gg_mg-M4_downtreg_allgenes.pdf'), width=6, height=3)
+pdf(paste0(fig_dir, 'test_velo_gg_mg-M4_downtreg_allgenes_double3_reload.pdf'), width=6, height=3)
+p
+dev.off()
+
+
+
+
+
+```
+
+
+New code to only perturb selected cell populations 
+
+Need to take a closer look at this updated code because it seems to 
+alter the behavior of running it with all the cells...
+
+```{r eval=FALSE}
+
+set.seed(12345)
+
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions_old2.R')
+
+
+# re-load
+seurat_mg <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/data/AD_MG_scWGCNA.rds')
+net <- GetNetworkData(seurat_mg)
+net$TOMFiles <- '/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/TOM/_ConsensusTOM-block.1.rda'
+seurat_mg <- SetNetworkData(seurat_mg, net)
+
+# subset to 2000 cells just to make it go faster:
+#cells.keep <- sample(colnames(seurat_mg), 2000)
+#seurat_mg <- seurat_mg[,cells.keep]
+#seurat_mg <- seurat_obj
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+
+
+assay = 'RNA'
+slot = 'counts'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- -1
+n_iters=3
+
+group.by = 'pseudotime_bins_50'
+group_name = levels(seurat_mg$pseudotime_bins_50)[40:50]
+#group_name = levels(seurat_mg$pseudotime_bins_50)
+graph = 'RNA_nn'
+
+#group.by = NULL
+
+# run with updated code:
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
+perturbation_name = 'new'
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    group.by = group.by,
+    #group.by = NULL,
+    group_name = group_name,#
+    n_hubs=n_hubs,
+    perturbation_name = perturbation_name,
+    graph = graph,
+    n_iters=3
+   # all_features = FALSE
+)
+
+
+# old code:
+perturbation_name = 'old'
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions_old2.R')
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = perturbation_name,
+    graph = graph
+   # all_features = FALSE
+)
+
+
+
+
+
+
+
+
+   cur_gene <- 'ACER3'
+   cur_gene <- 'ERC2'
+
+  yrange <- max(unlist(c(
+    FetchData(seurat_mg, cur_gene, slot='data', assay='RNA'),
+    FetchData(seurat_mg, cur_gene, slot='data', assay='old'),
+    FetchData(seurat_mg, cur_gene, slot='data', assay='new')
+  )))
+
+  p1 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='RNA') +
+    NoLegend() + xlab('') + ylab('') +  ylim(0,5) + 
+    theme(
+      axis.text.x = element_blank(),
+      plot.margin=margin(c(0,0,0,0))
+    )
+
+  p2 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='old') +
+    NoLegend() + xlab('') + ylab('') + ylim(0,5) + theme(
+      axis.text.x = element_blank(),
+      plot.margin=margin(c(0,0,0,0))) + ggtitle('') 
+    
+
+  p3 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='new') +
+    NoLegend() + xlab('') + ylab('') + ggtitle('') + ylim(0,5) +
+    theme(
+      plot.margin=margin(c(0,0,0,0))
+    )
+
+pdf(paste0(fig_dir, 'test_vln_compare_sim_indirect_sub.pdf'), width=15, height=5)
+print(p1 / p2/ p3)
+dev.off()
+
+
+pdf(paste0(fig_dir, 'test_vln_compare_sim_direct.pdf'), width=15, height=5)
+print(p1 / p2/ p3)
+dev.off()
+
+cur_gene <- 'ERC2'
+X <- GetAssayData(seurat_mg, slot='data', assay='new')
+df <- seurat_mg@meta.data 
+df$plot_gene <- X[cur_gene,]
+p <- ggplot(df, aes(x=pseudotime_bins_50, y=plot_gene)) + 
+  geom_violin() + geom_jitter()
+
+pdf(paste0(fig_dir, 'test_vln_compare_sim_direct_new.pdf'), width=15, height=5)
+p
+dev.off()
+
+
+
+
+
+
+
+##################################################
+
+
+# plot kME versus the fold change:
+hubs <- GetHubGenes(seurat_mg, n_hubs=Inf, wgcna_name=wgcna_name) %>% 
+  subset(module == mod) %>% 
+  mutate(hub = ifelse(gene_name %in% hub_genes, 'hub', 'other'))
+
+# compute the delta 
+X <- GetAssayData(seurat_mg, assay=assay, slot=slot)[hubs$gene_name,cells_use]
+X_per <- GetAssayData(seurat_mg, assay='new', slot=slot)[hubs$gene_name,cells_use]
+
+# X_per <- exp_prop
+# X <- GetAssayData(seurat_mg, assay=assay, slot=slot)[rownames(X_per), colnames(X_per)]
+
+#all.equal(rownames(X_per), rownames(exp_prop2))
+#all.equal(colnames(X_per), colnames(exp_prop2))
+
+# the propagation doesn't do anything!!!
+all.equal(X_per['ACER3',], X['ACER3',])
+
+delta <- X_per - X
+
+# what's the median delta value per gene?
+plot_df <- reshape2::melt(as.matrix(delta)) 
+
+# plot for one gene:
+cur_df <- subset(plot_df, Var1 == 'ACER3')
+p <- cur_df %>%
+  ggplot(aes(x=value)) + geom_histogram()
+
+pdf(paste0(fig_dir, 'test_delta_hist_prop.pdf'), width=5, height=3)
+p
+dev.off()
+
+plot_df <- reshape2::melt(as.matrix(delta)) 
+plot_df <- plot_df%>% 
+  group_by(Var1) %>% 
+  summarise(delta = mean(value)) %>%
+  dplyr::rename(gene_name = Var1)
+
+plot_df <- dplyr::left_join(
+  x = plot_df,
+  y = hubs,
+  by = 'gene_name'
+)
+
+p <- plot_df %>% 
+  ggplot(aes(x = delta, y = kME, color = hub)) + 
+  #geom_vline(xintercept=0, linetype='solid', color='black') +
+  geom_point() + 
+  geom_smooth(
+    data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME),
+    method = 'lm',
+    color = 'black'
+    ) + 
+    ggpubr::stat_cor(
+      data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME)
+    ) + 
+    theme(
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_rect(color='black', fill=NA, linewidth=1),
+      panel.grid.major = element_line(linewidth=0.25, color='lightgrey')
+    ) + 
+    xlab(bquote("Perturbation delta")) +
+    ylab('kME')
+
+pdf(paste0(fig_dir, 'test_kme_delta_compare_sim_sub2.pdf'), width=7, height=4)
+p
+dev.off()
+
+pdf(paste0(fig_dir, 'test_kme_delta_compare_sim_full.pdf'), width=7, height=4)
 p
 dev.off()
 
@@ -290,8 +523,222 @@ dev.off()
 
 
 
+###########################################################################
+# Plotting the results as a vector field plot
+# 
+# (need to make this into proprer functions later)
+###########################################################################
+ 
+vectors <- PerturbationVectors(
+  seurat_mg,
+    perturbation_name = perturbation_name,
+)
+ars <- vectors$ars 
+arsd <- vectors$arsd
+
+# run velocirapter grid arrow function
+emb <- seurat_mg@reductions$umap@cell.embeddings
+emb <- emb[rownames(ars),]
+grid.df <- velociraptor::gridVectors(emb, arsd)
+
+
+
+################################################################################
+# ggplot
+################################################################################
+
+library(viridis)
+
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point() +
+  scale_color_gradientn(colors=plasma(256))
+g <- ggplot_build(p)
+g_df <- g$data[[1]]
+
+plot_df$color <- g_df$colour
+cell.colors <- plot_df$color; names(cell.colors) <- rownames(plot_df)
+
+
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=0.5) +
+  scale_color_gradientn(colors=plasma(256)) +
+  geom_segment(
+    data = grid.df,
+    inherit.aes=FALSE,
+    aes(x=start.UMAP_1, y=start.UMAP_2, xend=end.xd, yend=end.yd), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+
+pdf(paste0(fig_dir, 'test_velo_gg_mg-M4_downtreg_', perturbation_name,'.pdf'), width=6, height=3)
+p
+dev.off()
+
+
+
+###########################################################################
+# testing
+###########################################################################
+
+
+
+
+
+exp <- GetAssayData(seurat_obj, slot='counts', assay = 'RNA')[rownames(exp_per),]
+all.equal(colnames(exp_per), colnames(exp_per2))
+all.equal(rownames(exp_per), rownames(exp_per2))
+other_genes <- setdiff(rownames(exp_per), hub_genes)
+all.equal(exp_per[other_genes,], exp_per2[other_genes,])
+all.equal(exp_per[hub_genes,], exp_per2[hub_genes,])
+all.equal(exp[hub_genes,], exp_per2[hub_genes,])
+all.equal(exp_per, exp_per2)
+
+all.equal(exp['ERC2',], exp_per['ERC2',])
+all.equal(exp['ERC2',], exp_per2['ERC2',])
+all.equal(exp_per['ERC2',], exp_per2['ERC2',])
+
+all.equal(exp_per['TLR2',], exp_per2['TLR2',])
+
+# make a violin plot for the differences between each hub genes in the observed vs perturbed 
+# in exp_per and exp_per2
+
+
+# add perturbation assay to the Seurat object:
+perturb_assay <- CreateAssayObject(
+    exp_per,
+    assay = 'perturb1'
+)
+seurat_obj[['perturb1']] <- perturb_assay
+seurat_obj <- NormalizeData(seurat_obj, 'perturb1')
+
+# add perturbation assay to the Seurat object:
+perturb_assay <- CreateAssayObject(
+    exp_per2,
+    assay = 'perturb2'
+)
+seurat_obj[['perturb2']] <- perturb_assay
+seurat_obj <- NormalizeData(seurat_obj, 'perturb2')
+
+
+#i <- 1
+pdf(paste0(fig_dir, 'test_vln_compare.pdf'), width=15, height=5)
+for(i in 1:3){
+  print(i)
+  yrange <- max(unlist(c(
+    FetchData(seurat_obj, hub_genes[i], slot='data', assay='RNA'),
+    FetchData(seurat_obj, hub_genes[i], slot='data', assay='perturb1'),
+    FetchData(seurat_obj, hub_genes[i], slot='data', assay='perturb2')
+  )))
+
+  p1 <- VlnPlot(seurat_obj, features = hub_genes[i], pt.size=0, group.by = group.by, assay='RNA') +
+    NoLegend() + xlab('') + ylab('') + theme(
+      axis.text.x = element_blank(),
+      plot.margin=margin(c(0,0,0,0))
+    ) 
+
+  DefaultAssay(seurat_obj) <- 'perturb1'
+  p2 <- VlnPlot(seurat_obj, features = hub_genes[i], pt.size=0, group.by = group.by, assay='perturb1') +
+    NoLegend() + xlab('') + ylab('') + theme(
+      axis.text.x = element_blank(),
+      plot.margin=margin(c(0,0,0,0))) + ggtitle('') 
+    
+
+  DefaultAssay(seurat_obj) <- 'perturb2'
+  p3 <- VlnPlot(seurat_obj, features = hub_genes[i], pt.size=0, group.by = group.by, assay='perturb2') +
+    NoLegend() + xlab('') + ylab('') + ggtitle('') + 
+    theme(
+      plot.margin=margin(c(0,0,0,0))
+    )
+
+
+  print(p1 / p2/ p3)
+
+}
+dev.off()
+
+
+
+
+
+
+
+
+
+# exp_simulated <- GetAssayData(
+#   seurat_mg, slot='data', assay = 'old'
+# )
+# exp_simulated2 <- GetAssayData(
+#   seurat_mg, slot='data', assay = 'new'
+# )
+
+
+
+# # add perturbation assay to the Seurat object:
+# perturb_assay <- CreateAssayObject(
+#     exp_simulated,
+#     assay = 'perturb1'
+# )
+# seurat_obj[['perturb1']] <- perturb_assay
+# seurat_obj <- NormalizeData(seurat_obj, 'perturb1')
+
+# # add perturbation assay to the Seurat object:
+# perturb_assay <- CreateAssayObject(
+#     exp_simulated2,
+#     assay = 'perturb2'
+# )
+# seurat_obj[['perturb2']] <- perturb_assay
+# seurat_obj <- NormalizeData(seurat_obj, 'perturb2')
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+OLD CODE BELOW
+
 
 Testing scvelo as a backend for helper functions, using velociraptor 
 
