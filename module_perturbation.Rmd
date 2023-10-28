@@ -1,5 +1,7 @@
 
 
+Load the required R libraries
+
 ```{r eval=FALSE}
 
 # load R packages
@@ -381,7 +383,34 @@ seurat_mg <- ModulePerturbation(
 
 
 
-
+# plot with ggplot
+p1 <- plot_df %>% 
+  ggplot(aes(x = delta, y = kME, color = hub, size=avg_exp)) + 
+  geom_point() + 
+  geom_smooth(
+    data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME),
+    method = 'lm',
+    color = 'black'
+    ) + 
+    ggpubr::stat_cor(
+      data = plot_df, inherit.aes = FALSE,
+    aes(x=delta, y=kME)
+    ) + 
+    geom_label_repel(
+      label=plot_df$label, 
+      max.overlaps=Inf,
+      color='black',
+      size=3
+    ) +
+    theme(
+      axis.line.x = element_blank(),
+      axis.line.y = element_blank(),
+      panel.border = element_rect(color='black', fill=NA, linewidth=1),
+      panel.grid.major = element_line(linewidth=0.25, color='lightgrey')
+    ) + 
+    xlab(bquote("Perturbation delta")) +
+    ylab('kME') + labs(color="")
 
    cur_gene <- 'ACER3'
    cur_gene <- 'ERC2'
