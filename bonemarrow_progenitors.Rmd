@@ -1,0 +1,47 @@
+
+```{r eval=FALSE}
+
+# load R packages
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(viridis)
+library(dplyr)
+library(tictoc)
+library(Matrix)
+library(hdWGCNA)
+library(WGCNA)
+enableWGCNAThreads(nThreads = 8)
+theme_set(theme_cowplot())
+
+# RNA velocity packages that we need for some helper functions
+options(warn=-1)
+library(velocyto.R)
+library(velociraptor)
+
+# load the perturbation functions 
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
+
+# spatial plotting functions (not sure if needed here)
+source("/pub/smorabit/hdWGCNA/bin/spatial_functions.R")
+
+# output directories
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bonemarrow/')
+data_dir <- "data/"
+fig_dir <- 'figures/'
+
+# re-load the bone marrow dataset:
+seurat_obj <- readRDS('/dfs7/swaruplab/smorabit/analysis/scWGCNA/compare_seacells/data/seacells_hdWGCNA.rds')
+seurat_obj <- SetActiveWGCNA(seurat_obj, 'hdWGCNA')
+
+
+
+```
+
+Run hdWGCNA on the bonemarrow progenitors dataset from the SEACELLS paper 
+
+```{r eval=FALSE}
+
+
+
+```

@@ -14,9 +14,10 @@ library(Matrix)
 library(hdWGCNA)
 theme_set(theme_cowplot())
 
-# globally suppress warnings
+# RNA velocity packages that we need for some helper functions
 options(warn=-1)
 library(velocyto.R)
+library(velociraptor)
 
 # load the perturbation functions 
 source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
@@ -31,6 +32,8 @@ fig_dir <- 'figures/'
 
 # re-load MG dataset
 seurat_mg <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/data/AD_MG_scWGCNA.rds')
+
+# update the path to the hdWGCNA TOM
 net <- GetNetworkData(seurat_mg)
 net$TOMFiles <- '/dfs7/swaruplab/smorabit/analysis/scWGCNA/microglia/TOM/_ConsensusTOM-block.1.rda'
 seurat_mg <- SetNetworkData(seurat_mg, net)
@@ -40,14 +43,13 @@ seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
 
 
 # load AD dataset (Morabito, Mathys, and Zhou integrated)
-seurat_AD <- readRDS(file="/dfs7/swaruplab/smorabit/analysis/ADDS_2021/splitseq/integration/data/AD_integrated.rds" )
+#seurat_AD <- readRDS(file="/dfs7/swaruplab/smorabit/analysis/ADDS_2021/splitseq/integration/data/AD_integrated.rds" )
 
 ```
 
 Example 1: Downregulation of microglia module M4 
 
 ```{r eval=FALSE}
-
 
 # options:
 perturbation_name = 'M4_down'
@@ -79,7 +81,9 @@ seurat_mg <- ModulePerturbation(
 # (ars) and vector distances (arsd)
 vectors <- PerturbationVectors(
   seurat_mg,
-  perturbation_name = perturbation_name
+  perturbation_name = perturbation_name,
+  reduction = 'umap', # default
+  arrow_scale = 1 # default
 )
 ars <- vectors$ars 
 arsd <- vectors$arsd
@@ -135,11 +139,9 @@ pdf(paste0(fig_dir, 'vectorfield_', perturbation_name, '.pdf'), width=6, height=
 p
 dev.off()
 
-
 #-------------------------------------------------------------------------#
 # Make another vector field plot showing the arrows on each cell 
 #-------------------------------------------------------------------------#
-
 
 # make a dataframe to plot with ggplot
 plot_df <- as.data.frame(emb)
@@ -169,6 +171,30 @@ dev.off()
 
 
 ```
+
+### How to access the perturbed expression info 
+
+After running ModulePerturbation, we have created a new gene expression matrix 
+containing the perturbed expression values and we have a cell-cell 
+transition probability matrix. 
+
+```{r eval=FALSE}
+
+# access perturbed expression matrix using the name 
+# that you gave to the perturbation
+X <- GetAssayData(seurat_obj, assay = 'M4_down')
+
+# to access the transition probability graph, use the 
+# name of the perturbation with _tp appended to the end
+graph_name <- paste0(perturbation_name, '_tp')
+tp <- Graphs(seurat_mg, graph_name)
+
+# tp is a cells by cells matrix containing transition probabilities
+dim(tp)
+
+```
+
+
 
 Plot the change in gene expression between observed and 
 perturbed for each gene in module M4 vs the kME 
@@ -309,10 +335,9 @@ dev.off()
 ```
 
 
-Example 1: Upregulation of module MG-M2
+Example 2: Upregulation of module MG-M2
 
 ```{r eval=FALSE}
-
 
 # options:
 perturbation_name = 'M2_up'
@@ -323,7 +348,7 @@ n_hubs <- 10
 perturb_dir <- 1
 n_iters=3
 
-# run a knock-down of the top 10 hub genes from MG-M2
+# run a knock-in of the top 10 hub genes from MG-M2
 # should take 2-3 min to run
 seurat_mg <- ModulePerturbation(
     seurat_mg, 
