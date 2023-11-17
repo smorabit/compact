@@ -6,6 +6,7 @@ library(Seurat)
 library(ggplot2)
 library(cowplot)
 library(viridis)
+library(patchwork)
 library(dplyr)
 library(tictoc)
 library(Matrix)
@@ -38,9 +39,193 @@ seurat_obj <- SetActiveWGCNA(seurat_obj, 'hdWGCNA')
 
 ```
 
+Run monocle3 pseudotime
+
+```{r eval=FALSE}
+
+# make a featureplot of hMEs for each module
+plot_list <- ModuleFeaturePlot(
+  seurat_obj,
+  features='hMEs', # plot the hMEs
+  order=TRUE # order so the points with highest hMEs are on top
+)
+
+# stitch together with patchwork
+pdf(paste0(fig_dir, 'module_featureplots.pdf'), width=12, height=12)
+wrap_plots(plot_list, ncol=4)
+dev.off()
+
+library(monocle3)
+library(SeuratWrappers)
+
+# convert the seurat object to CDS
+cds <- as.cell_data_set(seurat_obj)
+
+# run the monocle clustering
+cds <- cluster_cells(cds, reduction_method='UMAP')
+
+# learn graph for pseudotime
+cds <- learn_graph(cds)
+
+# plot the pseudotime graph:
+p1 <- plot_cells(
+  cds = cds,
+  color_cells_by = "celltype",
+  show_trajectory_graph = TRUE,
+  label_principal_points = TRUE
+) 
+
+# plot the UMAP partitions from the clustering algorithm
+p2 <- plot_cells(
+  cds = cds,
+  color_cells_by = "partition",
+  show_trajectory_graph = FALSE
+)
+
+png(paste0(fig_dir, 'umap_monocle.png'),  width=8, height=4, res=500, units='in')
+p1 + p2
+dev.off()
+
+
+# get principal node & order cells
+principal_node <- 'Y_26'
+cds <- order_cells(cds,root_pr_nodes = principal_node)
+
+# add pseudotime to seurat object:
+seurat_obj$pseudotime <- pseudotime(cds)
+
+# separate pseudotime trajectories by the different mature cells
+seurat_obj$ery_pseudotime <- ifelse(seurat_obj$celltype %in% c("HSC", "MEP", 'Ery'), seurat_obj$pseudotime, NA)
+seurat_obj$mono_pseudotime <- ifelse(seurat_obj$celltype %in% c("HSC", "HMP", 'Mono'), seurat_obj$pseudotime, NA)
+seurat_obj$dc_pseudotime <- ifelse(seurat_obj$celltype %in% c("HSC", "HMP", 'DCPre', 'cDC', 'pDC'), seurat_obj$pseudotime, NA)
+seurat_obj$clp_pseudotime <- ifelse(seurat_obj$celltype %in% c("HSC", "HMP", 'CLP'), seurat_obj$pseudotime, NA)
+
+
+
+
+# loading this package for color schemes, purely optional
+library(MetBrewer)
+
+p  <- PlotModuleTrajectory(
+    seurat_obj,
+    pseudotime_col = c('ery_pseudotime', 'dc_pseudotime', 'mono_pseudotime', 'clp_pseudotime'),
+    group_colors = paste0(met.brewer("Lakota", n=4, type='discrete'))
+)
+
+pdf(paste0(fig_dir, 'module_trajectories.pdf'),  width=12, height=5)
+p
+dev.off()
+
+
+```
+
 Run hdWGCNA on the bonemarrow progenitors dataset from the SEACELLS paper 
 
 ```{r eval=FALSE}
+
+seurat_obj <- FindNeighbors(seurat_obj, reduction='pca')
+seurat_obj <- RunUMAP(seurat_obj, dims=1:30)
+
+p <- DimPlot(seurat_obj, group.by='celltype', label=TRUE) +
+  umap_theme() + coord_equal() + NoLegend() + theme(plot.title=element_blank())
+
+pdf(paste0(fig_dir, 'umap_clusters.pdf'), width=5, height=5)
+p
+dev.off()
+
+modules <- GetModules(seurat_obj)
+table(modules$module)
+
+# options:
+perturbation_name = 'M1_down'
+mod = 'hd-M1'
+wgcna_name <- 'hdWGCNA'
+n_hubs <- 10
+perturb_dir <- -2
+n_iters=3
+
+# run a knock-down of the top 10 hub genes from MG-M4
+# should take 2-3 min to run
+seurat_obj <- ModulePerturbation(
+    seurat_obj, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = perturbation_name,
+    graph = 'RNA_nn',
+    wgcna_name = wgcna_name
+)
+
+#-------------------------------------------------------------------------#
+# Plotting the result as a vector field plot on top of the UMAP
+# (need to make this into proprer functions later)
+#-------------------------------------------------------------------------#
+
+# This function gives us the dataframe with vector coordinates 
+# (ars) and vector distances (arsd)
+vectors <- PerturbationVectors(
+  seurat_obj,
+  perturbation_name = perturbation_name,
+  reduction = 'umap', # default
+  arrow_scale = 1 # default
+)
+ars <- vectors$ars 
+arsd <- vectors$arsd
+
+# Get the UMAP embedding from the seurat object 
+# and subset to only keep cells that we have arrows for.
+emb <- seurat_obj@reductions$umap@cell.embeddings
+emb <- emb[rownames(ars),]
+
+# run the velociraptor function to make a grid of arrows instead of one 
+# arrow per cell
+grid.df <- velociraptor::gridVectors(
+    emb, 
+    arsd,
+    resolution=30
+)
+
+
+# compute the length of each arrow 
+distances <- sqrt(
+  ((grid.df$end.xd - grid.df$start.UMAP_1)^2) - 
+  ((grid.df$end.yd - grid.df$start.UMAP_2)^2) 
+)
+distances <- ifelse(is.nan(distances), 0, distances)
+grid.df$length <- distances
+
+# make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_obj@meta.data[rownames(emb), 'pseudotime']
+
+# plot the scatter plot
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=2) +
+  scale_color_gradientn(colors=plasma(256))
+  
+# add the arrows
+p <- p +
+  geom_segment(
+    data = grid.df,
+    inherit.aes=FALSE,
+    aes(
+      x=start.UMAP_1, 
+      y=start.UMAP_2, 
+      xend=end.xd, 
+      yend=end.yd,
+      alpha= length
+    ), 
+    arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  scale_alpha_continuous(range=c(0.8,1)) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+pdf(paste0(fig_dir, 'vectorfield_', perturbation_name, '.pdf'), width=4, height=4)
+p
+dev.off()
 
 
 
