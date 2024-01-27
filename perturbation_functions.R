@@ -52,6 +52,7 @@ ModulePerturbation <- function(
     group_name = NULL,
     n_hubs = 5,
     n_iters = 3,
+    delta_scale = 0.2,
     corr_sigma=0.05,
     n_threads=4,
     slot = 'counts',
@@ -120,6 +121,9 @@ ModulePerturbation <- function(
     # get the expression matrix:
     exp <- GetAssayData(seurat_obj, slot=slot, assay = assay)
 
+    #print(mean(exp['PTPN2',]))
+
+
     ###########################################################################
     # Part 1: apply the perturbation to the selected hub genes:
     ###########################################################################
@@ -136,6 +140,9 @@ ModulePerturbation <- function(
         slot = slot,
         assay = assay
     )
+
+   # print(mean(exp_per['PTPN2',]))
+
 
     ###########################################################################
     # Part 2: apply signal propagation throughout this module 
@@ -156,10 +163,12 @@ ModulePerturbation <- function(
         exp_per[module_genes,cells_use],
         network = cur_TOM,
         perturb_dir = perturb_dir,
+        delta_scale = delta_scale,
         n_iters = n_iters
     )
 
     exp_prop2 <- exp_prop
+  #  print(mean(exp_prop['PTPN2',]))
 
     # something messed up happens after here
 
@@ -270,11 +279,14 @@ ApplyPerturbation <- function(
         
         feature <- features[i]
 
+        # get the obserbed gene expression
+        yobs <- exp_hubs[feature,]
+
         # model expression as a ZINB
         model <- ModelZINB(seurat_obj, feature=feature, cells_use=cells_use, slot=slot)
         
         # simulate data by samping the distribution 
-        ysim <- SampleZINB(model)
+        ysim <- SampleZINB(model, yobs)
 
         # update progress bar
         setTxtProgressBar(pb, i)
@@ -337,7 +349,8 @@ ApplyPropagation <- function(
     exp_per,
     network,
     perturb_dir = perturb_dir,
-    n_iters = 3
+    n_iters = 3,
+    delta_scale = 0.2
 ){
 
     # todo: some checks for the network?
@@ -359,6 +372,9 @@ ApplyPropagation <- function(
 
         # compute the dot product between the TOM coefficients and the exp matrix
         delta <- network %*% delta
+
+        # penalize the delta, or else the values rapidly get too large
+        delta <- delta * delta_scale
 
         # update the expression matrix:
         exp_update <- exp_per + delta # (delta * perturb_sign)
@@ -419,7 +435,6 @@ ModelZINB <- function(
     # get the expression profile for this feature
     cur_x <- FetchData(seurat_obj, feature , slot=slot, cells=cells_use)[,1]
     
-
     # fit data to zero-inflated negative binomial distribution
     zinb_model <- pscl::zeroinfl(cur_x ~ rep(0, length(cur_x)) | 1, dist='negbin')
 

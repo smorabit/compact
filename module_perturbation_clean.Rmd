@@ -58,6 +58,7 @@ mod = 'MG-M4'
 wgcna_name <- 'MG'
 n_hubs <- 10
 perturb_dir <- -1
+delta_scale <- 1
 n_iters=3
 
 # run a knock-down of the top 10 hub genes from MG-M4
@@ -69,6 +70,7 @@ seurat_mg <- ModulePerturbation(
     n_hubs=n_hubs,
     perturbation_name = perturbation_name,
     graph = 'RNA_nn',
+    delta_scale = delta_scale,
     wgcna_name = wgcna_name
 )
 
@@ -171,6 +173,502 @@ dev.off()
 
 
 ```
+
+
+
+Example 1.1: Upregulation of microglia module M4 
+
+```{r eval=FALSE}
+
+# options:
+perturbation_name = 'M4_up'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- 1
+n_iters=2
+
+# what are the hub genes?
+GetHubGenes(seurat_mg, n_hubs=10) %>% subset(module == mod) %>% .$gene_name
+
+# run a knock-in of the top 10 hub genes from MG-M4
+# should take 2-3 min to run
+seurat_mg <- ModulePerturbation(
+    seurat_mg, 
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = perturbation_name,
+    graph = 'RNA_nn',
+    wgcna_name = wgcna_name
+)
+
+#-------------------------------------------------------------------------#
+# Plotting the result as a vector field plot on top of the UMAP
+# (need to make this into proprer functions later)
+#-------------------------------------------------------------------------#
+
+# This function gives us the dataframe with vector coordinates 
+# (ars) and vector distances (arsd)
+vectors <- PerturbationVectors(
+  seurat_mg,
+  perturbation_name = perturbation_name,
+  reduction = 'umap', # default
+  arrow_scale = 1 # default
+)
+ars <- vectors$ars 
+arsd <- vectors$arsd
+
+# Get the UMAP embedding from the seurat object 
+# and subset to only keep cells that we have arrows for.
+emb <- seurat_mg@reductions$umap@cell.embeddings
+emb <- emb[rownames(ars),]
+
+# run the velociraptor function to make a grid of arrows instead of one 
+# arrow per cell
+grid.df <- velociraptor::gridVectors(emb, arsd)
+
+
+# compute the length of each arrow 
+distances <- sqrt(
+  ((grid.df$end.xd - grid.df$start.UMAP_1)^2) - 
+  ((grid.df$end.yd - grid.df$start.UMAP_2)^2) 
+)
+distances <- ifelse(is.nan(distances), 0, distances)
+grid.df$length <- distances
+
+# make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+# plot the scatter plot
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=2) +
+  scale_color_gradientn(colors=plasma(256))
+  
+# add the arrows
+p <- p +
+  geom_segment(
+    data = grid.df,
+    inherit.aes=FALSE,
+    aes(
+      x=start.UMAP_1, 
+      y=start.UMAP_2, 
+      xend=end.xd, 
+      yend=end.yd,
+      alpha= length
+    ), 
+    arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  scale_alpha_continuous(range=c(0.8,1)) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+pdf(paste0(fig_dir, 'vectorfield_', perturbation_name, '_test.pdf'), width=6, height=3)
+p
+dev.off()
+
+#-------------------------------------------------------------------------#
+# Make another vector field plot showing the arrows on each cell 
+#-------------------------------------------------------------------------#
+
+# make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+plot_df$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+
+# plot the scatter plot
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=pseudotime)) +
+  geom_point(alpha=0.25, size=1) +
+  scale_color_gradientn(colors=plasma(256))
+  
+# add the arrows
+p <- p +
+  geom_segment(
+    data = ars,
+    inherit.aes=FALSE,
+    aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.1
+  ) +
+  scale_alpha_continuous(range=c(0.8,1)) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+pdf(paste0(fig_dir, 'vectorfield_', perturbation_name, '_all_arrows.pdf'), width=10, height=5)
+p
+dev.off()
+
+
+```
+
+Debugging the weird behavior of the upregulated modules 
+
+```{r eval=FALSE}
+
+DefaultAssay(seurat_mg) <- 'M4_up'
+
+
+# group variable for vln plots
+group.by <- 'pseudotime_bins_10'
+
+# one of the hub genes to be perturbed
+cur_gene <- 'PTPN2'
+
+# one of the indirectly pertubed genes
+GetHubGenes(seurat_mg, n_hubs=15) %>% subset(module == mod)
+cur_gene <- 'ACER3'
+
+p1 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='RNA') +
+  NoLegend() + xlab('') + ylab('') +  ylim(0,5) + 
+  theme(
+    axis.text.x = element_blank(),
+    plot.margin=margin(c(0,0,0,0))
+  )
+
+p2 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay=perturbation_name) +
+  NoLegend()  + ylab('') + ylim(0,5) + theme(
+    plot.margin=margin(c(0,0,0,0))) + ggtitle('') + xlab('Pseudotime -->')
+
+
+pdf(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene, '2.pdf'), width=6, height=4)
+print(p1 / p2)
+dev.off()
+
+#-------------------------------------------------------------------------#
+# Debugging: Check expression of hub genes (PTPN2)
+#-------------------------------------------------------------------------#
+
+n_hubs = 10
+wgcna_name = 'MG'
+assay = 'RNA'
+slot = 'counts'
+
+    # get the TOM:
+    TOM <- GetTOM(seurat_obj, wgcna_name)
+
+    # get modules 
+    modules <- GetModules(seurat_obj, wgcna_name)
+
+
+  # get top n hub genes in selected module 
+  hubs <- GetHubGenes(seurat_obj, n=n_hubs, wgcna_name=wgcna_name) %>% 
+      subset(module == mod)
+  hub_genes <- hubs$gene_name
+
+  # get the non-hubs in this module:
+  non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
+  module_genes <- subset(modules, module == mod) %>% .$gene_name
+
+ 
+    cells_use <- colnames(seurat_obj)
+
+
+  # get the expression matrix:
+  exp <- GetAssayData(seurat_obj, slot=slot, assay = assay)
+
+  ###########################################################################
+  # Part 1: apply the perturbation to the selected hub genes:
+  ###########################################################################
+
+  print('Applying in-silico perturbation to hub genes...')
+  exp_per <- ApplyPerturbation(
+      seurat_mg,
+      exp,
+      features = hub_genes,
+      perturb_dir = perturb_dir,
+      cells_use = cells_use,
+      # group.by = group.by,
+      # group_name = group_name,
+      slot = slot,
+      assay = assay
+  )
+
+    module_genes <- subset(modules, module == mod) %>% .$gene_name
+  cur_TOM <- TOM[module_genes, module_genes]
+
+
+
+  ###########################################################################
+  # Part 2: apply the propaga
+  ###########################################################################
+
+
+  network <- cur_TOM
+  exp = exp[module_genes,cells_use]
+  exp_per = exp_per[module_genes,cells_use]
+  n_iters <- 3
+  
+  penalty <- 0.2
+
+    cur_gene <- 'ACER3'
+
+
+  # compute the difference between the perturbation and the observed expression
+  delta <- exp_per - exp
+
+  # backups
+  delta_orig <- delta 
+  exp_orig <- exp 
+  exp_per_orig <- exp_per
+
+  # what is the sign of the perturbation dir?
+  perturb_sign <- sign(perturb_dir)
+
+    # run the signaling processing step iteratively
+    for(i in 1:n_iters){  
+
+        # compute the dot product between the TOM coefficients and the exp matrix
+        delta <- network %*% delta
+
+        # add a penalty to the delta so the values don't explode
+        delta <- delta * penalty
+
+        # update the expression matrix:
+        exp_update <- exp_per + delta # (delta * perturb_sign)
+        exp_update[exp_update < 0] <- 0
+
+        exp_update <- round(exp_update)
+
+        # update the delta
+        delta <- exp_update - exp_per
+
+    }
+
+    print(mean(exp[cur_gene,]))
+    print(mean(exp_per[cur_gene,]))
+    print(mean(exp_update[cur_gene,]))
+
+
+    # add perturbation assay to the Seurat object:
+  perturb_assay <- CreateAssayObject(
+      exp_per,
+      assay = 'test'
+  )
+  seurat_mg[['test']] <- perturb_assay
+
+  seurat_mg <- NormalizeData(seurat_mg, 'test')
+
+
+# one of the hub genes to be perturbed
+cur_gene <- 'PTPN2'
+
+p1 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='RNA') +
+  NoLegend() + xlab('') + ylab('') +  ylim(0,5) + 
+  theme(
+    axis.text.x = element_blank(),
+    plot.margin=margin(c(0,0,0,0))
+  )
+
+p2 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='test') +
+  NoLegend()  + ylab('') + ylim(0,5) + theme(
+    plot.margin=margin(c(0,0,0,0))) + ggtitle('') + xlab('Pseudotime -->')
+
+
+
+pdf(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene, '_test.pdf'), width=6, height=4)
+print(p1 / p2)
+dev.off()
+
+
+sum(exp[cur_gene,] == 0) / ncol(seurat_mg)
+sum(exp_per[cur_gene,] == 0) / ncol(seurat_mg)
+
+
+#-------------------------------------------------------------------------#
+# Debugging applyperturbation
+#-------------------------------------------------------------------------#
+
+  seurat_obj <- seurat_mg
+  features = hub_genes  
+  cells_use=colnames(seurat_obj)
+
+
+  # split the exp matrix based on selected features
+  exp_hubs <- exp[features,cells_use]
+  exp_non <- exp[!(rownames(exp) %in% features),cells_use]
+
+  # initialize progress bar
+  pb <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
+
+  # for each feature, model expression 
+  # TODO: add options for other models aside from ZINB like Poisson etc.
+  # TODO: add option to return the model (just in case?)
+  # TODO: should the SampleZINB function return a sparse vector?
+  sim_data <- do.call(rbind, lapply(1:length(features), function(i){
+      
+      feature <- features[i]
+
+      # get the obserbed gene expression
+      yobs <- exp_hubs[feature,]
+
+      # what is the proportion of zeros for this gene?
+      zero_prop <- sum(yobs == 0) / ncol(exp_hubs)
+      zero_prop <- zero_prop * 0.75
+
+      # model expression as a ZINB
+      model <- ModelZINB(seurat_obj, feature=feature, cells_use=cells_use, slot=slot)
+      
+      # simulate data by samping the distribution 
+      ysim <- SampleZINB(model, yobs)
+
+      # update progress bar
+      setTxtProgressBar(pb, i)
+
+      # penalization:
+      #ysim <- round(ysim * 0.1)
+
+      # just set a bunch of them to zero
+     # test <- sample(1:length(ysim), round(length(ysim)*zero_prop))
+    #  ysim[test] <- 0
+
+      # apply the perturbation
+     # ysim <- ysim * perturb_dir
+      #ysim <- 
+
+      # return the simulated data
+      ysim
+
+  }))
+
+
+# plot_df <- rbind(
+#   data.frame(
+#     value = yobs,
+#     group = 'obs'
+#   ),
+#   data.frame(
+#     value = ysim,
+#     group = 'sim'
+#   )
+# )
+
+
+
+# p <- ggplot(plot_df, aes(y=value, x=group)) + 
+#   geom_violin() + 
+#   facet_wrap(~group, scales='free')
+
+
+#   pdf(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene, '_test_sim.pdf'), width=6, height=4)
+#   print(p)
+#   dev.off()
+
+
+    # close progress bar
+    close(pb)
+
+    # convert to sparse matrix:
+    sim_data <- Matrix(sim_data, sparse=TRUE)
+
+    # is this a knock-in or knock-down?
+    sim_data <- sim_data * perturb_dir
+
+    # apply the perturbation to the expression matrix
+    delta_hub <- exp_hubs + sim_data
+
+    # if in a knock-down experiment any feature fell below 0 expression, make it 0.
+    delta_hub[delta_hub < 0 ] <- 0
+
+    # update the expression matrix with the perturbed values
+    exp_new <- rbind(delta_hub, exp_non)
+
+    #get the data for the cells that we did not perturb
+    if(!all(colnames(seurat_obj) %in% cells_use)){
+      exp_other <- exp[,!(colnames(exp) %in% cells_use)]
+      exp_new <- cbind(exp_new, exp_other)
+    }
+
+    exp_new <- exp_new[rownames(exp),colnames(seurat_obj)]
+
+
+  exp_per <- exp_new
+
+
+
+
+
+
+
+    # add perturbation assay to the Seurat object:
+  perturb_assay <- CreateAssayObject(
+      exp_per,
+      assay = 'test'
+  )
+  seurat_mg[['test']] <- perturb_assay
+
+  seurat_mg <- NormalizeData(seurat_mg, 'test')
+
+
+
+# one of the hub genes to be perturbed
+cur_gene <- 'PTPN2'
+
+p1 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='RNA') +
+  NoLegend() + xlab('') + ylab('') +  ylim(0,5) + 
+  theme(
+    axis.text.x = element_blank(),
+    plot.margin=margin(c(0,0,0,0))
+  )
+
+p2 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='test') +
+  NoLegend()  + ylab('') + ylim(0,5) + theme(
+    plot.margin=margin(c(0,0,0,0))) + ggtitle('') + xlab('Pseudotime -->')
+
+
+
+pdf(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene, '_test.pdf'), width=6, height=4)
+print(p1 / p2)
+dev.off()
+
+
+sum(exp[cur_gene,] == 0) / ncol(seurat_mg)
+sum(exp_per[cur_gene,] == 0) / ncol(seurat_mg)
+
+
+
+```
+
+Scratch zone 
+
+```{r eval=FALSE}
+
+
+SampleZINB <- function(
+    model,
+    yobs,
+    ncells = NULL
+){
+
+    if(is.null(ncells)){
+        ncells <- model$n
+    } 
+
+    # get the parameters for simulating data from this model
+    theta <- model$theta
+    zero_intercept <- plogis(model$coefficients$zero)
+
+    # simulating data based on the zinb model fit
+    ysim <- VGAM::rzinegbin(
+        n = ncells,
+        munb = mean(yobs),
+        size = theta,
+        pstr0 = zero_intercept
+    )
+
+    # return the simulated data 
+    ysim
+
+}
+
+
+```
+
+
+
+
 
 ### How to access the perturbed expression info 
 
