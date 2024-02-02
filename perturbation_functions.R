@@ -275,12 +275,16 @@ ApplyPerturbation <- function(
     # TODO: add options for other models aside from ZINB like Poisson etc.
     # TODO: add option to return the model (just in case?)
     # TODO: should the SampleZINB function return a sparse vector?
-    sim_data <- do.call(rbind, lapply(1:length(features), function(i){
+    sim_data <- lapply(1:length(features), function(i){
         
         feature <- features[i]
 
         # get the obserbed gene expression
-        yobs <- exp_hubs[feature,]
+        if(length(features) == 1){
+            yobs <- exp_hubs
+        } else{
+            yobs <- exp_hubs[feature,]
+        }
 
         # model expression as a ZINB
         model <- ModelZINB(seurat_obj, feature=feature, cells_use=cells_use, slot=slot)
@@ -294,25 +298,47 @@ ApplyPerturbation <- function(
         # return the simulated data
         ysim
 
-    }))
+    })
 
-    # close progress bar
+     # close progress bar
     close(pb)
 
-    # convert to sparse matrix:
-    sim_data <- Matrix(sim_data, sparse=TRUE)
+    # is there one gene or more than 1 being perturbed?
+    if(length(sim_data) > 1){
+        sim_data <- do.call(rbind, sim_data)
 
-    # is this a knock-in or knock-down?
-    sim_data <- sim_data * perturb_dir
+        # convert to sparse matrix:
+        sim_data <- Matrix::Matrix(sim_data, sparse=TRUE)
 
-    # apply the perturbation to the expression matrix
-    delta_hub <- exp_hubs + sim_data
+        # is this a knock-in or knock-down?
+        sim_data <- sim_data * perturb_dir
 
-    # if in a knock-down experiment any feature fell below 0 expression, make it 0.
-    delta_hub[delta_hub < 0 ] <- 0
+        # apply the perturbation to the expression matrix
+        delta_hub <- exp_hubs + sim_data
 
-    # update the expression matrix with the perturbed values
-    exp_new <- rbind(delta_hub, exp_non)
+        # if in a knock-down experiment any feature fell below 0 expression, make it 0.
+        delta_hub[delta_hub < 0 ] <- 0
+
+        # update the expression matrix with the perturbed values
+        exp_new <- rbind(delta_hub, exp_non)
+
+    } else{
+        sim_data <- sim_data[[1]]
+
+        # is this a knock-in or knock-down?
+        sim_data <- sim_data * perturb_dir
+
+        # apply the perturbation to the expression matrix
+        delta_hub <- exp_hubs + sim_data
+
+        # if in a knock-down experiment any feature fell below 0 expression, make it 0.
+        delta_hub[delta_hub < 0 ] <- 0
+
+        # update the expression matrix with the perturbed values
+        exp_new <- rbind(delta_hub, exp_non)
+        rownames(exp_new)[1] <- features
+
+    }
 
     #get the data for the cells that we did not perturb
     if(!all(colnames(seurat_obj) %in% cells_use)){
@@ -320,7 +346,9 @@ ApplyPerturbation <- function(
       exp_new <- cbind(exp_new, exp_other)
     }
 
+    # re-order the genes to match the original matrix
     exp_new <- exp_new[rownames(exp),colnames(seurat_obj)]
+    exp_new <- exp_new[rownames(exp),]
 
     # return the expression matrix where the perturbation has been applied: 
     exp_new
@@ -455,13 +483,15 @@ ModelZINB <- function(
 #' @import VGAM
 #' @import pscl
 #' SampleZINB
+
 SampleZINB <- function(
     model,
+    yobs,
     ncells = NULL
 ){
 
     if(is.null(ncells)){
-        ncells <- length(model$y)
+        ncells <- model$n
     } 
 
     # get the parameters for simulating data from this model
@@ -471,7 +501,7 @@ SampleZINB <- function(
     # simulating data based on the zinb model fit
     ysim <- VGAM::rzinegbin(
         n = ncells,
-        munb = mean(model$y),
+        munb = mean(yobs),
         size = theta,
         pstr0 = zero_intercept
     )
@@ -480,6 +510,7 @@ SampleZINB <- function(
     ysim
 
 }
+
 
 
 #' PerturbationTransitions
@@ -514,7 +545,7 @@ PerturbationTransitions <- function(
 
     # check for selected Graph 
     cell_graph <- Graphs(seurat_obj, slot=graph)
-    cell_graph <- Matrix(cell_graph)
+    cell_graph <- Matrix::Matrix(cell_graph)
     diag(cell_graph) <- 1
 
     # if(all_features){

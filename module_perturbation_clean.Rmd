@@ -631,42 +631,6 @@ sum(exp_per[cur_gene,] == 0) / ncol(seurat_mg)
 
 ```
 
-Scratch zone 
-
-```{r eval=FALSE}
-
-
-SampleZINB <- function(
-    model,
-    yobs,
-    ncells = NULL
-){
-
-    if(is.null(ncells)){
-        ncells <- model$n
-    } 
-
-    # get the parameters for simulating data from this model
-    theta <- model$theta
-    zero_intercept <- plogis(model$coefficients$zero)
-
-    # simulating data based on the zinb model fit
-    ysim <- VGAM::rzinegbin(
-        n = ncells,
-        munb = mean(yobs),
-        size = theta,
-        pstr0 = zero_intercept
-    )
-
-    # return the simulated data 
-    ysim
-
-}
-
-
-```
-
-
 
 
 
