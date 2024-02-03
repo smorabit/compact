@@ -24,7 +24,7 @@ library(velociraptor)
 source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
 
 # spatial plotting functions (not sure if needed here)
-source("/pub/smorabit/hdWGCNA/bin/spatial_functions.R")
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/spatial_functions.R')
 
 # output directories
 setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bonemarrow/')

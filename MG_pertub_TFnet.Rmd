@@ -22,10 +22,11 @@ library(velociraptor)
 # devtools::install_github('smorabit/hdWGCNA', ref='dev')
 
 # load the perturbation functions 
-source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/perturbation_functions.R')
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bin/perturbation_functions.R')
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bin/TF_functions.R')
 
 # spatial plotting functions (not sure if needed here)
-source("/pub/smorabit/hdWGCNA/bin/spatial_functions.R")
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/spatial_functions.R')
 
 # output directories
 setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/')
@@ -53,7 +54,6 @@ hdWGCNA motif scan
 
 ```{r eval=FALSE}
 
-source('/dfs7/swaruplab/smorabit/collab/woodlab/cocaine_mouse_2021/Nurr2c_vs_GFP/revision/bin/TF_functions.R')
 
 # for motif analysis 
 library(JASPAR2020)
@@ -69,113 +69,16 @@ pfm_core <- TFBSTools::getMatrixSet(
 )
 
 # run the motif scan with these settings for the mouse dataset
-seurat_obj <- hdWGCNA::MotifScan(
+seurat_obj <- MotifScan(
   seurat_obj,
   species_genome = 'hg38',
   pfm = pfm_core,
   EnsDb = EnsDb.Hsapiens.v86
 )
 
-
 ```
-
-Fixing the motif_df 
-
-Should probably add this later into one of the other functions
-
-Maybe for now just keep human genes?
-
-
-```{r eval=FALSE}
-
-# get motif info from Seurat object
-motif_matrix <- GetMotifMatrix(seurat_obj)
-motif_df <- GetMotifs(seurat_obj)
-motif_names <- motif_df$motif_name
-
-# # load mouse <-> human gene name table:
-# hg38_mm10_genes <- read.table(
-#   "/dfs7/swaruplab/smorabit/resources/hg38_mm10_orthologs_2021.txt",
-#   sep='\t',
-#   header=TRUE
-# )
-# colnames(hg38_mm10_genes) <-c('hg38_id', 'mm10_id', 'mm10_name', 'hg38_name')
-# hg38_mm10_genes_full <- hg38_mm10_genes
-# hg38_mm10_genes <- dplyr::select(hg38_mm10_genes, c(hg38_name, mm10_name, hg38_id, mm10_id))
-# hg38_mm10_genes <- subset(hg38_mm10_genes, mm10_name != '' & hg38_name != '')
-
-# # need to make sure that there's only one entry for each gene in hg38_mm10_genes
-# mm10_genes <- unique(hg38_mm10_genes$mm10_name)
-# hg38_genes <- unique(hg38_mm10_genes$hg38_name)
-# hg38_mm10_genes <- hg38_mm10_genes[match(mm10_genes, hg38_mm10_genes$mm10_name),]
-
-# remove extra characters from the motif names
-tmp <- gsub("\\(.*)", "", motif_names)
-tmp <- gsub('::', ',', as.character(tmp))
-
-# # mouse <--> human gene conversion
-# tmp <- sapply(tmp, function(x){
-
-#   # if there's more than one gene corresponding to this motif
-#   if(grepl(',', x)){
-#     x <- as.character(do.call(rbind, strsplit(x, ',')))
-#     if(any(str_detect(x, '[[:lower:]]'))){
-#       x <- x
-#     } else{
-#       x <- na.omit(as.character(hg38_mm10_genes[match(x,hg38_mm10_genes$hg38_name), 'mm10_name']))
-#     }
-#     x <- paste(x, collapse=',')
-#   } else{
-#       if(str_detect(x, '[[:lower:]]')){
-#         x <- as.character(x)
-#       } else{
-#         x <- as.character(hg38_mm10_genes[match(x,hg38_mm10_genes$hg38_name), 'mm10_name'])
-#       }
-#   }
-#   x
-# })
-
-# # for motifs that don't have a human gene ortholog, try to convert to lowercase for mouse
-# motif_df$tmp <- tmp
-# not_found <- motif_df[is.na(motif_df$tmp),]
-# motif_df[is.na(motif_df$tmp),] <- str_to_title(not_found$motif_name)
-
-motif_df$tmp <- tmp
-
-# for motifs that correspond to two genes, split them apart
-tmp <- motif_df$tmp; names(tmp) <- motif_df$motif_ID
-motif_df_tmp <- do.call(rbind,lapply(1:length(tmp), function(i){
-  x <- tmp[i]
-  id <- names(x)
-  if(grepl(',', x)){
-    x <- as.character(unlist(do.call(rbind, strsplit(x, ','))))
-  }
-  data.frame(motif_ID = id, gene_name = as.character(x))
-}))
-
-# merge with the other motif df:
-ix <- match(motif_df_tmp$motif_ID, motif_df$motif_ID)
-motif_df_tmp <- cbind(motif_df_tmp, motif_df[ix,c('motif_name', 'n_targets')])
-rownames(motif_df_tmp) <- 1:nrow(motif_df_tmp)
-motif_df_tmp <- dplyr::select(motif_df_tmp, c(motif_ID, motif_name, n_targets, gene_name))
-
-all(motif_df_tmp$motif_name %in% motif_df$motif_name)
-
-motif_df <- motif_df_tmp
-
-# subset to only contain genes in the seurat obj
-motif_df <- subset(motif_df, gene_name %in% rownames(seurat_obj))
-
-seurat_obj <- SetMotifs(seurat_obj, motif_df)
-
-
-
-```
-
 
 Run the XGBoost TF network construction function 
-
-TODO: edit this function so that it adds the results to the Seurat object
 
 ```{r eval=FALSE}
 
@@ -209,9 +112,71 @@ genes_use <- wgcna_genes[wgcna_genes %in% rownames(motif_matrix)]
 genes_use <- unique(c(genes_use, motif_df$gene_name))
 seurat_obj <- SetWGCNAGenes(seurat_obj, genes_use)
 
-# this is acting weird...
 seurat_obj <- SetDatExpr(seurat_obj)
 datExpr <- GetDatExpr(seurat_obj)
+
+#---------------------------------------------------------------------------
+# Construct the TF net
+#---------------------------------------------------------------------------
+
+seurat_obj <- ConstructTFNetwork(
+    seurat_obj,
+    model_params=list(
+        objective = 'reg:squarederror',
+        max_depth = 1,
+        eta = 0.1,
+        nthread=16,
+        alpha=0.5,
+        n_estimators=50
+    ),
+    wgcna_name = 'MG'
+)
+
+#---------------------------------------------------------------------------
+# Assign TF regulons
+#---------------------------------------------------------------------------
+
+seurat_obj <- AssignTFRegulons(
+    seurat_obj,
+    strategy = "A",
+    reg_thresh = 0.01,
+    n_tfs = 10
+)
+tf_regulons <- GetTFRegulons(seurat_obj)
+
+
+#---------------------------------------------------------------------------
+# Compute positive and negative regulon scores
+#---------------------------------------------------------------------------
+
+# positive regulons
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'positive',
+    ncores=8
+)
+
+# negative regulons
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'negative',
+    cor_thresh = -0.05,
+    ncores=8
+)
+regulon_scores <- GetRegulonScores(seurat_obj, target_type='positive')
+head(regulon_scores)
+
+
+
+
+
+
+
+# save the seurat obj with this info
+saveRDS(seurat_obj, file=paste0(data_dir, 'AD_MG_hdWGCNA_tfs.rds'))
+
+
+
 
 
 # only run the network analysis on genes that are not in the
@@ -231,20 +196,20 @@ datExpr <- GetDatExpr(seurat_obj)
 # seurat_obj@misc$MHb_metacell$datExpr <- datExpr_sub
 
 # this did not work lmao
-test <- ConstructTFNetwork(
-  seurat_obj,
-  model_params=model_params
-)
-importance_df <- test[[1]]
-eval_df <- test[[2]]
+# test <- ConstructTFNetwork(
+#   seurat_obj,
+#   model_params=model_params
+# )
+# importance_df <- test[[1]]
+# eval_df <- test[[2]]
 
-# save the results:
-write.csv(importance_df, file=paste0(data_dir, 'MG_tf_xgboost.csv'), quote=FALSE, row.names=FALSE)
-write.csv(eval_df, file=paste0(data_dir, 'MG_tf_xgboost_eval.csv'), quote=FALSE, row.names=FALSE)
+# # save the results:
+# write.csv(importance_df, file=paste0(data_dir, 'MG_tf_xgboost.csv'), quote=FALSE, row.names=FALSE)
+# write.csv(eval_df, file=paste0(data_dir, 'MG_tf_xgboost_eval.csv'), quote=FALSE, row.names=FALSE)
 
-# add to Seurat object:
-seurat_obj <- SetTFNetwork(seurat_obj, importance_df, wgcna_name=wgcna_name)
-seurat_obj <- SetTFEval(seurat_obj, eval_df, wgcna_name=wgcna_name)
+# # add to Seurat object:
+# seurat_obj <- SetTFNetwork(seurat_obj, importance_df, wgcna_name=wgcna_name)
+# seurat_obj <- SetTFEval(seurat_obj, eval_df, wgcna_name=wgcna_name)
 
 
 ```
@@ -265,27 +230,14 @@ Should we make this it's own function>?
 
 ```{r eval=FALSE}
 
-
 seurat_obj <- AssignTFRegulons(
     seurat_obj,
     strategy = "A",
-    reg_thresh = 0.01,
-    n_tfs = 10
+    reg_thresh = 0.1,
+    n_tfs = 5
 )
 tf_regulons <- GetTFRegulons(seurat_obj)
 
-
-# save the seurat obj with this info
-saveRDS(seurat_obj, file=paste0(data_dir, 'AD_MG_hdWGCNA_tfs.rds'))
-
-
-```
-
-Compute TF regulon scores 
-
-Option: only compute scores for non grey TFs?
-
-```{r eval=FALSE}
 
 # positive regulons
 seurat_obj <- RegulonScores(
@@ -304,6 +256,10 @@ seurat_obj <- RegulonScores(
 regulon_scores <- GetRegulonScores(seurat_obj, target_type='positive')
 head(regulon_scores)
 
+
+
+# save the seurat obj with this info
+saveRDS(seurat_obj, file=paste0(data_dir, 'AD_MG_hdWGCNA_tfs.rds'))
 
 
 # plot the + and - SPI1 regulons 
@@ -350,284 +306,301 @@ dev.off()
 
 
 
-
-
-
-
-
-
-
-
-
-# regulon functions below
-
-
-RegulonScores <- function(
-    seurat_obj,
-    target_type = 'positive', # 'negative', 'all'
-    cor_thresh = 0.05,
-    exclude_grey_genes = TRUE,
-    wgcna_name = NULL,
-    ... # options to pass to UCELL
-){
-
-    # get modules:
-    modules <- GetModules(seurat_obj, wgcna_name)
-
-    # get TF target genes:
-    tf_regulons <- GetTFRegulons(seurat_obj, wgcna_name)
-
-    # subset by type of target gene?
-    if(target_type == 'positive'){
-        tf_regulons <- subset(tf_regulons, Cor > cor_thresh)
-    } else if(target_type == 'negative'){
-        tf_regulons <- subset(tf_regulons, Cor < cor_thresh)
-    } else if(target_type == 'both'){
-        tf_regulons <- subset(tf_regulons, abs(Cor) > cor_thresh)
-    }
-
-    if(exclude_grey_genes){
-
-        # subset modules
-        modules <- subset(modules, module != 'grey')
-
-        # subset regulons
-        tf_regulons <- subset(tf_regulons, gene %in% modules$gene_name & tf %in% modules$gene_name)
-
-    }
-
-    # set up the lists
-    tfs_use <- unique(tf_regulons$tf)
-    target_genes <- lapply(tfs_use, function(cur_tf){
-        subset(tf_regulons, tf == cur_tf) %>% .$gene
-    })
-    names(target_genes) <- tfs_use
-
-    # use UCell to comptue the TF regulons cores
-    regulon_scores <- UCell::AddModuleScore_UCell(
-        seurat_obj, features=target_genes,
-        ...
-    )@meta.data
-    regulon_scores <- regulon_scores[,paste0(tfs_use, '_UCell')]
-
-    # rename the columns to remove "_UCell"
-    colnames(regulon_scores) <- gsub("_UCell", "", colnames(regulon_scores))
-
-    # add the regulon scores to the seurat object
-    seurat_obj <- SetRegulonScores(
-        seurat_obj, 
-        regulon_scores,
-        target_type,
-        wgcna_name
-    )
-
-    seurat_obj
-}
-
-
-#' SetRegulonScores
-#'
-#' @param seurat_obj A Seurat object
-#' @param regulon_scores dataframe storing the TF regulon scores 
-#' @param target_type dataframe storing the TF regulon scores 
-#' @param wgcna_name The name of the hdWGCNA experiment in the seurat_obj@misc slot
-#' @keywords scRNA-seq
-#' @export
-SetRegulonScores <- function(seurat_obj, regulon_scores, target_type, wgcna_name=NULL){
-
-    if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
-    CheckWGCNAName(seurat_obj, wgcna_name)
-
-
-    # if regulon scores have not been set, make a list to store them
-    if(is.null(seurat_obj@misc[[wgcna_name]]$regulon_scores)){
-        tmp <- list(regulon_scores); names(tmp) <- target_type
-        seurat_obj@misc[[wgcna_name]]$regulon_scores <- tmp
-    } else{
-        seurat_obj@misc[[wgcna_name]]$regulon_scores[[target_type]] <- regulon_scores
-    }
-    seurat_obj
-}
-
-#' GetRegulonScores
-#'
-#' @param seurat_obj A Seurat object
-#' @param target_type dataframe storing the TF regulon scores 
-#' @param wgcna_name The name of the hdWGCNA experiment in the seurat_obj@misc slot
-#' @keywords scRNA-seq
-#' @export
-GetRegulonScores <- function(seurat_obj, target_type, wgcna_name=NULL){
-
-    if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
-    CheckWGCNAName(seurat_obj, wgcna_name)
-    
-    # get the regulon scores
-    seurat_obj@misc[[wgcna_name]]$regulon_scores[[target_type]] 
-}
-
 ```
 
-Debugging the applypropagation step when using the TF net 
 
-So when I use the adj matrix, the only TFs that propagate are 
-other TFs...
+Test making a network plot using tidygraph + ggraph 
 
 ```{r eval=FALSE}
 
-
+library(ggraph)
+library(tidygraph)
 library(igraph)
 
-# options
-cur_tf = 'TCF4'
-slot = 'counts'
-assay = 'RNA'
-perturb_dir = -1
-delta_scale = 0.5
-n_iters = 3
-perturbation_name = 'TCF4_down'
-corr_sigma=0.05
-n_threads=4
-graph = 'RNA_nn'
+cur_tf <- 'TCF4'
 
 
-# set up the TF network
-tf_regulons <- GetTFRegulons(seurat_obj)
-tfs <- unique(tf_regulons$tf)
+# get the regulons
+regulons <- GetTFRegulons(seurat_obj)
+
+# compute the degree for each TF:
+tf_degrees <- table(regulons$tf)
+
+#---------------------------------------------------------------------------#
+# Get the primary & secondary targets of the cur tf
+#---------------------------------------------------------------------------#
+
+# primary target genes 
+cur_primary<- regulons %>% 
+subset(tf == cur_tf) 
+
+# which of these pimary target genes are tfs?
+cur_primary_tfs <- cur_primary %>% 
+subset(gene %in% unique(regulons$tf)) %>% .$gene
+
+cur_tfs <- unique(c(cur_tf, cur_primary_tfs))
+
+# get the regulons for these TFs:
+cur_secondary <- subset(regulons, tf %in% cur_primary_tfs)
+cur_secondary_tfs <- cur_primary %>% 
+subset(gene %in% unique(regulons$tf)) %>% .$gene
+
+# combine the primary and secondary into one table 
+cur_network <- rbind(cur_primary, cur_secondary)
+cur_network$Gain <- cur_network$Gain * sign(cur_network$Cor)
+
+cur_genes <- unique(cur_network$gene)
+length(cur_genes)
+
+# make an igraph network from the nr4a2 regulon:
+cur_network <- cur_network %>%
+dplyr::rename(c(source=tf, target=gene)) %>%
+mutate(Score = sign(Cor) * Gain)
+
+primary_genes <- unique(cur_primary$gene)
+secondary_genes <- unique(cur_network$target[! cur_network$target %in% primary_genes])
+
+# cutoff for correlation values
+cor_cutoff <- 0.75
+cur_network$Cor <- ifelse(abs(cur_network$Cor) > cor_cutoff, sign(cur_network$Cor) * cor_cutoff, cur_network$Cor)
+
+#---------------------------------------------------------------------------#
+# Plot with ggraph
+#---------------------------------------------------------------------------#
+
+graph <- as_tbl_graph(cur_network) %>% 
+activate(nodes) %>% 
+mutate(degree  = centrality_degree())  
+
+tmp <- tf_degrees[names(V(graph))]; tmp <- tmp[!is.na(tmp)]
+V(graph)[names(tmp)]$degree <- as.numeric(tmp)
+
+V(graph)$gene_type <- ifelse(names(V(graph)) %in% unique(regulons$tf), 'TF', 'Gene')
+V(graph)$gene_type <- ifelse(names(V(graph)) == cur_tf, cur_tf, V(graph)$gene_type)
+
+set.seed(12345)
+n_pivots <- 250
+if(length(V(graph)) < n_pivots){
+n_pivots <- length(V(graph)) / 2
+}
+lay <- create_layout(graph, layout='sparse_stress', pivots=n_pivots)
+
+#lay <- create_layout(graph, layout='focus', focus = node_is_center())
+
+# add extra info
+# lay$tf_name <- ifelse(lay$name %in% unique(regulons$tf), lay$name, NA)
+lay$tf_name <- ifelse(lay$name %in% c(cur_tf, cur_primary_tfs), lay$name, NA)
+lay$size <- ifelse(lay$name %in% unique(regulons$tf), 5, 2)
+lay$type <- ifelse(lay$name %in% primary_genes, 'Primary', 'Secondary')
+lay$type <- ifelse(lay$name == cur_tf, cur_tf, lay$type)
+lay$type <- factor(lay$type, levels = c(cur_tf, 'Primary', 'Secondary'))
+
+# shape layout:
+cur_shapes <- c(18, 17, 16); names(cur_shapes) <- c(cur_tf, 'TF', 'Gene')
+
+p <- ggraph(lay) + 
+geom_edge_link(
+    aes(color=Cor, alpha=abs(Cor)),
+    arrow = arrow(length = unit(1, 'mm'), type='closed'), 
+                # size=0.5,
+                # end_cap = circle(3, 'mm')
+) + 
+geom_node_point(data=subset(lay, (! name %in% regulons$tf) | name == cur_tf ), aes(color=type, shape=gene_type, size=degree)) +
+geom_node_point(data=subset(lay, name %in% regulons$tf & name != cur_tf), aes(fill=type, size=degree), color='black', shape=25) +
+
+# ggrastr::rasterise(geom_node_point(aes(color=type, size=degree)), dpi=200) +
+#geom_node_text(aes(label=tf_name), repel=TRUE, max.overlaps=Inf, fontface='italic') +
+geom_node_label(aes(label=tf_name), repel=TRUE, max.overlaps=Inf, fontface='italic') +
+scale_edge_colour_gradient2(high='orange2', mid='white', low='dodgerblue')  + 
+scale_colour_manual(values=c('black', 'darkorchid4', 'mediumpurple2')) + 
+scale_fill_manual(values=c('darkorchid4', 'mediumpurple2')) + 
+scale_shape_manual(values=cur_shapes) 
+
+pdf(paste0(fig_dir, 'TFnetwork_',cur_tf, '.pdf'), width=8, height=7)
+print(p)
+dev.off()
+
+
+
+p <- ggraph(lay) + 
+geom_edge_link(
+    aes(color=Cor, alpha=abs(Cor)),
+    arrow = arrow(length = unit(1, 'mm'), type='closed'), 
+                # size=0.5,
+                # end_cap = circle(3, 'mm')
+) + 
+geom_node_point(data=subset(lay, (! name %in% regulons$tf) | name == cur_tf ), aes(color=type, shape=gene_type, size=degree)) +
+geom_node_point(data=subset(lay, name %in% regulons$tf & name != cur_tf), aes(fill=type, size=degree), color='black', shape=25) +
+scale_edge_colour_gradient2(high='orange2', mid='white', low='dodgerblue')  + 
+scale_colour_manual(values=c('black', 'darkorchid4', 'mediumpurple2')) + 
+scale_fill_manual(values=c('darkorchid4', 'mediumpurple2')) + 
+scale_shape_manual(values=cur_shapes) + NoLegend()
+
+pdf(paste0(fig_dir, 'TFnetwork_',cur_tf, '_nolabel.pdf'), width=5, height=5)
+print(p)
+dev.off()
+
+
+```
+
+
+Quantify the number of TF links between modules and plot as a heamap
+
+```{r eval=FALSE}
+
 modules <- GetModules(seurat_obj)
-tf_modules <- subset(modules, gene_name %in% tfs & module != 'grey')
+mods <- levels(modules$module); mods <- mods[mods != 'grey']
+tf_list <- unique(tf_regulons$tf)
+module_tfs <- subset(modules, gene_name %in% tf_list)
 
-tmp <- tf_regulons # %>% subset(Cor > 0)
-tmp$Gain <- tmp$Gain * sign(tmp$Cor)
-tmp <- tmp[,1:3]
-names(tmp) <- c('source', 'target', 'value')
+tf_regulons <- subset(regulons, tf %in% module_tfs$gene_name & gene %in% module_tfs$gene_name)
+ix <- match(tf_regulons$tf, modules$gene_name)
+tf_regulons$source_module <- modules$module[ix]
+ix <- match(tf_regulons$gene, modules$gene_name)
+tf_regulons$target_module <- modules$module[ix]
+tf_regulons %<>% dplyr::rename(source=tf, target=gene) %>% mutate(Gain = Gain * sign(Cor))
+cur_network <- tf_regulons
 
-# convert to igraph
-g <- igraph::graph_from_data_frame(
-  tmp, 
-  directed=TRUE, 
-  #vertices=vertex_df
-)
+# add module info to the network:
+ix <- match(cur_network$source, modules$gene_name)
+cur_network$source_module <- modules$module[ix]
+ix <- match(cur_network$target, modules$gene_name)
+cur_network$target_module <- modules$module[ix]
 
-# get adjacency matrix:
-adj <- igraph::as_adjacency_matrix(g, attr='value')
+# make empty matrices to store the number of links between mods
+pos_mat <- matrix(0, length(mods), length(mods))
+rownames(pos_mat) <- mods; colnames(pos_mat) <- mods
+neg_mat <- matrix(0, length(mods), length(mods))
+rownames(neg_mat) <- mods; colnames(neg_mat) <- mods
 
-# transpose it, for funsies
-adj <- t(adj)
+# loop through combos of mods and identify the number of +/- links between mods
+combos <- expand.grid(mods, mods)
+for(i in 1:nrow(combos)){
+  m1 <- as.character(combos[i,'Var1'])
+  m2 <- as.character(combos[i, 'Var2'])
 
-tfnet_genes <- rownames(adj)
+  # how many positive connections from m1 to m2:
+  cur_pos <- subset(cur_network, target_module == m1 & source_module == m2 & Gain >= 0)
+  cur_neg <- subset(cur_network, target_module == m1 & source_module == m2 & Gain < 0)
 
-TOM <- GetTOM(seurat_mg, wgcna_name)
-tfnet_genes <- tfnet_genes[tfnet_genes %in% rownames(TOM)]
-cur_TOM <- TOM[tfnet_genes, tfnet_genes]
-adj <- adj[tfnet_genes, tfnet_genes]
-
-# get cell barcodes:
-cells_use <- colnames(seurat_obj)
-
-# apply the perturbation
-exp <- GetAssayData(seurat_obj, slot=slot, assay = assay)
-
-exp_per <- ApplyPerturbation(
-    seurat_obj,
-    exp,
-    features = cur_tf,
-    perturb_dir = perturb_dir,
-    cells_use = cells_use,
-    # group.by = group.by,
-    # group_name = group_name,
-    slot = slot,
-    assay = assay
-)
-
-# need to open up this function and see what's going on under the hood...
-print('Applying signal propagation throughout co-expression network...')
-exp_prop <- ApplyPropagation(
-    seurat_obj,
-    exp[tfnet_genes,cells_use],
-    exp_per[tfnet_genes,cells_use],
-    network = adj,
-    #network = cur_TOM,
-    perturb_dir = perturb_dir,
-    delta_scale = ,
-    n_iters = 1
-)
-
-#---------------------------------------------------
-# scratch 
-#---------------------------------------------------
-
-# which TFs are targets of the cur tf 
-cur_regulon <- subset(tf_regulons, tf == cur_tf)
-cur_regulon_genes <- c( unique(cur_regulon$gene))
-cur_regulon_genes <- cur_regulon_genes[cur_regulon_genes %in% tfnet_genes]
-cur_regulon_genes[which(cur_regulon_genes %in% unique(tf_regulons$tf))]
-
-#---------------------------------------------------
-# apply propagaion
-#---------------------------------------------------
-
-network <- adj
-
-# backups
-exp_orig <- exp 
-exp_per_orig <- exp_per
-
-
-exp <- exp[tfnet_genes,cells_use]
-exp_per <- exp_per[tfnet_genes,cells_use]
-
-delta <- exp_per - exp
-
-
-# run the signaling processing step iteratively
-for(i in 1:n_iters){  
-
-    # compute the dot product between the TOM coefficients and the exp matrix
-    delta <- network %*% delta
-
-    # rowSums?
-    temp <- rowSums(delta)
-    nonzero <- names(which(temp != 0))
-    #print(nonzero)
-   # print(nonzero %in% unique(tf_regulons$tf))
-
-    # penalize the delta, or else the values rapidly get too large
-    delta <- delta * delta_scale
-
-    # update the expression matrix:
-    exp_update <- exp_per + delta # (delta * perturb_sign)
-    exp_update[exp_update < 0] <- 0
-
-    exp_update <- round(exp_update)
-
-    # update the delta
-    delta <- exp_update - exp_per
+  if(m1 == m2){
+    pos_mat[m1,m2] <- 0
+    neg_mat[m1,m2] <- 0
+  } else{
+    pos_mat[m1,m2] <- nrow(cur_pos)
+    neg_mat[m1,m2] <- nrow(cur_neg)
+  }
 
 }
 
+max_val <- 1
+plot_df <- reshape2::melt(neg_mat)
+plot_df$count <-plot_df$value
+plot_df$label <- ifelse(plot_df$value > 5, plot_df$value, "")
+tmp <-table(module_tfs$module)
+ix <- match(plot_df$Var1, names(tmp))
+plot_df$value <- plot_df$value / as.numeric(tmp)[ix]
+plot_df1 <- plot_df
+
+plot_df$value <- ifelse(plot_df$value > max_val, max_val, plot_df$value)
+p1 <- plot_df %>% 
+  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=value)) + 
+  geom_tile() + 
+  geom_text(aes(label=label)) +
+  scale_fill_gradient(low='grey95', high='dodgerblue') + 
+  coord_fixed() + RotatedAxis() + 
+  xlab('Target') + ylab('Source') + 
+  ggtitle('Repressive interactions') + 
+  theme(
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    panel.border = element_rect(linewidth=1, fill=NA, color='black')
+  )
+
+
+plot_df <- reshape2::melt(pos_mat)
+plot_df$count <-plot_df$value
+plot_df$label <- ifelse(plot_df$value > 5, plot_df$value, "")
+
+tmp <-table(module_tfs$module)
+ix <- match(plot_df$Var1, names(tmp))
+plot_df$value <- plot_df$value / as.numeric(tmp)[ix]
+plot_df2 <- plot_df
+
+plot_df$value <- ifelse(plot_df$value > max_val, max_val, plot_df$value)
+p2 <- plot_df %>% 
+  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=value)) + 
+  geom_tile() + 
+  geom_text(aes(label=label)) +
+  scale_fill_gradient(low='grey95', high='orange2') + 
+  coord_fixed() + RotatedAxis()  + 
+  xlab('Target') + ylab('Source') + 
+  ggtitle('Activating interactions') + 
+  theme(
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    panel.border = element_rect(linewidth=1, fill=NA, color='black')
+  )
+
+
+pdf(paste0(fig_dir,'test_network_interactions_heatmap_norm.pdf'), width=7, height=4)
+p1 + p2 + plot_layout(guides='collect')
+dev.off()
+
+#---------------------------------------------------------------------------#
+# Delta of Activating / Repressive interactions
+#---------------------------------------------------------------------------#
+
+plot_df1$delta <-  plot_df2$value - plot_df1$value
+
+p3 <- plot_df1 %>% 
+  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=delta)) + 
+  geom_tile() + 
+  #geom_text(aes(label=label)) +
+  scale_fill_gradient2(low='dodgerblue', mid='grey95', high='orange2') + 
+  coord_fixed() + RotatedAxis()  + 
+  xlab('Target') + ylab('Source') + 
+  ggtitle('Activating - repressing') + 
+  theme(
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    panel.border = element_rect(linewidth=1, fill=NA, color='black')
+  )
+
+
+pdf(paste0(fig_dir,'test_network_interactions_heatmap_norm_delta.pdf'), width=4, height=10)
+p1 / p2 / p3 
+dev.off()
 
 
 ```
 
 
 
-TODO: TF Network perturbation 
 
+
+TF Network perturbation 
 
 Do I need to treat the +/- regulons the same?
+Yes
 
 ```{r eval=FALSE}
+
+# re-load dataset:
+seurat_obj <- readRDS(file=paste0(data_dir, 'AD_MG_hdWGCNA_tfs.rds'))
 
 library(igraph)
 
 # options
 cur_tf = 'TCF4'
+
+cur_tf = 'SPI1'
 slot = 'counts'
 assay = 'RNA'
 perturb_dir = -1
 delta_scale = 1
 n_iters = 3
-perturbation_name = 'TCF4_down'
+perturbation_name = 'SPI1_down'
 corr_sigma=0.05
 n_threads=4
 graph = 'RNA_nn'
@@ -732,7 +705,7 @@ seurat_obj <- NormalizeData(seurat_obj, perturbation_name)
 # Part 3: compute transition probabilities
 ###########################################################################
 
-# print('Computing cell-cell transition probabilities based on the perturbation...')
+# this one took a while
 seurat_obj <- PerturbationTransitions(
     seurat_obj,
     perturbation_name,
@@ -749,11 +722,11 @@ seurat_obj <- PerturbationTransitions(
 
 #-------------------------------------------------------------------------#
 # Plotting the result as a vector field plot on top of the UMAP
-# (need to make this into proprer functions later)
+# (need to makeki8op560m this into proprer functions later)
 #-------------------------------------------------------------------------#
 
 # This function gives us the dataframe with vector coordinates 
-# (ars) and vector distances (arsd)
+# (ars) and v.6/df.S_+<ªector distances (arsd)
 vectors <- PerturbationVectors(
   seurat_obj,
   perturbation_name = perturbation_name,
@@ -968,8 +941,8 @@ group.by <- 'pseudotime_bins_10'
 
 # one of the hub genes to be perturbed
 cur_gene <- cur_tf
-target1 <- 'MED12L'
-target2 <- 'IL15'
+target1 <- 'INSR'
+target2 <- 'ERC2'
 
 
 
