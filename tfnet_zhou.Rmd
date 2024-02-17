@@ -1,0 +1,326 @@
+
+```{r eval=FALSE}
+
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(WGCNA)
+library(Matrix)
+library(viridis)
+library(harmony)
+library(RColorBrewer)
+library(ggpubr)
+library(tictoc)
+library(RColorBrewer)
+# library(Hmisc)
+# library(corrplot)
+library(enrichR)
+library(GeneOverlap)
+library(grid)
+library(gridExtra)
+library(igraph)
+library(ggrepel)
+library(hdWGCNA)
+enableWGCNAThreads(nThreads = 8)
+theme_set(theme_cowplot())
+set.seed(12345)
+
+
+
+
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bin/TF_functions.R')
+
+# for motif analysis 
+# add instructions for separate install
+library(JASPAR2020)
+library(motifmatchr)
+library(TFBSTools)
+library(EnsDb.Hsapiens.v86)
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(GenomicRanges)
+
+
+
+# spatial plotting functions
+source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/spatial_functions.R')
+
+#devtools::install_github('smorabit/hdWGCNA', ref='dev')
+library(hdWGCNA)
+
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/')
+
+# output directories
+data_dir <- "data/"
+
+# re-load scWGCNA dataset:
+load(file='data/Zhou_color_scheme.rda')
+
+
+# reload process ed with all cell types
+# seurat_obj <-  readRDS(file=paste0(data_dir, 'Zhou_scWGCNA_all_celltypes.rds'))
+
+
+load('/dfs7/swaruplab/smorabit/analysis/AD_NucSeq_2019/batch_correction/liger/update/celltype-analysis/data/color_scheme.rda')
+cp <- unlist(color_scheme_snRNA_celltype)
+cp[names(cp) == 'EX'] <- 'turquoise'
+
+
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/')
+fig_dir <- 'tutorials/basic_tutorial/'
+
+
+#seurat_obj <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/data/Zhou_control_scWGCNA.rds')
+
+# re-load
+seurat_obj <- readRDS(file=paste0(data_dir, 'zhou_tutorial_tfs.rds'))
+
+
+```
+
+
+hdWGCNA motif scan
+
+```{r eval=FALSE}
+
+seurat_obj <- readRDS(file=paste0(data_dir, 'zhou_tutorial.rds'))
+
+pfm_core <- TFBSTools::getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
+)
+
+# run the motif scan with these settings for the mouse dataset
+seurat_obj <- MotifScan(
+  seurat_obj,
+  species_genome = 'hg38',
+  pfm = pfm_core,
+  EnsDb = EnsDb.Hsapiens.v86
+)
+
+```
+
+Run the XGBoost TF network construction function 
+
+```{r eval=FALSE}
+
+
+library(xgboost)
+library(tictoc)
+
+motif_matrix <- GetMotifMatrix(seurat_obj)
+motif_df <- GetMotifs(seurat_obj)
+motif_df <- subset(motif_df, gene_name %in% rownames(seurat_obj))
+head(motif_df)
+
+# set up XGBoost model parameters
+model_params <- list(
+  objective = 'reg:squarederror',
+  max_depth = 1,
+  eta = 0.1,
+  nthread=16,
+  alpha=0.5,
+  n_estimators=50
+)
+nfold=5
+
+#---------------------------------------------------------------------------
+# Set the expression matrix that we will use for the TF network analysis
+#---------------------------------------------------------------------------
+
+# keep all TFs, and then keep all non-grey genes 
+tf_genes <- unique(motif_df$gene_name)
+modules <- GetModules(seurat_obj)
+nongrey_genes <- subset(modules, module != 'grey') %>% .$gene_name
+genes_use <- c(tf_genes, nongrey_genes)
+
+
+# should I make a way to directly give features to setdatexpr instead of doing this?
+seurat_obj <- SetWGCNAGenes(seurat_obj, genes_use)
+seurat_obj <- SetDatExpr(seurat_obj, group.by = 'cell_type', group_name='INH')
+datExpr <- GetDatExpr(seurat_obj)
+dim(datExpr)
+
+#---------------------------------------------------------------------------
+# Construct the TF net
+#---------------------------------------------------------------------------
+
+seurat_obj <- ConstructTFNetwork(
+    seurat_obj,
+    model_params=list(
+        objective = 'reg:squarederror',
+        max_depth = 1,
+        eta = 0.1,
+        nthread=16,
+        alpha=0.5,
+        n_estimators=50
+    ),
+    wgcna_name = 'tutorial'
+)
+
+#---------------------------------------------------------------------------
+# Assign TF regulons
+#---------------------------------------------------------------------------
+
+seurat_obj <- AssignTFRegulons(
+    seurat_obj,
+    strategy = "A",
+    reg_thresh = 0.01,
+    n_tfs = 10
+)
+tf_regulons <- GetTFRegulons(seurat_obj)
+
+
+#---------------------------------------------------------------------------
+# Compute positive and negative regulon scores
+#---------------------------------------------------------------------------
+
+# positive regulons
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'positive',
+    ncores=8
+)
+
+# negative regulons
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'negative',
+    cor_thresh = -0.05,
+    ncores=8
+)
+regulon_scores <- GetRegulonScores(seurat_obj, target_type='positive')
+head(regulon_scores)
+
+
+
+# save the seurat obj with this info
+saveRDS(seurat_obj, file=paste0(data_dir, 'zhou_tutorial_tfs.rds'))
+
+
+```
+
+Code for differential regulon analysis 
+
+```{r eval=FALSE}
+
+# make this code into a function later!!!!
+
+FindDifferenialRegulons <- function(
+  seurat_obj,
+  barcodes1,
+  barcodes2,
+  target_type='positive',
+  wgcna_name=NULL,
+  test.use='wilcox',
+  only.pos=FALSE,
+  logfc.threshold = 0,
+  min.pct=0,
+  verbose=FALSE,
+  pseudocount.use=0,
+  ...
+){
+
+  if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
+  if(!CheckWGCNAName(seurat_obj, wgcna_name)){
+    stop(paste0("Invalid wgcna_name supplied: ", wgcna_name))
+  }  
+
+  # ensure that selected barcodes are in the seurat obj
+  if(!(all(barcodes1 %in% colnames(seurat_obj)))){
+    stop('Some barcodes in barcodes1 not found in colnames(seurat_obj).')
+  }
+  if(!(all(barcodes2 %in% colnames(seurat_obj)))){
+    stop('Some barcodes in barcodes2 not found in colnames(seurat_obj).')
+  }
+
+  # check for overlap in the two groups of bacrodes:
+  if(length(intersect(barcodes1, barcodes2)) > 0){
+    stop('Some barcodes overlap in barcodes1 and barcodes2')
+  }
+
+  # get regulon scores
+  regulon_scores <- GetRegulonScores(
+    seurat_obj, 
+    target_type = target_type, 
+    wgcna_name = wgcna_name
+  )
+
+  # create new assay for regulons:
+  reg_assay <- Seurat::CreateAssayObject(t(regulon_scores))
+
+  # run differential test on the reg assay
+  dregs <- FindMarkers(
+    reg_assay,
+    cells.1 = barcodes1,
+    cells.2 = barcodes2,
+    slot='counts',
+    test.use=test.use,
+    only.pos=only.pos,
+    logfc.threshold=logfc.threshold,
+    min.pct=min.pct,
+    verbose=verbose,
+    pseudocount.use=pseudocount.use,
+    ...
+  )
+  dregs$tf <- rownames(dregs)
+
+  dregs
+
+}
+
+
+########################################
+# pt1: differential regulons
+########################################
+
+group1 <- seurat_obj@meta.data %>% subset(cell_type == 'INH' & msex == 0) %>% rownames
+group2 <- seurat_obj@meta.data %>% subset(cell_type == 'INH' & msex != 0) %>% rownames
+
+dregs <- FindDifferenialRegulons(
+  seurat_obj,
+  target_type = 'positive',
+  barcodes1 = group1,
+  barcodes2 = group2,
+  test.use='wilcox',
+  wgcna_name='tutorial'
+)
+
+########################################
+# pt2: DEGs of just these TFs
+########################################
+
+tf_regulons <- GetTFRegulons(seurat_obj)
+regulon_scores <- GetRegulonScores(seurat_obj, target_type='positive')
+modules <- GetModules(seurat_obj)
+
+tf_genes <- colnames(regulon_scores)
+
+X <- LayerData(seurat_obj, layer='data')[tf_genes,]
+exp_assay <- Seurat::CreateAssayObject(X)
+
+degs <- FindMarkers(
+    exp_assay,
+    cells.1 = group1,
+    cells.2 = group2,
+    slot='data',
+    test.use='wilcox',
+    only.pos=FALSE,
+    logfc.threshold=0,
+    min.pct=0 ,
+    verbose=TRUE,
+    pseudocount.use=0
+)
+degs$gene <- rownames(degs)
+
+# next follow the 
+
+# join them together!!!
+
+
+
+
+```
+
+
+Compare DEGs to Regulon Scores
