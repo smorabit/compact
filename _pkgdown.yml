@@ -1,0 +1,42 @@
+title: COMPACT
+
+url: https://smorabit.github.io/COMPACT/
+
+template:
+  params:
+    bootswatch: flatly
+
+home:
+  title: COMPACT
+  sidebar:
+    structure: [license, citation, authors, dev]
+
+authors:
+  Sam Morabito:
+    href: https://smorabit.github.io
+  Zechuan Shi:
+    href: https://github.com/rootze
+  Swarup Lab:
+    href: https://swaruplab.bio.uci.edu/
+
+deploy:
+  install_metadata: true
+
+
+navbar:
+  structure:
+    left: [intro, articles, reference, news]
+    right: [search, github]
+components:
+   intro:
+     text: Get started
+     href: articles/COMPACT.html
+   news:
+     text: News
+     href: news/index.html
+   articles:
+    text: Vignettes
+    menu:
+    - text: Core functionality
+    - text: Module Pertubation Analysis
+      href: articles/MPA_basics_microglia.html

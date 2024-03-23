@@ -1,0 +1,21 @@
+Package: COMPACT
+Title: COMPACT
+Version: 0.0.1
+Authors@R: c(
+    person("Sam", "Morabito", , "smorabit@uci.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-7768-4856")),
+    person("Zechuan", "Shi", , "zechuas@uci.edu", role = c("aut"),
+          comment = c(ORCID = "0000-0002-2844-5816")),
+    person("Swarup Lab", role = "fnd")
+  )
+Description: COMPACT | Co-expression Module Perturbation Analysis in Cellular Transcriptomes.
+License: GNU GPLv3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
+URL: https://smorabit.github.io/COMPACT/
+Imports: Seurat, Matrix, VGAM, pscl
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Depends: 
+    Seurat (>= 4.0.0)

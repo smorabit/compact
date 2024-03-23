@@ -27,8 +27,6 @@ theme_set(theme_cowplot())
 set.seed(12345)
 
 
-
-
 source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/bin/TF_functions.R')
 
 # for motif analysis 
@@ -44,38 +42,35 @@ library(GenomicRanges)
 source('/dfs7/swaruplab/smorabit/analysis/scWGCNA/bin/spatial_functions.R')
 
 #devtools::install_github('smorabit/hdWGCNA', ref='dev')
-library(hdWGCNA)
-
-setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/')
-
-# output directories
-data_dir <- "data/"
-
-# re-load scWGCNA dataset:
-load(file='data/Zhou_color_scheme.rda')
-
 
 load('/dfs7/swaruplab/smorabit/analysis/AD_NucSeq_2019/batch_correction/liger/update/celltype-analysis/data/color_scheme.rda')
 cp <- unlist(color_scheme_snRNA_celltype)
 cp[names(cp) == 'EX'] <- 'turquoise'
 
 
-setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/perturb/tfnet/')
+setwd('/dfs7/swaruplab/smorabit/analysis/scWGCNA/pertub/tfnet_morabito/')
 fig_dir <- 'figures/'
 data_dir <- 'data/'
 
-# re-load
-seurat_obj <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/data/zhou_tutorial_tfs.rds')
-
+# load Morabito et al 2021 dataset
+seurat_obj <- readRDS("/dfs7/swaruplab/smorabit/analysis/scWGCNA/data/Swarup_2021.rds")
 
 ```
+
+Run hdWGCNA on the oligodendrocytes 
+
+```{r eval=FALSE}
+
+
+
+```  
 
 
 hdWGCNA motif scan
 
 ```{r eval=FALSE}
 
-seurat_obj <- readRDS(file='/dfs7/swaruplab/smorabit/analysis/scWGCNA/data/zhou_tutorial.rds')
+seurat_obj <- readRDS(file=paste0(data_dir, 'zhou_tutorial.rds'))
 
 pfm_core <- TFBSTools::getMatrixSet(
   x = JASPAR2020,
@@ -118,21 +113,14 @@ nfold=5
 
 #---------------------------------------------------------------------------
 # Set the expression matrix that we will use for the TF network analysis
-#
-# This feels like I should put this code into a function? 
-# maybe setdatexprTF
 #---------------------------------------------------------------------------
-
-# get the motif df:
-motif_df <- GetMotifs(seurat_obj)
-motif_df <- subset(motif_df, gene_name %in% rownames(seurat_obj))
-head(motif_df)
 
 # keep all TFs, and then keep all non-grey genes 
 tf_genes <- unique(motif_df$gene_name)
 modules <- GetModules(seurat_obj)
 nongrey_genes <- subset(modules, module != 'grey') %>% .$gene_name
 genes_use <- c(tf_genes, nongrey_genes)
+
 
 # should I make a way to directly give features to setdatexpr instead of doing this?
 seurat_obj <- SetWGCNAGenes(seurat_obj, genes_use)
@@ -144,7 +132,6 @@ dim(datExpr)
 # Construct the TF net
 #---------------------------------------------------------------------------
 
-# 15 minutes
 seurat_obj <- ConstructTFNetwork(
     seurat_obj,
     model_params=list(
@@ -170,6 +157,7 @@ seurat_obj <- AssignTFRegulons(
 )
 tf_regulons <- GetTFRegulons(seurat_obj)
 
+
 #---------------------------------------------------------------------------
 # Compute positive and negative regulon scores
 #---------------------------------------------------------------------------
@@ -191,6 +179,8 @@ seurat_obj <- RegulonScores(
 regulon_scores <- GetRegulonScores(seurat_obj, target_type='positive')
 head(regulon_scores)
 
+
+
 # save the seurat obj with this info
 saveRDS(seurat_obj, file=paste0(data_dir, 'zhou_tutorial_tfs.rds'))
 
@@ -200,6 +190,8 @@ saveRDS(seurat_obj, file=paste0(data_dir, 'zhou_tutorial_tfs.rds'))
 Code for differential regulon analysis 
 
 ```{r eval=FALSE}
+
+# make this code into a function later!!!!
 
 FindDifferenialRegulons <- function(
   seurat_obj,
@@ -217,7 +209,9 @@ FindDifferenialRegulons <- function(
 ){
 
   if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
-  CheckWGCNAName(seurat_obj, wgcna_name)
+  if(!CheckWGCNAName(seurat_obj, wgcna_name)){
+    stop(paste0("Invalid wgcna_name supplied: ", wgcna_name))
+  }  
 
   # ensure that selected barcodes are in the seurat obj
   if(!(all(barcodes1 %in% colnames(seurat_obj)))){
@@ -385,7 +379,7 @@ p <- plot_df %>%
       panel.border = element_rect(colour = "black", fill=NA, size=1),
       plot.title = element_text(hjust=0.5),
       panel.grid = element_line(size=0.25, color='white'),
-      panel.background = element_rect(fill='grey92')
+      panel.background = element_rect(fill='grey92'),
     ) +
     ylab(bquote("Expression Avg. log"[2]~"(FC)")) +
     xlab(bquote("Regulon Avg. log"[2]~"(FC)")) +
@@ -401,6 +395,10 @@ print(p)
 dev.off()
 
 
+
+
+
+
 ```
 
 
@@ -414,7 +412,7 @@ library(tidygraph)
 library(igraph)
 
 cur_tf <- 'ZBTB33'
-cur_tf <- 'FOSL2'
+
 
 # get the regulons
 regulons <- GetTFRegulons(seurat_obj)
@@ -427,7 +425,7 @@ tf_degrees <- table(regulons$tf)
 #---------------------------------------------------------------------------#
 
 # primary target genes 
-cur_primary <- regulons %>% 
+cur_primary<- regulons %>% 
 subset(tf == cur_tf) 
 
 # which of these pimary target genes are tfs?
@@ -539,150 +537,3 @@ dev.off()
 
 ```
 
-
-Number of links bet
-
-```{r eval=FALSE}
-
-modules <- GetModules(seurat_obj)
-module_tfs <- subset(modules, gene_name %in% unique(regulons$tf))
-mods <- levels(modules$module)
-mods <- mods[mods!='grey']
-grey_tfs <- subset(module_tfs, module == 'grey') %>% .$gene_name
-
-
-seurat_obj <- ReassignModules(
-  seurat_obj, 
-  features = grey_tfs
-)
-
-
-modules <- GetModules(seurat_obj)
-module_tfs <- subset(modules, gene_name %in% unique(regulons$tf))
-mods <- levels(modules$module)
-mods <- mods[mods!='grey']
-grey_tfs <- subset(module_tfs, module == 'grey') %>% .$gene_name
-
-
-#---------------------------------------------------------------------------#
-# Quantify the number of TF links between modules and plot as a heamap
-#---------------------------------------------------------------------------#
-
-tf_regulons <- subset(regulons, tf %in% module_tfs$gene_name & gene %in% module_tfs$gene_name)
-ix <- match(tf_regulons$tf, modules$gene_name)
-tf_regulons$source_module <- modules$module[ix]
-ix <- match(tf_regulons$gene, modules$gene_name)
-tf_regulons$target_module <- modules$module[ix]
-tf_regulons %<>% dplyr::rename(source=tf, target=gene) %>% mutate(Gain = Gain * sign(Cor))
-cur_network <- tf_regulons
-
-# add module info to the network:
-ix <- match(cur_network$source, modules$gene_name)
-cur_network$source_module <- modules$module[ix]
-ix <- match(cur_network$target, modules$gene_name)
-cur_network$target_module <- modules$module[ix]
-
-# make empty matrices to store the number of links between mods
-pos_mat <- matrix(0, length(mods), length(mods))
-rownames(pos_mat) <- mods; colnames(pos_mat) <- mods
-neg_mat <- matrix(0, length(mods), length(mods))
-rownames(neg_mat) <- mods; colnames(neg_mat) <- mods
-
-# loop through combos of mods and identify the number of +/- links between mods
-combos <- expand.grid(mods, mods)
-for(i in 1:nrow(combos)){
-  m1 <- as.character(combos[i,'Var1'])
-  m2 <- as.character(combos[i, 'Var2'])
-
-  # how many positive connections from m1 to m2:
-  cur_pos <- subset(cur_network, target_module == m1 & source_module == m2 & Gain >= 0)
-  cur_neg <- subset(cur_network, target_module == m1 & source_module == m2 & Gain < 0)
-
-  if(m1 == m2){
-    pos_mat[m1,m2] <- 0
-    neg_mat[m1,m2] <- 0
-  } else{
-    pos_mat[m1,m2] <- nrow(cur_pos)
-    neg_mat[m1,m2] <- nrow(cur_neg)
-  }
-
-}
-
-max_val <- 1
-plot_df <- reshape2::melt(neg_mat)
-plot_df$count <-plot_df$value
-plot_df$label <- ifelse(plot_df$value > 5, plot_df$value, "")
-tmp <-table(module_tfs$module)
-ix <- match(plot_df$Var1, names(tmp))
-plot_df$value <- plot_df$value / as.numeric(tmp)[ix]
-plot_df1 <- plot_df
-
-subset(plot_df, Var1 == 'INH-M17')
-
-plot_df$value <- ifelse(plot_df$value > max_val, max_val, plot_df$value)
-p1 <- plot_df %>% 
-  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=value)) + 
-  geom_tile() + 
-  geom_text(aes(label=label)) +
-  scale_fill_gradient(low='grey95', high='dodgerblue') + 
-  coord_fixed() + RotatedAxis() + 
-  xlab('Target') + ylab('Source') + 
-  ggtitle('Repressive interactions') + 
-  theme(
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    panel.border = element_rect(linewidth=1, fill=NA, color='black')
-  )
-
-
-plot_df <- reshape2::melt(pos_mat)
-plot_df$count <-plot_df$value
-plot_df$label <- ifelse(plot_df$value > 5, plot_df$value, "")
-
-tmp <-table(module_tfs$module)
-ix <- match(plot_df$Var1, names(tmp))
-plot_df$value <- plot_df$value / as.numeric(tmp)[ix]
-plot_df2 <- plot_df
-
-plot_df$value <- ifelse(plot_df$value > max_val, max_val, plot_df$value)
-p2 <- plot_df %>% 
-  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=value)) + 
-  geom_tile() + 
-  geom_text(aes(label=label)) +
-  scale_fill_gradient(low='grey95', high='orange2') + 
-  coord_fixed() + RotatedAxis()  + 
-  xlab('Target') + ylab('Source') + 
-  ggtitle('Activating interactions') + 
-  theme(
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    panel.border = element_rect(linewidth=1, fill=NA, color='black')
-  )
-
-#---------------------------------------------------------------------------#
-# Delta of Activating / Repressive interactions
-#---------------------------------------------------------------------------#
-
-plot_df1$delta <-  plot_df2$value - plot_df1$value
-
-p3 <- plot_df1 %>% 
-  ggplot(aes(x=Var1, y=fct_rev(Var2), fill=delta)) + 
-  geom_tile() + 
-  #geom_text(aes(label=label)) +
-  scale_fill_gradient2(low='dodgerblue', mid='grey95', high='orange2') + 
-  coord_fixed() + RotatedAxis()  + 
-  xlab('Target') + ylab('Source') + 
-  ggtitle('Activating - repressing') + 
-  theme(
-    axis.line.x = element_blank(),
-    axis.line.y = element_blank(),
-    panel.border = element_rect(linewidth=1, fill=NA, color='black')
-  )
-
-
-pdf(paste0(fig_dir,'tf_network_interactions_heatmap_norm_delta.pdf'), width=16, height=8)
-p1 | p2 | p3 
-dev.off()
-
-
-```

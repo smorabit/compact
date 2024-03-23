@@ -1,0 +1,10 @@
+pandoc: 2.11.1
+pkgdown: 2.0.2
+pkgdown_sha: ~
+articles:
+  MPA_basics_microglia: MPA_basics_microglia.html
+last_built: 2024-03-23T03:06Z
+urls:
+  reference: https://smorabit.github.io/COMPACT/reference
+  article: https://smorabit.github.io/COMPACT/articles
+
