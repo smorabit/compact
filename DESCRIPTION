@@ -12,7 +12,7 @@ Description: COMPACT | Co-expression Module Perturbation Analysis in Cellular Tr
 License: GNU GPLv3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
+RoxygenNote: 7.3.2
 URL: https://smorabit.github.io/COMPACT/
 Imports: Seurat, Matrix, VGAM, pscl
 Suggests: testthat (>= 3.0.0)

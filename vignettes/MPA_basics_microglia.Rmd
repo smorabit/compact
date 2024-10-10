@@ -17,6 +17,8 @@ Load the required R libraries
 
 ```{r eval=FALSE}
 
+# conda activate hdWGCNA
+
 # load R packages
 library(Seurat)
 library(ggplot2)

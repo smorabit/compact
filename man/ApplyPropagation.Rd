@@ -31,6 +31,3 @@ A dgCMatrix object containing the updated expression matrix with the applied per
 \description{
 This function applies an in-silico perturbation to selected features in a Seurat object.
 }
-\details{
-
-}

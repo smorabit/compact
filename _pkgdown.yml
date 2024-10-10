@@ -3,8 +3,8 @@ title: COMPACT
 url: https://smorabit.github.io/COMPACT/
 
 template:
-  params:
-    bootswatch: flatly
+  bootstrap: 5
+  bootswatch: flatly
 
 home:
   title: COMPACT
@@ -21,7 +21,6 @@ authors:
 
 deploy:
   install_metadata: true
-
 
 navbar:
   structure:
