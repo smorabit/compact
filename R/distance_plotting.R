@@ -86,6 +86,7 @@ library(patchwork)  # For arranging multiple plots
   return(ggheatmap)
 }
 
+#' @title HeatmapDistance
 #' Generate Heatmaps for Original and Perturbed Matrices
 #'
 #' This function generates two heatmaps from two matrices (original and perturbed) and displays them side by side on the same color scale.
@@ -98,8 +99,8 @@ library(patchwork)  # For arranging multiple plots
 #' @return A patchwork object combining the two heatmaps.
 #' @export
 #' @examples
-#' p <- heatmapDistance(df_edist_observed, df_edist_perturbed) # , custom_order = custom_order
-heatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
+#' p <- HeatmapDistance(df_edist_observed, df_edist_perturbed) # , custom_order = custom_order
+HeatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
                             title_original = "Original Assay Cluster Similarity Distance",
                             title_perturbed = "Perturbed Assay Cluster Similarity Distance",
                             custom_order = NULL) {
