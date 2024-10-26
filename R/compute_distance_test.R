@@ -5,7 +5,7 @@ library(dplyr)
 library(rdist)
 library(energy)
 
-#' @title etest
+#' @title EnergyTest
 #'
 #' @description Performs E-testing on a Seurat object.
 #'     Computes E-test statistics for each group in a Seurat object,
@@ -31,7 +31,7 @@ library(energy)
 #' @importFrom stats dist
 #' @importFrom dplyr select
 #' @export
-etest <- function(seurat_object, groupby, control,
+EnergyTest <- function(seurat_object, groupby, control,
                   reduction = "pca", verbose = TRUE, permutations = 1000) {
     if (!inherits(seurat_object, "Seurat")) {
         stop("The first argument must be a Seurat object.")
@@ -182,7 +182,7 @@ etest <- function(seurat_object, groupby, control,
     return(df)
 }
 
-#' @title compdist
+#' @title ComputeDistance
 #' @description Computes either the Euclidean or E-distance between groups in a Seurat object, depending on the chosen method.
 #' @param seurat_object An object of class Seurat.
 #' @param groupby An object of class character. Points to the column in the
@@ -196,7 +196,7 @@ etest <- function(seurat_object, groupby, control,
 #' @examples
 #' compdist <- function(seurat_object, groupby = "Diagnosis", reduction = "pca", method = "euclidean", verbose = TRUE)
 #' @export
-compdist <- function(seurat_object, groupby, reduction, method = "edist", verbose = TRUE) {
+ComputeDistance <- function(seurat_object, groupby, reduction, method = "edist", verbose = TRUE) {
 
     if (method == "euclidean") {
     if (verbose) {
