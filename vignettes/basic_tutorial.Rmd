@@ -1,0 +1,583 @@
+---
+title: "Module Perturbation Analysis"
+output: rmarkdown::html_vignette
+description: >
+  Tutorial for performing basic Module Perturbation Analysis (MPA) with COMPACT.
+vignette: >
+  %\VignetteIndexEntry{Module Perturbation Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Compiled: 28-10-2024
+
+Source: `vignettes/basic_tutorial.Rmd`
+
+## Introduction
+
+This tutorial covers the basics of using COMPACT to perform module perturbation analysis on co-expression network/module
+on single-cell data. Here, we start with a processed single-nucleus RNA-seq (snRNA-seq) dataset of human cortical samples
+from [this publication](https://www.sciencedirect.com/science/article/pii/S2667237523001273?via%3Dihub). This dataset has
+already been fully processed using a standard single-cell transcritpomics analysis pipeline such as [Seurat](https://satijalab.org/seurat/)
+or [Scanpy](https://scanpy.readthedocs.io/en/stable/) and [hdWGCNA](https://smorabit.github.io/hdWGCNA/index.html).
+
+
+## Activate the Analysis Environment
+
+We will activate the environment required to perform module perturbation analysis with COMPACT. To follow
+along, ensure that you have activated the necessary Conda environment and loaded the appropriate R packages.
+
+
+```{bash eval=FALSE}
+
+conda activate COMPACT
+
+```
+
+Load the required R libraries
+
+```{r eval=FALSE}
+
+# load R packages
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(viridis)
+library(dplyr)
+library(tictoc)
+library(Matrix)
+library(hdWGCNA)
+theme_set(theme_cowplot())
+
+library(viridis)
+library(ggrastr)
+
+# RNA velocity packages that we need for some helper functions
+options(warn=-1)
+library(velocyto.R)
+library(velociraptor)
+
+# load the perturbation functions
+source('/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Code/perturbation_functions.R')
+source('/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Code/distance_plotting.R')
+source('/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Code/compute_distance_test.R')
+
+# Load spatial plotting functions (if applicable)
+source('/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Code/spatial_functions.R')
+
+# setwd -- setting data directory
+setwd('/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Analysis/smorabit_hdWGCNA_2023/')
+
+# output directories
+data_dir <- 'tutorial/data/'
+fig_dir <- 'tutorial/figures/'
+
+dir.create(data_dir)
+dir.create(fig_dir)
+
+# re-load MG dataset
+seurat_mg <- readRDS(file='/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Analysis/smorabit_hdWGCNA_2023/data/microglia/AD_MG_hdWGCNA_COMPACT_tutorial.rds')
+
+# update the path to the hdWGCNA TOM
+net <- GetNetworkData(seurat_mg)
+net$TOMFiles <- '/dfs7/swaruplab/zechuas/Projects/Module_perturbation/Analysis/smorabit_hdWGCNA_2023/data/microglia/TOM/_ConsensusTOM-block.1.rda'
+seurat_mg <- SetNetworkData(seurat_mg, net)
+
+# make a cell neighborhood graph:
+seurat_mg <- FindNeighbors(seurat_mg, reduction='harmony')
+
+```
+
+## Visualizing Microglia Functional Annotations on a UMAP Embedding
+
+In this part of the analysis, we will create a UMAP plot to visualize the functional annotations of microglia cells from
+a Seurat object. The UMAP plot will help us understand the clustering of cells based on their functional annotations.
+
+```{r eval=FALSE}
+
+#-------------------------
+# NOTE UMAP
+
+# for plot
+umap_theme <- theme(
+  axis.line=element_blank(),
+  axis.text.x=element_blank(),
+  axis.text.y=element_blank(),
+  axis.ticks=element_blank(),
+  axis.title.x=element_blank(),
+  axis.title.y=element_blank(),
+  panel.background=element_blank(),
+  panel.border=element_blank(),
+  panel.grid.major=element_blank(),
+  panel.grid.minor=element_blank(),
+  plot.background=element_blank(),
+  plot.title = element_text(hjust = 0.5)
+)
+
+# Get the UMAP embedding from the seurat object
+# and subset to only keep cells that we have arrows for.
+emb <- seurat_mg@reductions$umap@cell.embeddings
+
+# # make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+plot_df$functional_anno <- seurat_mg@meta.data[rownames(emb), 'functional_anno']
+
+
+p1 <- plot_df %>%
+  ggplot(aes(x=UMAP_1, y=UMAP_2, color=functional_anno)) +
+  scale_color_viridis_d(option = "plasma") +  # Use the discrete version of the plasma palette
+  rasterise(geom_point(size=2, alpha=0.5), dpi = 300) +
+  ggtitle("microglia functional_anno") +
+  umap_theme
+#
+
+p1
+
+# png(paste0(fig_dir, 'UMAP_microglia_functional_anno_MPA.png'), height=1000, width=2000, res=300)
+# p1
+# dev.off()
+
+```
+<img src="figures/basic_tutorial/UMAP_microglia_functional_anno_MPA.png" width="1000" height="2000">
+
+
+
+## Example 1: Downregulation of microglia module M4
+
+In this example, we demonstrate how to perform a perturbation on the microglia module M4 using the ModulePerturbation function.
+Specifically, we will simulate the downregulation of the top 10 hub genes in the MG-M4 module, allowing us to assess the effect
+of knocking down key genes within this module.
+
+```{r eval=FALSE}
+
+# options:
+perturbation_name = 'M4_down'
+seurat_obj = seurat_mg
+mod = 'MG-M4'
+wgcna_name <- 'MG'
+n_hubs <- 10
+perturb_dir <- -1
+delta_scale <- 1
+n_iters=3
+
+# run a knock-down of the top 10 hub genes from MG-M4
+# should take 2-3 min to run
+seurat_mg <- ModulePerturbation(
+    seurat_mg,
+    mod = mod,
+    perturb_dir = perturb_dir,
+    n_hubs=n_hubs,
+    perturbation_name = perturbation_name,
+    graph = 'RNA_nn',
+    delta_scale = delta_scale,
+    wgcna_name = wgcna_name
+)
+
+```
+
+perturbation_name: A unique name for this perturbation.
+seurat_obj: The Seurat object we are working with (in this case, seurat_mg).
+mod: The module to perturb, which is the microglia-specific module MG-M4.
+wgcna_name: The WGCNA name used for the microglia analysis.
+n_hubs: The number of hub genes to perturb in this module.
+perturb_dir: The direction of the perturbation. A value of -1 indicates downregulation.
+delta_scale: A scaling factor for the perturbation magnitude.
+n_iters: The number of iterations to run the perturbation.
+
+
+This above function will perform a perturbation on the selected module by knocking down the expression of
+the top 10 hub genes and then propagate the perturbation in the RNA network.
+
+
+## Plotting the Result as a Vector Field Plot on UMAP
+
+After running the perturbation, we can visualize the results using a vector field plot over the UMAP
+embedding. This plot helps us understand how the perturbation affects different stage cells.
+
+
+```{r eval=FALSE}
+
+#-------------------------------------------------------------------------#
+# Plotting the result as a vector field plot on top of the UMAP
+# (need to make this into proprer functions later)
+#-------------------------------------------------------------------------#
+
+# This function gives us the dataframe with vector coordinates
+# (ars) and vector distances (arsd)
+vectors <- PerturbationVectors(
+  seurat_mg,
+  perturbation_name = perturbation_name,
+  reduction = 'umap', # default
+  arrow_scale = 1 # default
+)
+ars <- vectors$ars
+arsd <- vectors$arsd
+
+# Get the UMAP embedding from the seurat object
+# and subset to only keep cells that we have arrows for.
+emb <- seurat_mg@reductions$umap@cell.embeddings
+emb <- emb[rownames(ars),]
+
+# run the velociraptor function to make a grid of arrows instead of one
+# arrow per cell
+grid.df <- velociraptor::gridVectors(emb, arsd)
+
+
+# compute the length of each arrow
+distances <- sqrt(
+  ((grid.df$end.xd - grid.df$start.UMAP_1)^2) -
+  ((grid.df$end.yd - grid.df$start.UMAP_2)^2)
+)
+distances <- ifelse(is.nan(distances), 0, distances)
+grid.df$length <- distances
+
+# make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+# plot_df$pseudotime <- seurat_mg@meta.data[rownames(emb), 'pseudotime']
+plot_df$functional_anno <- seurat_mg@meta.data[rownames(emb), 'functional_anno']
+
+# plot the scatter plot
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=functional_anno)) +
+  geom_point(alpha=0.25, size=2) +
+  scale_color_viridis_d(option = "plasma")
+  # scale_color_gradientn(colors=plasma(256))
+
+# add the arrows
+p <- p +
+  geom_segment(
+    data = grid.df,
+    inherit.aes=FALSE,
+    aes(
+      x=start.UMAP_1,
+      y=start.UMAP_2,
+      xend=end.xd,
+      yend=end.yd,
+      alpha= length
+    ),
+    arrow=grid::arrow(length=unit(0.1, "cm")), size=0.25
+  ) +
+  scale_alpha_continuous(range=c(0.8,1)) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+png(paste0(fig_dir, 'vectorfield_', perturbation_name, '.png'), height=1000, width=1000, res=300)
+p
+dev.off()
+
+```
+
+<img src="figures/basic_tutorial/vectorfield_M4_down.png" width="1000" height="1000">
+
+After running the perturbation and plotting the result, the seurat_mg object will be updated with the perturbed data,
+and the vector field plot will show the effect of knocking down hub genes in the MG-M4 module. This visualization can
+provide insights into the functional roles of these hub genes in regulating microglia activity.
+
+
+```{r eval=FALSE}
+#-------------------------------------------------------------------------#
+# Make another vector field plot showing the arrows on each cell
+#-------------------------------------------------------------------------#
+
+# make a dataframe to plot with ggplot
+plot_df <- as.data.frame(emb)
+plot_df$functional_anno <- seurat_mg@meta.data[rownames(emb), 'functional_anno']
+
+# plot the scatter plot
+p <- ggplot(plot_df, aes(x=UMAP_1, y=UMAP_2, color=functional_anno)) +
+  geom_point(alpha=0.25, size=1) +
+  scale_color_viridis_d(option = "plasma")
+  # scale_color_gradientn(colors=plasma(256))
+
+# add the arrows
+p <- p +
+  geom_segment(
+    data = ars,
+    inherit.aes=FALSE,
+    aes(x=x0, y=y0, xend=x1, yend=y1), arrow=grid::arrow(length=unit(0.1, "cm")), size=0.1
+  ) +
+  scale_alpha_continuous(range=c(0.8,1)) +
+  coord_equal() +
+  umap_theme() +
+  NoLegend() +
+  ggtitle(paste0(mod))
+
+png(paste0(fig_dir, 'vectorfield_', perturbation_name, '_all_arrows.png'), height=1000, width=1000, res=300)
+p
+dev.off()
+
+
+```
+
+<img src="figures/basic_tutorial/vectorfield_M4_down_all_arrows.png" width="1000" height="1000">
+
+
+## Downregulation of microglia module M4 Interpretation
+
+In this section we will cover how to compute module similarity distance in single cell data, and how to interpret the calculation.
+
+### Compute similarity distance and heatmap
+
+To further analyze the effect of the perturbation, we compute the E-distance between different functional annotations
+within the original and perturbed Seurat objects. The E-distance helps assess the similarity between different functional
+states of microglia.
+
+First, we calculate energy distance for the original scRNA-seq
+
+```{r eval=FALSE}
+
+#---------------------------
+# Calculate similarity distance for original scRNA-seq data, method selected "edist" - energy distance
+df_edist_original <- ComputeDistance(seurat_mg, groupby = 'functional_anno', reduction = 'pca', method = "edist", verbose = TRUE)
+
+# # Define your custom order
+custom_order <- levels(seurat_mg$functional_anno)
+
+# Rearrange rows and columns of df_edist_observed based on the custom order
+df_edist_original_reordered <- df_edist_original[custom_order, custom_order]
+
+# View the reordered dataframe
+df_edist_original_reordered
+
+```
+
+<details> <summary> Output </summary>
+```
+#               Homeostasis Surveillance1 Surveillance2 Surveillance3
+# Homeostasis      0.000000     10.140967     17.220091    12.1832043
+# Surveillance1   10.140967      0.000000      2.866413     3.1124290
+# Surveillance2   17.220091      2.866413      0.000000     1.2850047
+# Surveillance3   12.183204      3.112429      1.285005     0.0000000
+# Surveillance4    8.723064      4.462216      3.529919     0.7661988
+# Surveillance5    5.735601      7.660914      8.219343     3.6764471
+# Activated1      13.835812     10.549585      7.522241     3.5081678
+# Activated2      22.369534     18.084185     13.030198     8.7718675
+# Activated3      17.792197     20.061153     17.297088    11.6027919
+# Phagocytosis    26.392094     29.687218     25.688176    19.5139817
+#               Surveillance4 Surveillance5 Activated1 Activated2 Activated3
+# Homeostasis       8.7230645      5.735601  13.835812  22.369534  17.792197
+# Surveillance1     4.4622158      7.660914  10.549585  18.084185  20.061153
+# Surveillance2     3.5299193      8.219343   7.522241  13.030198  17.297088
+# Surveillance3     0.7661988      3.676447   3.508168   8.771868  11.602792
+# Surveillance4     0.0000000      1.301993   1.908912   6.800320   8.081606
+# Surveillance5     1.3019930      0.000000   2.087510   6.593177   5.495311
+# Activated1        1.9089124      2.087510   0.000000   2.014579   3.216930
+# Activated2        6.8003204      6.593177   2.014579   0.000000   1.950235
+# Activated3        8.0816058      5.495311   3.216930   1.950235   0.000000
+# Phagocytosis     15.4674423     12.337110   8.521408   5.171625   2.154714
+#               Phagocytosis
+# Homeostasis      26.392094
+# Surveillance1    29.687218
+# Surveillance2    25.688176
+# Surveillance3    19.513982
+# Surveillance4    15.467442
+# Surveillance5    12.337110
+# Activated1        8.521408
+# Activated2        5.171625
+# Activated3        2.154714
+# Phagocytosis      0.000000
+```
+</details>
+
+Next, we perform a similar analysis on the perturbed Seurat assay 'M4_down'
+
+```{r eval=FALSE}
+# Set the default assay to the perturbed assay and prepare the data
+seurat_mg_perturbed <- seurat_mg # set up a new seurat object to avoid confusion
+
+DefaultAssay(seurat_mg_perturbed) <- "M4_down"
+
+seurat_mg_perturbed <- FindVariableFeatures(seurat_mg_perturbed, selection.method = "vst", nfeatures = 2000)
+seurat_mg_perturbed <- ScaleData(seurat_mg_perturbed)
+
+```
+
+Run PCA for the perturbed data and please remember to change the 'reduction.name'
+
+```{r eval=FALSE}
+seurat_mg_perturbed <- RunPCA(seurat_mg_perturbed, features = VariableFeatures(object = seurat_mg_perturbed), reduction.name = "M4_down_pca")
+
+seurat_mg_perturbed@reductions
+```
+<details> <summary> Output </summary>
+```
+> seurat_mg_perturbed@reductions
+$umap
+A dimensional reduction object with key UMAP_
+ Number of dimensions: 2
+ Projected dimensional reduction calculated:  FALSE
+ Jackstraw run: FALSE
+ Computed using assay: RNA
+
+$pca
+A dimensional reduction object with key PC_
+ Number of dimensions: 50
+ Projected dimensional reduction calculated:  FALSE
+ Jackstraw run: FALSE
+ Computed using assay: RNA
+
+$harmony
+A dimensional reduction object with key harmony_
+ Number of dimensions: 50
+ Projected dimensional reduction calculated:  TRUE
+ Jackstraw run: FALSE
+ Computed using assay: RNA
+
+$M4_down_pca
+A dimensional reduction object with key m4_down_pca_
+ Number of dimensions: 50
+ Projected dimensional reduction calculated:  FALSE
+ Jackstraw run: FALSE
+ Computed using assay: M4_down
+
+```
+</details>
+
+Compute similarity distance for the perturbed data
+
+```{r eval=FALSE}
+# ComputeDistance
+df_edist_perturbed <- ComputeDistance(seurat_mg_perturbed, groupby = 'functional_anno', reduction = 'M4_down_pca', method = "edist", verbose = TRUE)
+
+df_edist_perturbed
+
+
+# Rearrange rows and columns of df_edist_observed based on the custom order
+df_edist_perturbed_reordered <- df_edist_perturbed[custom_order, custom_order]
+
+# View the reordered dataframe
+df_edist_perturbed_reordered
+```
+
+<details> <summary> Output </summary>
+```
+> df_edist_perturbed
+              Phagocytosis Surveillance3 Surveillance2 Activated1 Surveillance1
+Phagocytosis     0.0000000     4.1887166     5.3468811  1.9114647      6.367927
+Surveillance3    4.1887166     0.0000000     0.3544971  0.8140641      0.702068
+Surveillance2    5.3468811     0.3544971     0.0000000  1.6971191      0.444851
+Activated1       1.9114647     0.8140641     1.6971191  0.0000000      2.354567
+Surveillance1    6.3679270     0.7020680     0.4448510  2.3545673      0.000000
+Surveillance4    3.3193247     0.2185912     0.8524824  0.3940233      1.108151
+Activated2       1.6043523     1.2675249     2.0982363  0.3861708      2.864140
+Surveillance5    2.9806149     0.5994561     1.5770397  0.4120399      1.629711
+Homeostasis      5.0451679     1.9123500     2.8172922  2.0402917      1.892958
+Activated3       0.9335111     1.9314490     3.0544205  0.5010339      3.670300
+              Surveillance4 Activated2 Surveillance5 Homeostasis Activated3
+Phagocytosis      3.3193247  1.6043523     2.9806149    5.045168  0.9335111
+Surveillance3     0.2185912  1.2675249     0.5994561    1.912350  1.9314490
+Surveillance2     0.8524824  2.0982363     1.5770397    2.817292  3.0544205
+Activated1        0.3940233  0.3861708     0.4120399    2.040292  0.5010339
+Surveillance1     1.1081507  2.8641397     1.6297111    1.892958  3.6702999
+Surveillance4     0.0000000  0.9458629     0.2065312    1.271465  1.2788325
+Activated2        0.9458629  0.0000000     0.8679631    2.958652  0.3551624
+Surveillance5     0.2065312  0.8679631     0.0000000    1.029319  0.9134280
+Homeostasis       1.2714649  2.9586525     1.0293188    0.000000  2.7488030
+Activated3        1.2788325  0.3551624     0.9134280    2.748803  0.0000000
+
+```
+</details>
+
+We visualize the similarity distance matrices for both the original and perturbed data using a heatmap. This will allow
+us to compare the functional clusters' similarity or difference before and after the perturbation
+
+```{r eval=FALSE}
+#---------------------------
+# NOTE plot heatmap
+
+library(ggplot2)
+library(reshape2)
+library(scales)
+library(patchwork)  # For arranging plots side by side
+
+
+# # Example usage with default color palette
+order_level <- custom_order
+
+# HeatmapDistance()
+ht <- HeatmapDistance(df_original = df_edist_original, df_perturbed = df_edist_perturbed, custom_order = order_level)
+
+png(paste0(fig_dir, 'edistance_after_', perturbation_name, '.png'), width=5000, height=2500, res=300)
+print(ht)
+dev.off()
+
+
+```
+
+<img src="figures/basic_tutorial/edistance_after_M4_down.png" width="5000" height="2500">
+
+
+### Plotting Perturbation Expression
+
+Here we will guide you through the process of plotting perturbation expression figures for different genes, especially those genes of interest.
+This method is particularly useful for visualizing gene expression in both normal (unperturbed) and perturbed states, allowing for easy comparison
+between different experimental conditions.
+
+In this tutorial, we will plot the expression of specific genes in two different assays: RNA and the perturbation assay. We will create violin
+plots to compare the expression of a MG-M4 hub gene, TMEM163, and another non-MG-M4-hub gene, SORL1.
+
+```{r eval=FALSE}
+#---------------------------
+# NOTE plot pertubation expression figure
+library(viridisLite)
+library(ggplot2)
+
+# Generate 10 colors from the plasma palette
+plasma_colors <- viridis(10, option = "plasma")
+
+# group variable for vln plots
+group.by <- 'functional_anno'
+
+# # one of the hub genes to be perturbed
+cur_gene <- 'TMEM163'
+
+p1 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay='RNA') +
+  scale_fill_manual(values = plasma_colors) +  # Use the extracted colors here
+  NoLegend() + xlab('') + ylab('') +  ylim(0,5) +
+  theme(
+    axis.text.x = element_blank(),
+    plot.margin=margin(c(0,0,0,0))
+  )
+
+p2 <- VlnPlot(seurat_mg, features = cur_gene, pt.size=0.1, group.by = group.by, assay=perturbation_name) +
+  scale_fill_manual(values = plasma_colors) +  # Use the extracted colors here
+  NoLegend()  + ylab('') + ylim(0,5) + theme(
+    plot.margin=margin(c(0,0,0,0))) + ggtitle('') + xlab('Functional Annotation / Pseudotime -->')
+
+
+png(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene, '.png'), width=2000, height=1500, res=300)
+print(p1 / p2)
+dev.off()
+
+```
+<img src="figures/basic_tutorial/vln_compare_M4_down_TMEM163.png" width="2000" height="1500">
+
+
+
+```{r eval=FALSE}
+
+# # another gene in module MG-M4 which has a high kME but is not a hub gene
+cur_gene_NOTin <- 'SORL1' # i found this gene in module 1 MG-M1
+
+p3 <- VlnPlot(seurat_mg, features = cur_gene_NOTin, pt.size=0.1, group.by = group.by, assay='RNA') +
+  scale_fill_manual(values = plasma_colors) +  # Use the extracted colors here
+  NoLegend() + xlab('') + ylab('') +  ylim(0,5) +
+  theme(
+    axis.text.x = element_blank(),
+    plot.margin=margin(c(0,0,0,0))
+  )
+
+p4 <- VlnPlot(seurat_mg, features = cur_gene_NOTin, pt.size=0.1, group.by = group.by, assay=perturbation_name) +
+  scale_fill_manual(values = plasma_colors) +  # Use the extracted colors here
+  NoLegend()  + ylab('') + ylim(0,5) + theme(
+    plot.margin=margin(c(0,0,0,0))) + ggtitle('') + xlab('Functional Annotation / Pseudotime -->')
+
+
+png(paste0(fig_dir, 'vln_compare_', perturbation_name, '_', cur_gene_NOTin, '_NOTinModule.png'), width=2000, height=1500, res=300)
+print(p3 / p4)
+dev.off()
+
+
+```
+<img src="figures/basic_tutorial/vln_compare_M4_down_SORL1_NOTinModule.png" width="2000" height="1500">
