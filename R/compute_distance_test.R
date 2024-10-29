@@ -5,66 +5,6 @@ library(dplyr)
 library(rdist)
 library(energy)
 
-# #' @title EnergyTest
-# #'
-# #' @description Performs E-testing on a Seurat object.
-# #'     Computes E-test statistics for each group in a Seurat object,
-# #'     using the E-distance in space given by reduction to the group defined
-# #'     by control.
-# #' @param seurat_object An object of class Seurat.
-# #' @param groupby An object of class character. Points to the column in the
-# #'     Seurat object's meta data that contains the group labels.
-# #' @param control An object of class character. The group that is used as the
-# #'     control for the statistical comparison.
-# #' @param reduction An object of class character. The reduction / embedding in
-# #'     seurat_object that is used to compute the E-distance in. Can be "pca", "harmony", or any linear dimensionality reduction.
-# #' @param verbose An object of class logical. If TRUE, prints messages.
-# #'     Default is TRUE.
-# #' @param permutations An object of class integer. The number of permutations
-# #'    used to compute the p-value. Default is 1000.
-# #' @return Returns an object of class data.frame. For each group contains the
-# #'     E-test p-value and the E-distance to control group.
-# #' @examples
-# #'     # Add some code illustrating how to use the function
-# #' @importFrom Seurat Embeddings VariableFeatures RunPCA
-# #' @importFrom energy eqdist.etest
-# #' @importFrom stats dist
-# #' @importFrom dplyr select
-# #' @export
-# EnergyTest <- function(seurat_object, groupby, control,
-#                   reduction = "pca", verbose = TRUE, permutations = 1000) {
-#     if (!inherits(seurat_object, "Seurat")) {
-#         stop("The first argument must be a Seurat object.")
-#     }
-#     if (!(reduction %in% names(seurat_object@reductions))) {
-#         if (verbose) {
-#             message("The specified reduction was not found in the Seurat object. Ensure that the applied dimensional reduction method is linear in nature, such as PCA or Harmony on the selected linear model.")
-#         }
-#         stop("The specified reduction was not found in the Seurat object.")
-#     }
-#     labels <- seurat_object[[]][[groupby]]
-#     groups <- unique(labels)
-#     if (!(control %in% groups)) {
-#         stop("The specified control group was not found in the groupby column
-#              in the seurat_object metadata.")
-#     }
-#     emb <- Seurat::Embeddings(seurat_object, reduction = reduction)
-
-#     df <- data.frame(row.names = groups, pval = rep(NA, length(groups)))
-#     if (verbose) {
-#         print("Computing E-test statistics for each group.")
-#         }
-#     for (group in groups) {
-#         x <- as.matrix(emb)[labels == control, ]
-#         y <- as.matrix(emb)[labels == group, ]
-#         d <- stats::dist(rbind(x, y))
-#         res <- energy::eqdist.etest(d, sizes = c(nrow(x), nrow(y)),
-#                                     distance = TRUE, R = permutations)
-#         df[group, "pval"] <- res$"p.value"
-#         df[group, "edist"] <- res$statistic
-#     }
-#     return(df)
-# }
 
 #' @title edist
 #'
