@@ -1,6 +1,6 @@
 title: compact
 
-url: https://smorabit.github.io/COMPACT/
+url: https://smorabit.github.io/compact/
 
 template:
   bootstrap: 5
@@ -33,5 +33,5 @@ components:
    articles:
     text: Vignettes
     menu:
-    - text: Co-expression module perturbation
+    - text: co-expression module perturbation
       href: articles/basic_tutorial.Rmd

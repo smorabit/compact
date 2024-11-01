@@ -34,7 +34,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/basic_tutorial.html">Co-expression module perturbation analysis</a></li>
+<li><a class="dropdown-item" href="articles/basic_tutorial.html">co-expression module perturbation analysis</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
@@ -55,17 +55,17 @@
 <h2 id="compact-co-expression-module-perturbation-analysis">
 <strong><code>compact</code></strong>: co-expression module perturbation analysis<a class="anchor" aria-label="anchor" href="#compact-co-expression-module-perturbation-analysis"></a>
 </h2>
-<p><a href="https://github.com/smorabit/COMPACT/tree/main" class="external-link"><img src="https://img.shields.io/github/r-package/v/smorabit/COMPACT" alt="R"></a> <a href="https://github.com/smorabit/COMPACT/issues" class="external-link"><img src="https://img.shields.io/github/issues/smorabit/COMPACT" alt="ISSUES"></a></p>
+<p><a href="https://github.com/smorabit/compact/tree/main" class="external-link"><img src="https://img.shields.io/github/r-package/v/smorabit/compact" alt="R"></a> <a href="https://github.com/smorabit/compact/issues" class="external-link"><img src="https://img.shields.io/github/issues/smorabit/compact" alt="ISSUES"></a></p>
 <p><strong><code>compact</code></strong> is a framework for performing CO-expression Module Perturbation Analysis in Cellular Transcriptomes. Building off of our previous method <a href="https://smorabit.github.io/hdWGCNA/" class="external-link"><strong><code>hdWGCNA</code></strong></a>, <strong><code>compact</code></strong> applies direct perturbations to co-expression network hub genes, and uses the network structure to propagate the perturbation signal to other linked genes in the network. This framework is highly flexible to perform knock-in, knock-down, or knock-out perturbations on different networks and sets of genes and in different cell lineages, allowing researchers to explore a wide range of strategies mimicking various experimental conditions and interventions.</p>
-<p><strong><code>compact</code></strong> is under active development, and is currently an <strong>alpha</strong> version. This means that many features of the final package are missing, and current features are subject to change throughout development. The first major release of <strong><code>compact</code></strong> will coincide with our forthcoming publication in the coming months.</p>
-<p>To get started, please install the package and then visit the <a href="https://smorabit.github.io/compact/articles/basic_tutorial.html" class="external-link">co-expression module perturbation analysis tutorial</a>.</p>
+<p><strong><code>compact</code></strong> is under active development, and is currently an <strong>alpha</strong> version. This means that many features of the final package are missing, and current features are subject to change throughout development. The first major release of <strong><code>compact</code></strong> will coincide with our forthcoming publication.</p>
+<p>To get started, please install the package and then visit the <a href="https://smorabit.github.io/compact/articles/basic_tutorial.html">co-expression module perturbation analysis tutorial</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>We recommend creating an R <a href="https://docs.conda.io/en/latest/" class="external-link">conda environment</a> environment for COMPACT.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> COMPACT <span class="at">-c</span> conda-forge r-base r-essentials</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">conda</span> activate COMPACT</span></code></pre></div>
+<p>We recommend creating an R <a href="https://docs.conda.io/en/latest/" class="external-link">conda environment</a> environment for compact.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> compact <span class="at">-c</span> conda-forge r-base r-essentials</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">conda</span> activate compact</span></code></pre></div>
 <p>Install the required packages in R</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install BiocManager</span></span>
@@ -81,7 +81,7 @@
 <span><span class="co"># install hdWGCNA, velocyto.R, and compact from devtools</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">'smorabit/hdWGCNA'</span>, ref<span class="op">=</span><span class="st">'dev'</span><span class="op">)</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"velocyto-team/velocyto.R"</span><span class="op">)</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">'smorabit/COMPACT'</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">'smorabit/compact'</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/COMPACT_Pipeline.png"></p>
 </div>
 

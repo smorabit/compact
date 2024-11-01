@@ -1,8 +1,8 @@
 ---
-title: "Co-expression module perturbation analysis"
+title: "co-expression module perturbation analysis"
 output: rmarkdown::html_vignette
 description: >
-  Tutorial for performing basic Module Perturbation Analysis (MPA) with COMPACT.
+  Tutorial for performing module perturbation analysis (MPA) with compact.
 vignette: >
   %\VignetteIndexEntry{Module Perturbation Analysis}
   %\VignetteEngine{knitr::rmarkdown}
@@ -24,17 +24,20 @@ The in-silico perturbations that we demonstrate in this tutorial are based on ge
 
 # Load the dataset
 
-First we load the required R libraries and the tutorial dataset.
+Download the tutorial dataset from these Google Drive links:
+* [Seurat object](https://drive.google.com/file/d/15-0URxGUgE2eCxx15zkoVwkkmLhZTFKH/view?usp=drive_link) 
+* [co-expression adjacency matrix (.rda)](https://drive.google.com/file/d/1BcnUx3eh4zHwk_JfBo8zpB70ewp0u1tX/view?usp=drive_link)
+
+First we load the required R libraries and the tutorial dataset. When loading the tutorial dataset, you need to update the filepath to the co-expression adjacency matrix (TOM) within the Seurat object (shown below).
 
 ```{r eval=FALSE, echo=FALSE}
-
 library(tidyverse)
 library(cowplot)
 library(patchwork)
 library(Seurat)
 library(velocyto.R)
 library(hdWGCNA)
-library(COMPACT)
+library(compact)
 theme_set(theme_cowplot())
 
 # set random seed for reproducibility
@@ -43,11 +46,21 @@ set.seed(12345)
 # load the processed alzheimer's microglia dataset
 seurat_obj <- readRDS(file='AD_MG_hdWGCNA_COMPACT_tutorial.rds')
 
-# update the path to the hdWGCNA TOM
+# update the path to the co-expression network adjacency matrix
 net <- GetNetworkData(seurat_obj)
-net$TOMFiles <- 'AD_MG_TOM.rda'
+net$TOMFiles <- 'AD_MG_TOM.rda' # it is better to use the absolute path
 seurat_obj <- SetNetworkData(seurat_obj, net)
+```
 
+If you have not already done so, we need to construct a nearest-neighbors graph in the Seurat object. This is a key step in the typical single-cell clustering pipeline. 
+
+```{r eval=FALSE}
+seurat_obj <- FindNeighbors(
+    seurat_obj,
+    reduction='harmony',nearest neighbors?
+    assay = 'RNA',
+    annoy.metric = 'cosine'
+)
 ```
 
 ```{r eval=FALSE, echo=FALSE}
@@ -251,7 +264,7 @@ dev.off()
 
 ## Visualize predicted cell transitions after perturbation 
 
-Here we will visualize the predicted cell-cell transitions after the in-silico knock-down of MG-M4. Similar to other methods like [RNA Velocity]() or [CellOracle](), we visualize the inferred transitions as a vector field overlaid on a dimensionality reduction. We include the function `PlotTransitionVectors` to generate this plot. This function leverages some code from the R package `velocyto.R`, however in a future update we would like to remove this dependency since this package can be difficult to install on some machines.  
+Here we will visualize the predicted cell-cell transitions after the in-silico knock-down of MG-M4. Similar to other methods like [RNA Velocity](https://github.com/velocyto-team/velocyto.R) or [CellOracle](https://github.com/morris-lab/CellOracle), we visualize the inferred transitions as a vector field overlaid on a dimensionality reduction. We include the function `PlotTransitionVectors` to generate this plot. This function leverages some code from the R package `velocyto.R`, however in a future update we would like to remove this dependency since this package can be difficult to install on some machines.  
 
 ```{r eval=FALSE}
 
@@ -529,4 +542,4 @@ As expected, we can broadly see that the transition vectors indicate opposite af
 
 # Conclusion 
 
-Here we demonstrated the basics of the `**`compact`**` method to apply an in-silico knockdown of a the microglial activation module M4. By down-regulating this module, the method predicted that cells would shift to a more homeostatic-like state. 
+Here we demonstrated the basics of the **`compact`** method to apply an in-silico knockdown of a the microglial activation module M4. By down-regulating this module, the method predicted that cells would shift to a more homeostatic-like state. 
