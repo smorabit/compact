@@ -1,4 +1,4 @@
-title: COMPACT
+title: compact
 
 url: https://smorabit.github.io/COMPACT/
 
@@ -7,7 +7,7 @@ template:
   bootswatch: flatly
 
 home:
-  title: COMPACT
+  title: compact
   sidebar:
     structure: [license, citation, authors, dev]
 
@@ -24,18 +24,14 @@ deploy:
 
 navbar:
   structure:
-    left: [intro, articles, reference, news]
+    left: [articles, reference, news]
     right: [search, github]
 components:
-   intro:
-     text: Get started
-     href: articles/COMPACT.html
    news:
      text: News
      href: news/index.html
    articles:
     text: Vignettes
     menu:
-    - text: Core functionality
-    - text: Module Pertubation Analysis
-      href: articles/MPA_basics_microglia.html
+    - text: Co-expression module perturbation
+      href: articles/basic_tutorial.Rmd

@@ -1,5 +1,5 @@
-Package: COMPACT
-Title: COMPACT
+Package: compact
+Title: compact
 Version: 0.0.1
 Authors@R: c(
     person("Sam", "Morabito", , "smorabit@uci.edu", role = c("aut", "cre"),
@@ -8,7 +8,7 @@ Authors@R: c(
           comment = c(ORCID = "0000-0002-2844-5816")),
     person("Swarup Lab", role = "fnd")
   )
-Description: COMPACT | Co-expression Module Perturbation Analysis in Cellular Transcriptomes.
+Description: compact | Co-expression Module Perturbation Analysis in Cellular Transcriptomes.
 License: GNU GPLv3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
