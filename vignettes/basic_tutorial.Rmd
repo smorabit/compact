@@ -30,7 +30,7 @@ Download the tutorial dataset from these Google Drive links:
 
 First we load the required R libraries and the tutorial dataset. When loading the tutorial dataset, you need to update the filepath to the co-expression adjacency matrix (TOM) within the Seurat object (shown below).
 
-```{r eval=FALSE, echo=FALSE}
+```{r eval=FALSE}
 library(tidyverse)
 library(cowplot)
 library(patchwork)

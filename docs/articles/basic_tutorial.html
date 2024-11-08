@@ -102,26 +102,46 @@ adjacency matrix (.rda)</a></p>
 loading the tutorial dataset, you need to update the filepath to the
 co-expression adjacency matrix (TOM) within the Seurat object (shown
 below).</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyverse.tidyverse.org" class="external-link">tidyverse</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://wilkelab.org/cowplot/" class="external-link">cowplot</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://satijalab.org/seurat" class="external-link">Seurat</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">velocyto.R</span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://smorabit.github.io/hdWGCNA/" class="external-link">hdWGCNA</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://smorabit.github.io/COMPACT/" class="external-link">compact</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme_get.html" class="external-link">theme_set</a></span><span class="op">(</span><span class="fu"><a href="https://wilkelab.org/cowplot/reference/theme_cowplot.html" class="external-link">theme_cowplot</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># set random seed for reproducibility</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">12345</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># load the processed alzheimer's microglia dataset</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">readRDS</a></span><span class="op">(</span>file<span class="op">=</span><span class="st">'AD_MG_hdWGCNA_COMPACT_tutorial.rds'</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># update the path to the co-expression network adjacency matrix</span></span>
+<span><span class="va">net</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetNetworkData.html" class="external-link">GetNetworkData</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
+<span><span class="va">net</span><span class="op">$</span><span class="va">TOMFiles</span> <span class="op">&lt;-</span> <span class="st">'AD_MG_TOM.rda'</span> <span class="co"># it is better to use the absolute path</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/SetNetworkData.html" class="external-link">SetNetworkData</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="va">net</span><span class="op">)</span></span></code></pre></div>
 <p>If you have not already done so, we need to construct a
 nearest-neighbors graph in the Seurat object. This is a key step in the
 typical single-cell clustering pipeline.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>seurat_obj <span class="ot">&lt;-</span> <span class="fu">FindNeighbors</span>(</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>    seurat_obj,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>    <span class="at">reduction=</span><span class="st">'harmony'</span>,nearest neighbors?</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>    <span class="at">assay =</span> <span class="st">'RNA'</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>    <span class="at">annoy.metric =</span> <span class="st">'cosine'</span></span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>)</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>seurat_obj <span class="ot">&lt;-</span> <span class="fu">FindNeighbors</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>    seurat_obj,</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>    <span class="at">reduction=</span><span class="st">'harmony'</span>,nearest neighbors?</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>    <span class="at">assay =</span> <span class="st">'RNA'</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>    <span class="at">annoy.metric =</span> <span class="st">'cosine'</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>)</span></code></pre></div>
 <p>Next we visualize the clusters in this dataset as a UMAP plot.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get the UMAP embedding from the seurat object</span></span>
-<span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="fu">Reductions</span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'umap'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span></span>
+<span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Reductions</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'umap'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span></span>
 <span></span>
 <span><span class="co"># make a dataframe to plot with ggplot</span></span>
 <span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">emb</span><span class="op">)</span></span>
 <span><span class="va">plot_df</span><span class="op">$</span><span class="va">functional_anno</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">functional_anno</span></span>
 <span></span>
 <span><span class="co"># plot with ggplot</span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">plot_df</span> <span class="op">%&gt;%</span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">plot_df</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x<span class="op">=</span><span class="va">UMAP_1</span>, y<span class="op">=</span><span class="va">UMAP_2</span>, color<span class="op">=</span><span class="va">functional_anno</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_color_viridis_d</a></span><span class="op">(</span>option <span class="op">=</span> <span class="st">"plasma"</span><span class="op">)</span> <span class="op">+</span>  </span>
 <span>  <span class="fu">rasterise</span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>size<span class="op">=</span><span class="fl">2</span>, alpha<span class="op">=</span><span class="fl">0.5</span><span class="op">)</span>, dpi <span class="op">=</span> <span class="fl">300</span><span class="op">)</span> <span class="op">+</span></span>
@@ -137,14 +157,14 @@ typical single-cell clustering pipeline.</p>
 <p>In this example, we will perform an in-silico knock-down for one of
 our microglia co-expression modules. First, let’s look at the expression
 level of these modules (module eigengene).</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># add module expression levels (MEs) to the seurat metadata</span></span>
-<span><span class="va">MEs</span> <span class="op">&lt;-</span> <span class="fu">GetMEs</span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
+<span><span class="va">MEs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetMEs.html" class="external-link">GetMEs</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
 <span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">@</span><span class="va">meta.data</span></span>
 <span><span class="va">seurat_obj</span><span class="op">@</span><span class="va">meta.data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">meta</span>, <span class="va">MEs</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># dotplot</span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu">DotPlot</span><span class="op">(</span></span>
+<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/DotPlot.html" class="external-link">DotPlot</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>, features<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'MG-M4'</span>, <span class="st">'MG-M1'</span>, <span class="st">'MG-M3'</span>, <span class="st">'MG-M2'</span><span class="op">)</span>, </span>
 <span>    group.by<span class="op">=</span><span class="st">'functional_anno'</span></span>
 <span><span class="op">)</span> <span class="op">+</span></span>
@@ -153,7 +173,7 @@ level of these modules (module eigengene).</p>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
 <span>        axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>        axis.ticks.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'Trajectory →'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span></span>
+<span>    <span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'Trajectory →'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">p</span></span></code></pre></div>
 <p><img src="figures/basic_tutorial/MG_module_dotplot.png" width="1000" height="1000"></p>
@@ -186,12 +206,12 @@ matrix.</p></li>
 <p>For this analysis we will perform the primary perturbation on the top
 10 hub genes of module MG-M4. Let’s check which genes we will be
 perturbing.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">hub_genes</span> <span class="op">&lt;-</span> <span class="fu">GetHubGenes</span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs<span class="op">=</span><span class="fl">10</span><span class="op">)</span> <span class="op">%&gt;%</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">module</span> <span class="op">==</span> <span class="st">'MG-M4'</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">hub_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetHubGenes.html" class="external-link">GetHubGenes</a></span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs<span class="op">=</span><span class="fl">10</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">module</span> <span class="op">==</span> <span class="st">'MG-M4'</span><span class="op">)</span></span>
 <span><span class="va">hub_genes</span><span class="op">$</span><span class="va">gene_name</span></span></code></pre></div>
 <pre><code>[1] "PTPN2"   "SLC11A1" "ACSL1"   "SPATA6"  "TBC1D14" "TMEM163" "ERC2"   
 [8] "DPYD"    "CD163"   "TLR2"   </code></pre>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># provide a name for the perturbation, which will be stored in the Seurat object</span></span>
 <span><span class="va">perturbation_name</span> <span class="op">&lt;-</span> <span class="st">'M4_down'</span></span>
 <span></span>
@@ -208,20 +228,20 @@ perturbing.</p>
 <p>The main ouputs of this function are a “perturbed” gene expression
 matrix, and a cell-cell transition matrix, which we can access from the
 Seurat object using the following code.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># get the perturbed expression matrix</span></span>
-<span><span class="va">X_per</span> <span class="op">&lt;-</span> <span class="fu">GetAssayData</span><span class="op">(</span></span>
+<span><span class="va">X_per</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/AssayData.html" class="external-link">GetAssayData</a></span><span class="op">(</span></span>
 <span>  <span class="va">seurat_obj</span>, assay<span class="op">=</span><span class="va">perturbation_name</span>,</span>
 <span>  layer<span class="op">=</span><span class="st">'counts'</span> </span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># get the cell-cell transition matrix</span></span>
-<span><span class="va">tp</span> <span class="op">&lt;-</span> <span class="fu">Graphs</span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">perturbation_name</span>, <span class="st">'_tp'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">tp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Graphs</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">perturbation_name</span>, <span class="st">'_tp'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Next, let’s compare the observed and perturbed gene expression
 distributions for one of the MG-M4 hub genes, TMEM163. We expect that in
 the pertubed matrix, the expression of TMEM163 will be lower than in the
 observed matrix.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Generate 10 colors from the plasma palette</span></span>
 <span><span class="va">plasma_colors</span> <span class="op">&lt;-</span> <span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">viridis</a></span><span class="op">(</span><span class="fl">10</span>, option <span class="op">=</span> <span class="st">"plasma"</span><span class="op">)</span></span>
 <span></span>
@@ -231,17 +251,17 @@ observed matrix.</p>
 <span><span class="co"># one of the hub genes to be perturbed</span></span>
 <span><span class="va">cur_gene</span> <span class="op">&lt;-</span> <span class="st">'TMEM163'</span></span>
 <span></span>
-<span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu">VlnPlot</span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">cur_gene</span>, pt.size<span class="op">=</span><span class="fl">0.1</span>, group.by <span class="op">=</span> <span class="va">group.by</span>, assay<span class="op">=</span><span class="st">'RNA'</span><span class="op">)</span> <span class="op">+</span></span>
+<span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">cur_gene</span>, pt.size<span class="op">=</span><span class="fl">0.1</span>, group.by <span class="op">=</span> <span class="va">group.by</span>, assay<span class="op">=</span><span class="st">'RNA'</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="va">plasma_colors</span><span class="op">)</span> <span class="op">+</span>  <span class="co"># Use the extracted colors here</span></span>
-<span>  <span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/lims.html" class="external-link">ylim</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">5</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/lims.html" class="external-link">ylim</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">5</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
 <span>    axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>    plot.margin<span class="op">=</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
 <span></span>
-<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu">VlnPlot</span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">cur_gene</span>, pt.size<span class="op">=</span><span class="fl">0.1</span>, group.by <span class="op">=</span> <span class="va">group.by</span>, assay<span class="op">=</span><span class="va">perturbation_name</span><span class="op">)</span> <span class="op">+</span></span>
+<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">cur_gene</span>, pt.size<span class="op">=</span><span class="fl">0.1</span>, group.by <span class="op">=</span> <span class="va">group.by</span>, assay<span class="op">=</span><span class="va">perturbation_name</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="va">plasma_colors</span><span class="op">)</span> <span class="op">+</span>  <span class="co"># Use the extracted colors here</span></span>
-<span>  <span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span>  <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/lims.html" class="external-link">ylim</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">5</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span>  <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/lims.html" class="external-link">ylim</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">5</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
 <span>    plot.margin<span class="op">=</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">'Functional Annotation / Pseudotime --&gt;'</span><span class="op">)</span></span>
 <span></span>
 <span></span>
@@ -260,7 +280,7 @@ dimensionality reduction. We include the function
 leverages some code from the R package <code>velocyto.R</code>, however
 in a future update we would like to remove this dependency since this
 package can be difficult to install on some machines.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotTransitionVectors.html">PlotTransitionVectors</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="va">perturbation_name</span>,</span>
@@ -270,7 +290,7 @@ package can be difficult to install on some machines.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">p</span> <span class="op">&lt;-</span> <span class="va">p</span> <span class="op">+</span> </span>
-<span>    <span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradientn</a></span><span class="op">(</span>colors<span class="op">=</span><span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">plasma</a></span><span class="op">(</span><span class="fl">256</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="va">perturbation_name</span><span class="op">)</span></span>
@@ -293,7 +313,7 @@ between different functional cell states present in the dataset.</p>
 <p>First, we calculate energy distance between clusters in the observed
 gene expression matrix using the function
 <code>ComputeDistance</code>.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Calculate similarity distance for original scRNA-seq data, method selected "edist" - energy distance</span></span>
 <span><span class="va">df_edist_original</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ComputeDistance.html">ComputeDistance</a></span><span class="op">(</span></span>
 <span>  <span class="va">seurat_obj</span>, </span>
@@ -348,18 +368,18 @@ Output
 <span><span class="co"># Phagocytosis      0.000000</span></span></code></pre>
 </details><p>Next, we perform a similar analysis on the perturbed Seurat assay
 ‘M4_down’</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Set the default assay to the perturbed assay and prepare the data</span></span>
 <span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span> <span class="co"># set up a new seurat object to avoid confusion</span></span>
 <span></span>
-<span><span class="fu">DefaultAssay</span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"M4_down"</span></span>
+<span><span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/DefaultAssay.html" class="external-link">DefaultAssay</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"M4_down"</span></span>
 <span></span>
-<span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu">FindVariableFeatures</span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, selection.method <span class="op">=</span> <span class="st">"vst"</span>, nfeatures <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
-<span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu">ScaleData</span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/FindVariableFeatures.html" class="external-link">FindVariableFeatures</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, selection.method <span class="op">=</span> <span class="st">"vst"</span>, nfeatures <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
+<span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/ScaleData.html" class="external-link">ScaleData</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span></span></code></pre></div>
 <p>Run PCA for the perturbed data and please remember to change the
 ‘reduction.name’</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu">RunPCA</span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, features <span class="op">=</span> <span class="fu">VariableFeatures</span><span class="op">(</span>object <span class="op">=</span> <span class="va">seurat_obj_perturbed</span><span class="op">)</span>, reduction.name <span class="op">=</span> <span class="st">"M4_down_pca"</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/RunPCA.html" class="external-link">RunPCA</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, features <span class="op">=</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/VariableFeatures.html" class="external-link">VariableFeatures</a></span><span class="op">(</span>object <span class="op">=</span> <span class="va">seurat_obj_perturbed</span><span class="op">)</span>, reduction.name <span class="op">=</span> <span class="st">"M4_down_pca"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">seurat_obj_perturbed</span><span class="op">@</span><span class="va">reductions</span></span></code></pre></div>
 <details><summary>
@@ -394,7 +414,7 @@ A dimensional reduction object with key m4_down_pca_
  Computed using assay: M4_down
 </code></pre>
 </details><p>Compute similarity distance for the perturbed data</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># ComputeDistance</span></span>
 <span><span class="va">df_edist_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ComputeDistance.html">ComputeDistance</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, groupby <span class="op">=</span> <span class="st">'functional_anno'</span>, reduction <span class="op">=</span> <span class="st">'M4_down_pca'</span>, method <span class="op">=</span> <span class="st">"edist"</span>, verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
@@ -436,7 +456,7 @@ Activated3        1.2788325  0.3551624     0.9134280    2.748803  0.0000000
 and perturbed data using a heatmap. This will allow us to compare the
 functional clusters’ similarity or difference before and after the
 perturbation</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#---------------------------</span></span>
 <span><span class="co"># NOTE plot heatmap</span></span>
 <span></span>
@@ -468,7 +488,7 @@ module, and we will visualize the resulting transition vector field with
 <code>PlotTransitionVectors</code>. The only difference here is that we
 set <code>perturb_dir=1</code> for an up-regulation whereas previously
 we had <code>perturb_dir=-1</code> for a down-regulation.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># apply the up-regulation of module M4</span></span>
 <span><span class="va">perturbation_name</span> <span class="op">&lt;-</span> <span class="st">'M4_up'</span></span>
 <span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
@@ -488,7 +508,7 @@ we had <code>perturb_dir=-1</code> for a down-regulation.</p>
 <span>    color.by<span class="op">=</span><span class="st">'pseudotime'</span>,</span>
 <span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
 <span>    point_size<span class="op">=</span><span class="fl">2</span> <span class="op">)</span> <span class="op">+</span> </span>
-<span><span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
+<span><span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradientn</a></span><span class="op">(</span>colors<span class="op">=</span><span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">plasma</a></span><span class="op">(</span><span class="fl">256</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"M4 knock-in"</span><span class="op">)</span></span>
@@ -501,7 +521,7 @@ we had <code>perturb_dir=-1</code> for a down-regulation.</p>
 <span>    color.by<span class="op">=</span><span class="st">'pseudotime'</span>,</span>
 <span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
 <span>    point_size<span class="op">=</span><span class="fl">2</span> <span class="op">)</span> <span class="op">+</span> </span>
-<span><span class="fu">NoLegend</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
+<span><span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradientn</a></span><span class="op">(</span>colors<span class="op">=</span><span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">plasma</a></span><span class="op">(</span><span class="fl">256</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> </span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">"M4 knock-down"</span><span class="op">)</span></span>
