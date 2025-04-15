@@ -37,6 +37,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/basic_tutorial.html">co-expression module perturbation analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/TF_tutorial.html">transcription factor perturbation analysis</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -95,9 +96,13 @@ have identified four gene modules.</p>
 <div class="section level2">
 <h2 id="load-the-dataset">Load the dataset<a class="anchor" aria-label="anchor" href="#load-the-dataset"></a>
 </h2>
-<p>Download the tutorial dataset from these Google Drive links: * <a href="https://drive.google.com/file/d/15-0URxGUgE2eCxx15zkoVwkkmLhZTFKH/view?usp=drive_link" class="external-link">Seurat
-object</a> * <a href="https://drive.google.com/file/d/1BcnUx3eh4zHwk_JfBo8zpB70ewp0u1tX/view?usp=drive_link" class="external-link">co-expression
-adjacency matrix (.rda)</a></p>
+<p>Download the tutorial dataset from these Google Drive links:</p>
+<ul>
+<li><p><a href="https://drive.google.com/file/d/15-0URxGUgE2eCxx15zkoVwkkmLhZTFKH/view?usp=drive_link" class="external-link">Seurat
+object</a></p></li>
+<li><p><a href="https://drive.google.com/file/d/1BcnUx3eh4zHwk_JfBo8zpB70ewp0u1tX/view?usp=drive_link" class="external-link">co-expression
+adjacency matrix (.rda)</a></p></li>
+</ul>
 <p>First we load the required R libraries and the tutorial dataset. When
 loading the tutorial dataset, you need to update the filepath to the
 co-expression adjacency matrix (TOM) within the Seurat object (shown

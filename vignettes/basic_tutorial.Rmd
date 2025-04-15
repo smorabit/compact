@@ -25,7 +25,9 @@ The in-silico perturbations that we demonstrate in this tutorial are based on ge
 # Load the dataset
 
 Download the tutorial dataset from these Google Drive links:
+
 * [Seurat object](https://drive.google.com/file/d/15-0URxGUgE2eCxx15zkoVwkkmLhZTFKH/view?usp=drive_link) 
+
 * [co-expression adjacency matrix (.rda)](https://drive.google.com/file/d/1BcnUx3eh4zHwk_JfBo8zpB70ewp0u1tX/view?usp=drive_link)
 
 First we load the required R libraries and the tutorial dataset. When loading the tutorial dataset, you need to update the filepath to the co-expression adjacency matrix (TOM) within the Seurat object (shown below).

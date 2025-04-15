@@ -1,0 +1,170 @@
+---
+title: "transcription factor perturbation analysis"
+output: rmarkdown::html_vignette
+description: >
+  Tutorial for performing transcription factor perturbation analysis with compact.
+vignette: >
+  %\VignetteIndexEntry{Module Perturbation Analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+Compiled: 28-10-2024
+
+Source: `vignettes/basic_tutorial.Rmd`
+
+# Introduction
+
+This tutorial covers the basics of using **`compact`** to perform transcription factor (TF) perturbation analysis in single-cell transcriptomic data. 
+
+For this tutorial we will use an integrated single-nucleus RNA-seq dataset of microglia from three different studies of Alzheimer's disease, as we described previously in the [hdWGCNA paper](https://www.sciencedirect.com/science/article/pii/S2667237523001273?via%3Dihub). 
+
+The in-silico perturbations that we demonstrate in this tutorial are based on a TF regulatory networks, which represent regulatory relationships between TFs and downstream target genes. In order to run these pertubations, we first need to perform co-expression network analysis and group genes into modules by running [hdWGCNA](https://smorabit.github.io/hdWGCNA/articles/basic_tutorial.html), and then we need to [construct a TF regulatory network](https://smorabit.github.io/hdWGCNA/articles/tf_network.html). For this tutorial, co-expression network analysis has already been run but we will demonstrate constructing the TF regulatory network.
+
+# Load the dataset
+
+Download the tutorial dataset from these Google Drive links:
+
+* [Seurat object](https://drive.google.com/file/d/15-0URxGUgE2eCxx15zkoVwkkmLhZTFKH/view?usp=drive_link) 
+
+* [co-expression adjacency matrix (.rda)](https://drive.google.com/file/d/1BcnUx3eh4zHwk_JfBo8zpB70ewp0u1tX/view?usp=drive_link)
+
+First we load the required R libraries and the tutorial dataset. When loading the tutorial dataset, you need to update the filepath to the co-expression adjacency matrix (TOM) within the Seurat object (shown below).
+
+```{r eval=FALSE}
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(Seurat)
+library(velocyto.R)
+library(hdWGCNA)
+library(compact)
+theme_set(theme_cowplot())
+
+# set random seed for reproducibility
+set.seed(12345)
+
+# load the processed alzheimer's microglia dataset
+seurat_obj <- readRDS(file='AD_MG_hdWGCNA_COMPACT_tutorial.rds')
+
+# update the path to the co-expression network adjacency matrix
+net <- GetNetworkData(seurat_obj)
+net$TOMFiles <- 'AD_MG_TOM.rda' # it is better to use the absolute path
+seurat_obj <- SetNetworkData(seurat_obj, net)
+```
+
+If you have not already done so, we need to construct a nearest-neighbors graph in the Seurat object. This is a key step in the typical single-cell clustering pipeline. 
+
+```{r eval=FALSE}
+seurat_obj <- FindNeighbors(
+    seurat_obj,
+    reduction='harmony',nearest neighbors?
+    assay = 'RNA',
+    annoy.metric = 'cosine'
+)
+```
+
+# Construct TF Regulatory Network 
+
+First we construct a TF regulatory network using hdWGCNA by following [this tutorial](https://smorabit.github.io/hdWGCNA/articles/tf_network.html#transcription-factor-network-analysis), and we first described this approach in our paper [Childs & Morabito et al., Cell Reports (2024)](https://www.cell.com/cell-reports/fulltext/S2211-1247(24)00284-5). We include the code below, but please visit the [hdWGCNA TF network tutorial](https://smorabit.github.io/hdWGCNA/articles/tf_network.html#transcription-factor-network-analysis) for further explanations about this analysis.
+
+<details> <summary> Run the TF regulatory network code </summary>
+
+Part 1: Identify TFs in promoter regions
+
+```{r eval=FALSE}
+
+# load these packages into R:
+library(JASPAR2020)
+library(motifmatchr)
+library(TFBSTools)
+library(EnsDb.Hsapiens.v86)
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(GenomicRanges)
+library(xgboost)
+
+# get the set of Motifs from JASPAR2020
+pfm_core <- TFBSTools::getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)
+)
+
+# scan promoter regions for TF motifs
+seurat_obj <- MotifScan(
+  seurat_obj,
+  species_genome = 'hg38',
+  pfm = pfm_core,
+  EnsDb = EnsDb.Hsapiens.v86
+)
+
+```
+
+Part 2: Construct TF Regulatory Network
+
+```{r eval=FALSE}
+
+# get the motif df:
+motif_df <- GetMotifs(seurat_obj)
+
+# keep all TFs, and then remove all genes from the grey module
+tf_genes <- unique(motif_df$gene_name)
+modules <- GetModules(seurat_obj)
+nongrey_genes <- subset(modules, module != 'grey') %>% .$gene_name
+genes_use <- c(tf_genes, nongrey_genes)
+
+# update the gene list and re-run SetDatExpr
+seurat_obj <- SetWGCNAGenes(seurat_obj, genes_use)
+seurat_obj <- SetDatExpr(seurat_obj)
+
+# define model params:
+model_params <- list(
+    objective = 'reg:squarederror',
+    max_depth = 1,
+    eta = 0.1,
+    nthread=8,
+    alpha=0.5
+)
+
+# construct the TF network
+seurat_obj <- ConstructTFNetwork(seurat_obj, model_params)
+
+
+```
+
+Part 3: Define TF Regulons 
+
+```{r eval=FALSE}
+
+# define the TF regulons
+seurat_obj <- AssignTFRegulons(
+    seurat_obj,
+    strategy = "A",
+    reg_thresh = 0.01,
+    n_tfs = 10
+)
+
+# calculate expression scores for TF regulonspositive regulons
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'positive',
+    ncores=8
+)
+seurat_obj <- RegulonScores(
+    seurat_obj,
+    target_type = 'negative',
+    cor_thresh = -0.05,
+    ncores=8
+)
+
+```
+
+</details>
+
+# Perform in-silico TF perturbations 
+
+Resulting from the previous step, we now have the TF regulatory network for the microglia dataset. Let's briefly check some of these results before performing perturbation analysis. 
+
+```{r eval=FALSE}
+
+
+```

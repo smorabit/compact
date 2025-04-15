@@ -47,8 +47,10 @@ PlotTransitionVectors <- function(
     grid_resolution = 25,
     max_pct = 0.90,
     point_alpha = 0.25,
-    point_size = 1
-
+    point_size = 1,
+    arrow_size = 0.25,
+    raster_dpi = 300,
+    arrow_alpha = TRUE
 ){
 
     # This function gives us the dataframe with vector coordinates 
@@ -65,37 +67,60 @@ PlotTransitionVectors <- function(
 
     # Get the UMAP embedding from the seurat object 
     # and subset to only keep cells that we have arrows for.
-    emb <- Reductions(seurat_obj, reduction)@cell.embeddings
+    emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
     colnames(emb) <- paste0('emb_', 1:ncol(emb))
 
     # make a grid of arrows 
     grid.df <- grid_vectors(emb[rownames(ars),], arsd, resolution=grid_resolution)
 
-    # make a dataframe to plot with ggplot
-    plot_df <- as.data.frame(emb)
+    # calculate the length of the arrow
+    grid.df$vector.length <- sqrt((grid.df$end.xd - grid.df$start.emb_1)^2 + (grid.df$end.yd - grid.df$start.emb_2)^2)
 
     # make a dataframe to plot with ggplot
     plot_df <- as.data.frame(emb)
     plot_df$value <- seurat_obj@meta.data[,color.by]
 
+    # arrange by value:
+    plot_df <- plot_df %>% arrange(value)
+
     # plot the scatter plot
     p <- ggplot(plot_df, aes(x=emb_1, y=emb_2, color=value)) +
-        geom_point(alpha=point_alpha, size=point_size) 
-    
-    # add the arrows
-    p <- p +
-    geom_segment(
-        data = grid.df,
-        inherit.aes=FALSE,
-        aes(
-            x=start.emb_1, 
-            y=start.emb_2, 
-            xend=end.xd, 
-            yend=end.yd
-        ), 
-        arrow=grid::arrow(length=unit(0.1, "cm")), 
-        size=0.25
-    )
+        ggrastr::rasterise(
+            geom_point(alpha=point_alpha, size=point_size),
+            dpi = raster_dpi
+        )
+
+    if(arrow_alpha){
+        p <- p +
+        geom_segment(
+            data = grid.df,
+            inherit.aes=FALSE,
+            aes(
+                x=start.emb_1, 
+                y=start.emb_2, 
+                xend=end.xd, 
+                yend=end.yd,
+                alpha = vector.length 
+            ), 
+            arrow=grid::arrow(length=unit(0.1, "cm")), 
+            size=arrow_size
+        )
+    } else{
+        p <- p +
+        geom_segment(
+            data = grid.df,
+            inherit.aes=FALSE,
+            aes(
+                x=start.emb_1, 
+                y=start.emb_2, 
+                xend=end.xd, 
+                yend=end.yd
+            ), 
+            arrow=grid::arrow(length=unit(0.1, "cm")), 
+            size=arrow_size
+        )
+    }
+
     # theme elements:
     p <- p + 
         hdWGCNA::umap_theme()
@@ -151,7 +176,7 @@ PerturbationVectors <- function(
     graph_name <- paste0(perturbation_name, '_tp')
 
     # get the 2D embedding
-    emb <- Reductions(seurat_obj, reduction)@cell.embeddings
+    emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
 
     # get the graph from the seurat object
     tp <- Graphs(seurat_obj, graph_name)
@@ -170,16 +195,15 @@ PerturbationVectors <- function(
     colnames(ars) <- c('x0','y0','x1','y1')
     colnames(arsd) <- c('xd','yd')
     rownames(ars) <- rownames(emb)
-
+        
+    # exclude NAs:
+    ars <- na.omit(ars)
+    arsd <- na.omit(arsd)
 
     max_vect <- quantile(abs(as.matrix(arsd)), max_pct)
     arsd[arsd > max_vect] <- max_vect
     arsd[arsd < -max_vect] <- -max_vect
     arsd <- arsd / max_vect  
-
-    # exclude NAs:
-    ars <- na.omit(ars)
-    arsd <- na.omit(arsd)
 
     # return 
     list(ars=ars, arsd=arsd)
@@ -187,12 +211,10 @@ PerturbationVectors <- function(
 }
 
 
-
-
 #' @export
 #' @importFrom S4Vectors selfmatch DataFrame
 #' @importFrom stats median
-grid_vectors <- function(x, embedded, resolution=40, scale=TRUE, as.data.frame=TRUE, return.intermediates=FALSE) {
+grid_vectors <- function(x, embedded, resolution=40, scale=TRUE, group_min=5) {
     limits <- apply(x, 2, range)
     intercept <- limits[1,]
     delta <- (limits[2,] - intercept)/resolution
@@ -212,16 +234,16 @@ grid_vectors <- function(x, embedded, resolution=40, scale=TRUE, as.data.frame=T
         vec <- vec * target/median(d)/2 # divide by 2 to avoid running over into another block.
     }
 
-    if (return.intermediates) {
-        if (as.data.frame) {
-            warning("ignoring 'as.data.frame=TRUE' for 'return.intermediates=TRUE'")
-        }
-        return(list(start=pos, end=pos + vec, limits=limits, delta=delta,
-                    categories=categories, grp=grp, vec=vec))
-    } else {
-        FUN <- if (as.data.frame) data.frame else list
-        return(FUN(start=pos, end=pos + vec))
-    }
+    out <- data.frame(
+        start=pos, 
+        end=pos + vec
+    )
+    
+    # remove outliers
+    rows_keep <- which(tab >= group_min)
+    out <- out[rows_keep,]
+    out
+    
 }
 
 

@@ -3,7 +3,8 @@ pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
   basic_tutorial: basic_tutorial.html
-last_built: 2024-11-01T17:21Z
+  TF_tutorial: TF_tutorial.html
+last_built: 2024-11-21T11:44Z
 urls:
   reference: https://smorabit.github.io/compact/reference
   article: https://smorabit.github.io/compact/articles
