@@ -325,6 +325,15 @@ ModulePerturbation <- function(
         stop(paste0('Invalid choice for perturb_dir. Valid choices are positive numbers (knock-in), negative numbers (knock-down), or 0 (knock-out).'))
     }
 
+    # define groups based on group.by
+    if(is.null(group.by)){
+        group.by <- 'fake_group'
+        seurat_obj@meta.data[,group.by] <- "all"
+        groups <- c("all")
+    } else{
+        groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    }
+
     # checks 
     # TODO: which checks should go here and which should go inside the functions?
     # it would be nice to do them all here so it errors out immediately.
@@ -349,20 +358,21 @@ ModulePerturbation <- function(
     
         cur_kme <- paste0('kME_', mod)
         expand_genes <- modules %>% subset(module == 'grey') %>% 
-            slice_max(order_by = get(cur_kme), n=expand_modules) %>%
+            slice_max(order_by = get(cur_kme), n=expand_module) %>%
             .$gene_name
 
         module_genes <- c(module_genes, expand_genes)
     }
 
     # which cells are we selecting to apply the perturbation?
-    if(is.null(group.by)){
-      cells_use <- colnames(seurat_obj)
-    } else{
-        cells_use <- seurat_obj@meta.data %>% 
-          subset(get(group.by) %in% group_name) %>%
-          rownames
-    }
+    cells_use <- colnames(seurat_obj)
+    # if(is.null(group.by)){
+    #   cells_use <- colnames(seurat_obj)
+    # } else{
+    #     cells_use <- seurat_obj@meta.data %>% 
+    #       subset(get(group.by) %in% group_name) %>%
+    #       rownames
+    # }
 
     ###########################################################################
     # Set up the observed expression matrix
@@ -386,7 +396,7 @@ ModulePerturbation <- function(
         features = hub_genes,
         perturb_dir = perturb_dir,
         cells_use = cells_use,
-       # group.by = group.by,
+        group.by = group.by,
        # group_name = group_name,
         layer = layer,
         slot = slot,
@@ -411,6 +421,20 @@ ModulePerturbation <- function(
         n_iters = n_iters
     )
 
+    # exp_prop <- do.call(cbind, lapply(groups, function(cur_group){
+    #     print(cur_group)
+    #     cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
+    #     ApplyPropagation(
+    #         seurat_obj,
+    #         exp[module_genes,cur_cells],
+    #         exp_per[module_genes,cur_cells],
+    #         network = cur_TOM,
+    #         perturb_dir = perturb_dir,
+    #         delta_scale = delta_scale,
+    #         n_iters = n_iters
+    #     )
+    # }))
+
     if(!all(colnames(seurat_obj) %in% cells_use)){
         exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]
         exp_prop <- cbind(exp_prop, exp_prop_other)
@@ -434,7 +458,7 @@ ModulePerturbation <- function(
     seurat_obj[[perturbation_name]] <- perturb_assay
 
     # normalize the perturbed data:
-    exp_simulated_norm <- LogNormalize(
+    exp_simulated_norm <- log_normalize(
         exp_simulated, colSums(exp)
     )
 
@@ -480,10 +504,9 @@ ModulePerturbation <- function(
 
 
 # helper function!!!
-LogNormalize <- function(X, col_sums, scale.factor = 1e4) {
+log_normalize <- function(X, col_sums, scale.factor = 1e4) {
 
   # Normalize each gene expression value by the total UMI count for its cell
-  #X_norm <- t(t(X) / col_sums) * scale.factor
   X_norm <- sweep(X, 2, col_sums, "/") * scale.factor
 
   # Log-transform the normalized values

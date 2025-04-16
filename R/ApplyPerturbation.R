@@ -22,7 +22,7 @@ ApplyPerturbation <- function(
     features,
     perturb_dir,
     cells_use=NULL,
-   # group.by = NULL,
+    group.by = NULL,
    # group_name = NULL,
     layer = 'counts',
     slot = 'counts',
@@ -48,6 +48,15 @@ ApplyPerturbation <- function(
     exp_hubs <- exp[features,cells_use]
     exp_non <- exp[!(rownames(exp) %in% features),cells_use]
 
+    # # define groups based on group.by
+    # if(is.null(group.by)){
+    #     group.by <- 'fake_group'
+    #     seurat_obj@meta.data[,group.by] <- "all"
+    #     groups <- c("all")
+    # } else{
+         groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    # }
+
     # initialize progress bar
     pb <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
 
@@ -60,32 +69,52 @@ ApplyPerturbation <- function(
         feature <- features[i]
         print(feature)
 
-        # get the obserbed gene expression
-        if(length(features) == 1){
-            yobs <- exp_hubs
-        } else{
-            yobs <- exp_hubs[feature,]
+        # initialize 
+        ysim <- c()
+        cell_names <- c()
+
+        # get the current group:
+        for(cur_group in groups){
+
+            print(cur_group)
+
+            cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
+
+            # get the obserbed gene expression
+            if(length(features) == 1){
+                yobs <- exp_hubs[cur_cells]
+            } else{
+                yobs <- exp_hubs[feature,cur_cells]
+            }
+
+            # model expression as a ZINB
+            model <- ModelZINB(
+                seurat_obj, 
+                feature=feature, cells_use=cur_cells, 
+                layer=layer, slot=slot
+            )
+            
+            # simulate data by samping the distribution 
+            cur_ysim <- SampleZINB(model, yobs)
+            cur_ysim <- cur_ysim[1:length(cur_cells)]
+            
+            # this line doesn't work
+            ysim <- c(ysim, cur_ysim)
+            cell_names <- c(cell_names, cur_cells)
+            print(length(ysim))
         }
 
-        # model expression as a ZINB
-        model <- ModelZINB(
-            seurat_obj, 
-            feature=feature, cells_use=cells_use, 
-            layer=layer, slot=slot
-        )
+        # set the names for ysim 
+        names(ysim) <- cell_names
         
-        # simulate data by samping the distribution 
-        ysim <- SampleZINB(model, yobs)
-
         # update progress bar
         setTxtProgressBar(pb, i)
 
         # return the simulated data
         ysim
-
     })
 
-     # close progress bar
+    # close progress bar
     close(pb)
 
     # is there one gene or more than 1 being perturbed?
@@ -94,6 +123,9 @@ ApplyPerturbation <- function(
 
         # convert to sparse matrix:
         sim_data <- Matrix::Matrix(sim_data, sparse=TRUE)
+
+        # re-order cells to match the original matrix:
+        sim_data <- sim_data[,colnames(exp_hubs)]
 
         # is this a knock-in or knock-down?
         sim_data <- sim_data * perturb_dir
@@ -109,6 +141,9 @@ ApplyPerturbation <- function(
 
     } else{
         sim_data <- sim_data[[1]]
+
+        # re-order cells to match the original matrix
+        sim_data <- sim_data[colnames(exp_hubs)]
 
         # is this a knock-in or knock-down?
         sim_data <- sim_data * perturb_dir

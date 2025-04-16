@@ -23,7 +23,8 @@ ModelZINB <- function(
     feature,
     cells_use=NULL,
     layer = 'counts',
-    slot = 'counts'
+    slot = 'counts',
+    add_zero = TRUE
 ){
 
     # check slot
@@ -45,6 +46,10 @@ ModelZINB <- function(
         cur_x <- FetchData(seurat_obj, feature , layer=layer, cells=cells_use)[,1]
     } else{
         cur_x <- FetchData(seurat_obj, feature , slot=slot, cells=cells_use)[,1]
+    }
+
+    if(add_zero){
+        cur_x <- c(cur_x, 0)
     }
 
     # fit data to zero-inflated negative binomial distribution

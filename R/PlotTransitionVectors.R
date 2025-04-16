@@ -130,8 +130,6 @@ PlotTransitionVectors <- function(
 }
 
 
-
-
 #' Calculate Perturbation Transition Vectors for Cell Embeddings
 #'
 #' This function calculates transition vectors for cells in a Seurat object based on a specified 
