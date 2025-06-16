@@ -4,6 +4,7 @@
 library(ggplot2)
 library(reshape2)
 library(patchwork)  # For arranging multiple plots
+# library(scales)
 
 # Internal: Get the Upper Triangle of a Matrix
 #'
@@ -39,9 +40,31 @@ library(patchwork)  # For arranging multiple plots
 #' @note This function is for internal use and is not exported.
 .create_distance_heatmap <- function(df_matrix, title, min_val, max_val, custom_palette = NULL, show_x_axis = TRUE, show_y_axis = TRUE, show_legend = TRUE, custom_order = NULL) {
 
-  # Define the color palette, use custom_palette if provided, otherwise use the default palette
+  # # Define the color palette, use custom_palette if provided, otherwise use the default palette
+  # if (is.null(custom_palette)) {
+  #   custom_palette <- c("#F9F3E1", "#F38B60", "#AF3B3B", "#2D1E3E")  # Default palette
+  # }
+  # Handle custom color palette logic
   if (is.null(custom_palette)) {
-    custom_palette <- c("#F9F3E1", "#F38B60", "#AF3B3B", "#2D1E3E")  # Default palette
+    # Default palette
+    custom_palette <- c("#E7ECFA", "#7C8FF0", "#3944BC", "#1A1A40")
+  } else if (length(custom_palette) == 1) {
+    # # Single color — generate a light version for gradient start
+    # library(scales)
+    # end_color <- custom_palette
+    # start_color <- scales::muted(end_color, l = 0.95, c = 0.2)  # Light version
+    # custom_palette <- c(start_color, end_color)
+
+    # One color — generate a white-to-color gradient
+    # custom_palette <- c("white", custom_palette)
+    custom_palette <- c("#FFFDFA", custom_palette) # Lotion white
+
+  } else if (length(custom_palette) == 2) {
+    # Two colors — use as is
+    custom_palette <- custom_palette
+  } else {
+    # More than two — assume full gradient
+    custom_palette <- custom_palette
   }
 
   # Check if the input is a dataframe and convert to matrix if needed
@@ -92,7 +115,13 @@ library(patchwork)  # For arranging multiple plots
 #' This function generates two heatmaps from two matrices (original and perturbed) and displays them side by side on the same color scale.
 #' @param df_original A numeric matrix representing the original (unperturbed) data.
 #' @param df_perturbed A numeric matrix representing the perturbed data.
-#' @param custom_palette A vector of colors to define the color palette. Defaults to a red/blue gradient.
+#' @param custom_palette A vector of one or more colors defining the heatmap gradient.
+#' If `NULL`, a default palette is used.
+#' - If a **single color** is provided (e.g., `"#F96815"`), a light version of that color
+#'   will be automatically generated to create a two-color gradient.
+#' - If **two colors** are provided, a linear gradient will be created between them.
+#' - If **more than two colors** are provided, the full palette will be used as-is
+#'   for the heatmap.
 #' @param title_original The title for the original heatmap. Defaults to "Original Assay Cluster Similarity Distance".
 #' @param title_perturbed The title for the perturbed heatmap. Defaults to "Perturbed Assay Cluster Similarity Distance".
 #' @param custom_order A character vector specifying the order of clusters for the x and y axes.
@@ -123,8 +152,8 @@ HeatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
   combined_max <- max(max(df_original, na.rm = TRUE), max(df_perturbed, na.rm = TRUE))
 
   # Generate heatmaps using the create_distance_heatmap function with a shared color scale
-  heatmap_original <- .create_distance_heatmap(df_original, title_original, combined_min, combined_max, custom_palette, show_x_axis = TRUE, show_y_axis = TRUE, show_legend = FALSE, custom_order)
-  heatmap_perturbed <- .create_distance_heatmap(df_perturbed, title_perturbed, combined_min, combined_max, custom_palette, show_x_axis = TRUE, show_y_axis = FALSE, show_legend = TRUE, custom_order)
+  heatmap_original <- .create_distance_heatmap(df_original, title_original, combined_min, combined_max, custom_palette = custom_palette, show_x_axis = TRUE, show_y_axis = TRUE, show_legend = FALSE, custom_order)
+  heatmap_perturbed <- .create_distance_heatmap(df_perturbed, title_perturbed, combined_min, combined_max, custom_palette = custom_palette, show_x_axis = TRUE, show_y_axis = FALSE, show_legend = TRUE, custom_order)
 
   # Combine heatmaps using patchwork
   combined_plot <- heatmap_original + heatmap_perturbed
