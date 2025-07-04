@@ -119,6 +119,14 @@ FindShapKeyDriver <- function(seurat_obj, conditions,
                  length(missing_genes), paste(head(missing_genes), collapse = ", ")))
   }
 
+  # should add the check right after you define or confirm variable_genes, and
+  # before SHAP computation or top_n usage.
+  if (length(variable_genes) < top_n) {
+    message(sprintf("Only %d variable genes provided. Setting top_n = %d",
+                    length(variable_genes), length(variable_genes)))
+    top_n <- length(variable_genes)
+  }
+
   message(sprintf("%d genes selected for SHAP analysis.", length(variable_genes)))
   # X <- t(GetAssayData(seurat_obj, slot = "data")[variable_genes, ])
   # NOTE Error Message
