@@ -353,6 +353,8 @@ ModulePerturbation <- function(
     non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
     module_genes <- subset(modules, module == mod) %>% .$gene_name
 
+    print(head(modules))
+
     # Add additional genes to the module? This helps for small modules
     if(expand_module > 0){
     

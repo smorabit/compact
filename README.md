@@ -11,31 +11,39 @@ To get started, please install the package and then visit the [co-expression mod
 
 ## Installation
 
-We recommend creating an R [conda environment](https://docs.conda.io/en/latest/) environment for compact.
+Follow these steps to create an R [conda environment](https://docs.conda.io/en/latest/) environment for `compact`. 
 
 ```bash
-conda create -n compact -c conda-forge r-base r-essentials
+# Create a new conda environment, and activate it
+conda create -n compact -c conda-forge -c bioconda r-base=4.4 mamba
 conda activate compact
+
+# Install Key packages via conda-forge
+mamba install -c conda-forge -c bioconda \
+  r-seurat \
+  r-velocyto.r \
+  bioconductor-singlecellexperiment \
+  bioconductor-pcamethods \
+  r-hdf5r
+
+# Install additional required packages
+mamba install -c conda-forge \
+  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo
 ```
 
-Install the required packages in R
+Next, install the required packages inside of R.
 
 ```r
-# install BiocManager
+# install BiocManager 
 install.packages("BiocManager")
-BiocManager::install()
 
-# install latest version of Seurat from CRAN
-install.packages("Seurat")
-
-# install devtools
-BiocManager::install("devtools")
-
-# install hdWGCNA, velocyto.R, and compact from devtools
+# install hdWGCNA
+BiocManager::install(c("WGCNA", "UCell", "GenomicRanges", "GeneOverlap"))
 devtools::install_github('smorabit/hdWGCNA', ref='dev')
+
+# finally, install compact
 devtools::install_github("velocyto-team/velocyto.R")
 devtools::install_github('smorabit/compact')
-
 ```
 
 ![](man/figures/COMPACT_Pipeline.png)

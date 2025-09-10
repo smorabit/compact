@@ -187,6 +187,9 @@ PerturbationVectors <- function(
         n_threads
     )))
 
+    # replace NA with 0 
+    arsd[is.na(arsd)] <- 0
+
     # format the dataframes
     rownames(arsd) <- rownames(emb)
     ars <- data.frame(cbind(emb,emb+arsd))
@@ -195,8 +198,8 @@ PerturbationVectors <- function(
     rownames(ars) <- rownames(emb)
         
     # exclude NAs:
-    ars <- na.omit(ars)
-    arsd <- na.omit(arsd)
+   #  ars <- na.omit(ars)
+    # arsd <- na.omit(arsd)
 
     max_vect <- quantile(abs(as.matrix(arsd)), max_pct)
     arsd[arsd > max_vect] <- max_vect
@@ -298,6 +301,74 @@ embArrows <- function(embedding, transition_matrix, knn_graph, scale = 1, thresh
     return(delta_embedding)
 }
 
+
+VectorFieldCoherence <- function(
+    seurat_obj,
+    perturbation_name,
+    reduction = 'umap',
+    graph='RNA_nn',
+    n_threads=4,
+    arrow_scale = 1,
+    max_pct = 0.90
+){
+
+    # TODO: check reduction 
+    graph_name <- paste0(perturbation_name, '_tp')
+    cell_graph <- Graphs(seurat_obj, slot=graph)
+
+    # slow, maybe can find a way to speed it up
+    knn_idx <- lapply(1:nrow(cell_graph), function(x){
+        names(which(cell_graph[x,] == 1))
+    })
+
+    vectors <- PerturbationVectors(
+        seurat_obj,
+        perturbation_name = perturbation_name,
+        reduction = reduction, 
+        arrow_scale = arrow_scale,
+        max_pct = max_pct
+    )
+    ars <- vectors$ars 
+    vector_field <- vectors$arsd
+
+    # get the 2D embedding
+    embedding <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
+
+    # Precompute norms
+    norms <- sqrt(rowSums(vector_field^2))
+    n <- nrow(vector_field)
+    coherence <- numeric(n)
+
+    for (i in seq_len(n)) {
+        print(i)
+        vi <- vector_field[i, , drop = FALSE]
+        vi_norm <- norms[i]
+        
+        neighbors <- knn_idx[[i]]
+        vj <- vector_field[neighbors, , drop = FALSE]
+        vj_norms <- na.omit(norms[neighbors])
+
+        # Handle 0-norms safely to avoid division by zero
+        valid <- na.omit(vi_norm > 0 & vj_norms > 0)
+        if (any(valid)) {
+            dots <- as.matrix(vj) %*% t(as.matrix(vi))  # (k x 1) = (k x 2) %*% (2 x 1)
+            sims <- rep(0, length(neighbors))
+            sims[valid] <- dots[valid] / (vi_norm * vj_norms[valid])
+            coherence[i] <- mean(sims)
+        } else {
+            coherence[i] <- 0
+        }
+    }
+
+    # return coherence:
+    coherence
+
+}
+
+
 embArrows_velocyto <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
     .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)
 }
+
+
+
