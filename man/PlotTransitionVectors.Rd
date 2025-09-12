@@ -14,7 +14,10 @@ PlotTransitionVectors(
   grid_resolution = 25,
   max_pct = 0.9,
   point_alpha = 0.25,
-  point_size = 1
+  point_size = 1,
+  arrow_size = 0.25,
+  raster_dpi = 300,
+  arrow_alpha = TRUE
 )
 }
 \arguments{

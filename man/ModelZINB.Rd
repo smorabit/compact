@@ -9,7 +9,8 @@ ModelZINB(
   feature,
   cells_use = NULL,
   layer = "counts",
-  slot = "counts"
+  slot = "counts",
+  add_zero = TRUE
 )
 }
 \arguments{

@@ -29,6 +29,13 @@ mamba install -c conda-forge -c bioconda \
 # Install additional required packages
 mamba install -c conda-forge \
   r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo
+
+mamba install -c conda-forge \
+    r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest
+
+mamba install -c conda-forge \
+    r-ggrastr
+
 ```
 
 Next, install the required packages inside of R.

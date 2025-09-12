@@ -14,11 +14,13 @@ ModulePerturbation(
   group_name = NULL,
   n_hubs = 5,
   n_iters = 3,
+  expand_module = 0,
   delta_scale = 0.2,
   corr_sigma = 0.05,
   n_threads = 4,
   use_velocyto = TRUE,
   use_graph_tp = FALSE,
+  use_counts_tp = FALSE,
   layer = "counts",
   slot = "counts",
   assay = "RNA",
@@ -27,42 +29,58 @@ ModulePerturbation(
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object}
+\item{seurat_obj}{A Seurat object containing the gene expression and co-expression data.}
 
-\item{mod}{Name of the co-expression module to perturb}
+\item{mod}{Name of the co-expression module to perturb.}
 
-\item{perturb_dir}{A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
+\item{perturb_dir}{A numeric value determining the type of perturbation to apply:
+\itemize{
+\item negative for knock-down,
+\item positive for knock-in,
+\item 0 for knock-out.
+}}
 
-\item{perturbation_name}{A name for the in-silico perturbation that will be stored in the Seurat obejct}
+\item{perturbation_name}{A string representing the name of the in-silico perturbation.
+This will be stored as a new assay in the Seurat object.}
 
-\item{graph}{Name of the cell-cell graph in the Graphs(seurat_obj)}
+\item{graph}{Name of the cell-cell graph in \code{Graphs(seurat_obj)}, used for transition probability calculations.}
 
-\item{group.by}{A string containing the name of a column in the Seurat object with cell groups (clusters, cell types, etc).}
+\item{group.by}{Optional. A string specifying the column in \code{seurat_obj@meta.data} used for cell grouping.}
 
-\item{group_name}{A string containing a group present in the provided group.by column. A character vector can be provided to select multiple groups at a time.}
+\item{group_name}{Optional. A string or vector specifying the group(s) within \code{group.by} to use for perturbation.
+If NULL, perturbation is applied to all cells.}
 
-\item{n_hubs}{The number of hub genes to perturb from the selected co-expression module.}
+\item{n_hubs}{Number of hub genes to perturb in the selected co-expression module. Default is 5.}
 
-\item{n_iters}{The number of times to apply the signal propagation.}
+\item{n_iters}{Number of iterations for propagating the perturbation signal through the network. Default is 3.}
 
-\item{corr_sigma}{A numeric scaling factor for the correlation matrix.}
+\item{delta_scale}{A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.}
 
-\item{n_threads}{Number of threads for the correlation calculation}
+\item{corr_sigma}{A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.}
 
-\item{slot}{Slot to extract data for aggregation. Default = 'counts'}
+\item{n_threads}{Number of threads to use for parallel computation during correlation calculations. Default is 4.}
 
-\item{assay}{Assay in seurat_obj containing expression information.}
+\item{use_velocyto}{Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is TRUE.}
 
-\item{return_delta}{Logical indicating whether or not to return the "Delta" matrix in the Seurat object.}
+\item{use_graph_tp}{Logical. If TRUE, transition probabilities are computed using the cell-cell graph specified in \code{graph}. Default is FALSE.}
 
-\item{wgcna_name}{The name of the hdWGCNA experiment in the seurat_obj@misc slot}
+\item{layer}{Layer in the assay used for the perturbation. Default is 'counts'.}
+
+\item{slot}{Slot to extract data for aggregation (e.g., "counts", "data", or "scale.data"). Default is 'counts'.}
+
+\item{assay}{Name of the assay in \code{seurat_obj} containing the expression data. Default is 'RNA'.}
+
+\item{return_delta}{Logical. If TRUE, the delta matrix (difference between perturbed and observed data) is stored in the Seurat object. Currently not implemented. Default is FALSE.}
+
+\item{wgcna_name}{Optional. Name of the hdWGCNA experiment in \code{seurat_obj@misc}. If NULL, defaults to the active WGCNA experiment.}
 }
 \value{
 A Seurat object containing the in-silico perturbation results as a new assay.
 }
 \description{
 This function enables in-silico gene expression perturbation analysis using
-a co-expression network.
+a co-expression network. It applies primary perturbations to hub genes, propagates the signal
+throughout the co-expression network, and computes cell-cell transition probabilities.
 }
 \details{
 Following co-expression network analysis with hdWGCNA, ModulePerturbation allows us to perform

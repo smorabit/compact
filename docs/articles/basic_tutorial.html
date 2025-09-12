@@ -8,8 +8,8 @@
 <title>co-expression module perturbation analysis • compact</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="co-expression module perturbation analysis">
 <meta name="description" content="Tutorial for performing module perturbation analysis (MPA) with compact.
 ">
@@ -115,7 +115,7 @@ below).</p>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">velocyto.R</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://smorabit.github.io/hdWGCNA/" class="external-link">hdWGCNA</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://smorabit.github.io/COMPACT/" class="external-link">compact</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme_get.html" class="external-link">theme_set</a></span><span class="op">(</span><span class="fu"><a href="https://wilkelab.org/cowplot/reference/theme_cowplot.html" class="external-link">theme_cowplot</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/get_theme.html" class="external-link">theme_set</a></span><span class="op">(</span><span class="fu"><a href="https://wilkelab.org/cowplot/reference/theme_cowplot.html" class="external-link">theme_cowplot</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># set random seed for reproducibility</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">12345</span><span class="op">)</span></span>
@@ -139,7 +139,7 @@ typical single-cell clustering pipeline.</p>
 <p>Next we visualize the clusters in this dataset as a UMAP plot.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Get the UMAP embedding from the seurat object</span></span>
-<span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Reductions</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'umap'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span></span>
+<span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Reductions</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'umap'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span></span>
 <span></span>
 <span><span class="co"># make a dataframe to plot with ggplot</span></span>
 <span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">emb</span><span class="op">)</span></span>
@@ -235,13 +235,13 @@ matrix, and a cell-cell transition matrix, which we can access from the
 Seurat object using the following code.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># get the perturbed expression matrix</span></span>
-<span><span class="va">X_per</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/AssayData.html" class="external-link">GetAssayData</a></span><span class="op">(</span></span>
+<span><span class="va">X_per</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/AssayData.html" class="external-link">GetAssayData</a></span><span class="op">(</span></span>
 <span>  <span class="va">seurat_obj</span>, assay<span class="op">=</span><span class="va">perturbation_name</span>,</span>
 <span>  layer<span class="op">=</span><span class="st">'counts'</span> </span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># get the cell-cell transition matrix</span></span>
-<span><span class="va">tp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Graphs</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">perturbation_name</span>, <span class="st">'_tp'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">tp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Graphs</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">perturbation_name</span>, <span class="st">'_tp'</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Next, let’s compare the observed and perturbed gene expression
 distributions for one of the MG-M4 hub genes, TMEM163. We expect that in
 the pertubed matrix, the expression of TMEM163 will be lower than in the
@@ -377,14 +377,14 @@ Output
 <code class="sourceCode R"><span><span class="co"># Set the default assay to the perturbed assay and prepare the data</span></span>
 <span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span> <span class="co"># set up a new seurat object to avoid confusion</span></span>
 <span></span>
-<span><span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/DefaultAssay.html" class="external-link">DefaultAssay</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"M4_down"</span></span>
+<span><span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/DefaultAssay.html" class="external-link">DefaultAssay</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="st">"M4_down"</span></span>
 <span></span>
 <span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/FindVariableFeatures.html" class="external-link">FindVariableFeatures</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, selection.method <span class="op">=</span> <span class="st">"vst"</span>, nfeatures <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
 <span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/ScaleData.html" class="external-link">ScaleData</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span><span class="op">)</span></span></code></pre></div>
 <p>Run PCA for the perturbed data and please remember to change the
 ‘reduction.name’</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/RunPCA.html" class="external-link">RunPCA</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, features <span class="op">=</span> <span class="fu"><a href="https://mojaveazure.github.io/seurat-object/reference/VariableFeatures.html" class="external-link">VariableFeatures</a></span><span class="op">(</span>object <span class="op">=</span> <span class="va">seurat_obj_perturbed</span><span class="op">)</span>, reduction.name <span class="op">=</span> <span class="st">"M4_down_pca"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">seurat_obj_perturbed</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/RunPCA.html" class="external-link">RunPCA</a></span><span class="op">(</span><span class="va">seurat_obj_perturbed</span>, features <span class="op">=</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/VariableFeatures.html" class="external-link">VariableFeatures</a></span><span class="op">(</span>object <span class="op">=</span> <span class="va">seurat_obj_perturbed</span><span class="op">)</span>, reduction.name <span class="op">=</span> <span class="st">"M4_down_pca"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">seurat_obj_perturbed</span><span class="op">@</span><span class="va">reductions</span></span></code></pre></div>
 <details><summary>

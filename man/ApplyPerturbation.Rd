@@ -10,6 +10,7 @@ ApplyPerturbation(
   features,
   perturb_dir,
   cells_use = NULL,
+  group.by = NULL,
   layer = "counts",
   slot = "counts",
   assay = "RNA"
