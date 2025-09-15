@@ -302,25 +302,90 @@ embArrows <- function(embedding, transition_matrix, knn_graph, scale = 1, thresh
 }
 
 
+#' Compute Local Coherence of a Vector Field
+#'
+#' This function calculates the local coherence of a cell-wise vector field
+#' (e.g., perturbation vectors) based on a cell–cell neighborhood graph.
+#' For each cell, it measures how similar the vectors of its neighbors are
+#' to the cell's own vector, using cosine similarity. The result is a
+#' per-cell numeric vector of coherence values.
+#'
+#' @param seurat_obj A \code{Seurat} object containing the neighborhood graph
+#'   and the perturbation vectors.
+#' @param perturbation_name Name of the perturbation assay or matrix used to
+#'   compute the cell-wise vectors (passed to \code{PerturbationVectors}).
+#' @param reduction Character. Dimensionality reduction to use for the vector
+#'   representation (default: \code{"umap"}).
+#' @param graph Character. Name of the graph slot in the Seurat object (e.g.
+#'   \code{"RNA_nn"} or \code{"RNA_snn"}) used to define cell neighborhoods.
+#' @param n_threads Integer. Number of threads to use (currently not implemented
+#'   for parallelization, but reserved for future use).
+#' @param arrow_scale Numeric. Scaling factor for arrow (vector) lengths passed
+#'   to \code{PerturbationVectors}.
+#' @param max_pct Numeric. Maximum percentile of vector magnitudes to keep when
+#'   scaling (passed to \code{PerturbationVectors}).
+#' @param weighted Logical. If \code{TRUE}, coherence is computed as a
+#'   weighted average of neighbor similarities using the edge weights from
+#'   the graph; if \code{FALSE}, an unweighted mean is used.
+#'
+#' @return A numeric vector of length equal to the number of cells, containing
+#'   the local coherence score for each cell. Higher values indicate that a
+#'   cell’s vector is more aligned with its neighbors’ vectors.
+#'
+#' @details
+#' Local coherence quantifies directional agreement of perturbation vectors
+#' within the local neighborhood of each cell. Cosine similarity is used to
+#' measure alignment between a cell's vector and those of its neighbors.
+#' Weighted coherence accounts for edge weights in the neighborhood graph
+#' (e.g. from SNN graphs).
 VectorFieldCoherence <- function(
     seurat_obj,
     perturbation_name,
     reduction = 'umap',
-    graph='RNA_nn',
-    n_threads=4,
+    graph = 'RNA_nn',
+    n_threads = 4,
     arrow_scale = 1,
-    max_pct = 0.90
+    max_pct = 0.90,
+    weighted = FALSE
 ){
 
-    # TODO: check reduction 
-    graph_name <- paste0(perturbation_name, '_tp')
-    cell_graph <- Graphs(seurat_obj, slot=graph)
+    # --- Checks ---
+    if (!inherits(seurat_obj, "Seurat")) {
+        stop("`seurat_obj` must be a Seurat object.")
+    }
 
-    # slow, maybe can find a way to speed it up
-    knn_idx <- lapply(1:nrow(cell_graph), function(x){
-        names(which(cell_graph[x,] == 1))
+    # check reduction
+    if (!reduction %in% names(seurat_obj@reductions)) {
+        stop(sprintf("Reduction '%s' not found in Seurat object. Available reductions: %s",
+                     reduction, paste(names(seurat_obj@reductions), collapse = ", ")))
+    }
+
+    # check perturbation_name (assay or data)
+    graph_name <- paste0(perturbation_name, "_tp")
+    if (!graph_name %in% names(seurat_obj@assays) && 
+        !perturbation_name %in% names(seurat_obj@assays)) {
+        stop(sprintf("Perturbation '%s' not found in Seurat object assays. Available assays: %s",
+                     perturbation_name, paste(names(seurat_obj@assays), collapse = ", ")))
+    }
+
+    # check graph slot
+    if (!graph %in% names(seurat_obj@graphs)) {
+        stop(sprintf("Graph '%s' not found in Seurat object graphs. Available graphs: %s",
+                     graph, paste(names(seurat_obj@graphs), collapse = ", ")))
+    }
+
+    # get graph
+    cell_graph <- Graphs(seurat_obj, slot = graph)
+
+    # neighbor indices and weights
+    knn_idx <- lapply(1:nrow(cell_graph), function(x) {
+        which(cell_graph[x, ] > 0)
+    })
+    weights_list <- lapply(1:nrow(cell_graph), function(x) {
+        cell_graph[x, cell_graph[x, ] > 0]
     })
 
+    # get perturbation vectors
     vectors <- PerturbationVectors(
         seurat_obj,
         perturbation_name = perturbation_name,
@@ -328,43 +393,42 @@ VectorFieldCoherence <- function(
         arrow_scale = arrow_scale,
         max_pct = max_pct
     )
-    ars <- vectors$ars 
     vector_field <- vectors$arsd
-
-    # get the 2D embedding
-    embedding <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
-
-    # Precompute norms
+    
+    # precompute norms
     norms <- sqrt(rowSums(vector_field^2))
     n <- nrow(vector_field)
     coherence <- numeric(n)
 
     for (i in seq_len(n)) {
-        print(i)
         vi <- vector_field[i, , drop = FALSE]
         vi_norm <- norms[i]
-        
-        neighbors <- knn_idx[[i]]
-        vj <- vector_field[neighbors, , drop = FALSE]
-        vj_norms <- na.omit(norms[neighbors])
 
-        # Handle 0-norms safely to avoid division by zero
-        valid <- na.omit(vi_norm > 0 & vj_norms > 0)
-        if (any(valid)) {
-            dots <- as.matrix(vj) %*% t(as.matrix(vi))  # (k x 1) = (k x 2) %*% (2 x 1)
-            sims <- rep(0, length(neighbors))
-            sims[valid] <- dots[valid] / (vi_norm * vj_norms[valid])
-            coherence[i] <- mean(sims)
-        } else {
+        neighbors <- knn_idx[[i]]
+        if (length(neighbors) == 0 || vi_norm == 0) {
             coherence[i] <- 0
+            next
+        }
+
+        vj <- vector_field[neighbors, , drop = FALSE]
+        vj_norms <- norms[neighbors]
+
+        # cosine similarities
+        dots <- as.matrix(vj) %*% t(as.matrix(vi))  # (k x 1)
+        sims <- dots / (vi_norm * vj_norms)
+
+        if (weighted) {
+            # use graph weights
+            w <- weights_list[[i]]
+            w <- w / sum(w)
+            coherence[i] <- sum(w * sims, na.rm = TRUE)
+        } else {
+            coherence[i] <- mean(sims, na.rm = TRUE)
         }
     }
 
-    # return coherence:
-    coherence
-
+    return(coherence)
 }
-
 
 embArrows_velocyto <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
     .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)

@@ -2,9 +2,9 @@ pandoc: '3.5'
 pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
-  basic_tutorial: basic_tutorial.html
   TF_tutorial: TF_tutorial.html
-last_built: 2025-09-12T09:10Z
+  basic_tutorial: basic_tutorial.html
+last_built: 2025-09-15T14:52Z
 urls:
   reference: https://smorabit.github.io/compact/reference
   article: https://smorabit.github.io/compact/articles

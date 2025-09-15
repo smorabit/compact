@@ -28,13 +28,7 @@ mamba install -c conda-forge -c bioconda \
 
 # Install additional required packages
 mamba install -c conda-forge \
-  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo
-
-mamba install -c conda-forge \
-    r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest
-
-mamba install -c conda-forge \
-    r-ggrastr
+  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest r-ggrastr
 
 ```
 
@@ -51,6 +45,24 @@ devtools::install_github('smorabit/hdWGCNA', ref='dev')
 # finally, install compact
 devtools::install_github("velocyto-team/velocyto.R")
 devtools::install_github('smorabit/compact')
+```
+
+Install additional packages for Transcription Factor network analysis.
+
+```bash
+
+mamba install -c conda-forge -c bioconda bioconductor-tfbstools bioconductor-rtracklayer bioconductor-genomicranges bioconductor-motifmatchr
+
+```
+
+Within R:
+```r 
+BiocManager::install(c(
+  'EnsDb.Hsapiens.v86',
+  'BSgenome.Hsapiens.UCSC.hg38',
+  'JASPAR2020',
+  'JASPAR2024'
+)) 
 ```
 
 ![](man/figures/COMPACT_Pipeline.png)

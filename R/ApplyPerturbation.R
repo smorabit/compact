@@ -143,7 +143,7 @@ ApplyPerturbation <- function(
         sim_data <- sim_data[[1]]
 
         # re-order cells to match the original matrix
-        sim_data <- sim_data[colnames(exp_hubs)]
+        sim_data <- sim_data[names(exp_hubs)]
 
         # is this a knock-in or knock-down?
         sim_data <- sim_data * perturb_dir
@@ -157,7 +157,6 @@ ApplyPerturbation <- function(
         # update the expression matrix with the perturbed values
         exp_new <- rbind(delta_hub, exp_non)
         rownames(exp_new)[1] <- features
-
     }
 
     #get the data for the cells that we did not perturb
