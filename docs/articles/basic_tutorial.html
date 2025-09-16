@@ -24,7 +24,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">compact</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,8 +36,8 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/TF_tutorial.html">transcription factor perturbation analysis</a></li>
-    <li><a class="dropdown-item" href="../articles/basic_tutorial.html">co-expression module perturbation analysis</a></li>
+<li><a class="dropdown-item" href="../articles/basic_tutorial.html">co-expression module perturbation analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/TF_tutorial.html">transcription factor perturbation analysis</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -142,7 +142,7 @@ typical single-cell clustering pipeline.</p>
 <span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Reductions</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'umap'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span></span>
 <span></span>
 <span><span class="co"># make a dataframe to plot with ggplot</span></span>
-<span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/BiocGenerics/man/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">emb</span><span class="op">)</span></span>
+<span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">emb</span><span class="op">)</span></span>
 <span><span class="va">plot_df</span><span class="op">$</span><span class="va">functional_anno</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">functional_anno</span></span>
 <span></span>
 <span><span class="co"># plot with ggplot</span></span>
@@ -166,7 +166,7 @@ level of these modules (module eigengene).</p>
 <code class="sourceCode R"><span><span class="co"># add module expression levels (MEs) to the seurat metadata</span></span>
 <span><span class="va">MEs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetMEs.html" class="external-link">GetMEs</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
 <span><span class="va">meta</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">@</span><span class="va">meta.data</span></span>
-<span><span class="va">seurat_obj</span><span class="op">@</span><span class="va">meta.data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/BiocGenerics/man/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">meta</span>, <span class="va">MEs</span><span class="op">)</span></span>
+<span><span class="va">seurat_obj</span><span class="op">@</span><span class="va">meta.data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">meta</span>, <span class="va">MEs</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># dotplot</span></span>
 <span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/DotPlot.html" class="external-link">DotPlot</a></span><span class="op">(</span></span>
@@ -212,7 +212,7 @@ matrix.</p></li>
 10 hub genes of module MG-M4. Let’s check which genes we will be
 perturbing.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">hub_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetHubGenes.html" class="external-link">GetHubGenes</a></span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs<span class="op">=</span><span class="fl">10</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://rdrr.io/pkg/BiocGenerics/man/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">module</span> <span class="op">==</span> <span class="st">'MG-M4'</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">hub_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetHubGenes.html" class="external-link">GetHubGenes</a></span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs<span class="op">=</span><span class="fl">10</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">module</span> <span class="op">==</span> <span class="st">'MG-M4'</span><span class="op">)</span></span>
 <span><span class="va">hub_genes</span><span class="op">$</span><span class="va">gene_name</span></span></code></pre></div>
 <pre><code>[1] "PTPN2"   "SLC11A1" "ACSL1"   "SPATA6"  "TBC1D14" "TMEM163" "ERC2"   
 [8] "DPYD"    "CD163"   "TLR2"   </code></pre>
@@ -329,7 +329,7 @@ gene expression matrix using the function
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># # Define your custom order</span></span>
-<span><span class="va">custom_order</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/S4Vectors/man/Factor-class.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">functional_anno</span><span class="op">)</span></span>
+<span><span class="va">custom_order</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">functional_anno</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Rearrange rows and columns of df_edist_observed based on the custom order</span></span>
 <span><span class="va">df_edist_original_reordered</span> <span class="op">&lt;-</span> <span class="va">df_edist_original</span><span class="op">[</span><span class="va">custom_order</span>, <span class="va">custom_order</span><span class="op">]</span></span>
