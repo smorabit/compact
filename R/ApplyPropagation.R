@@ -43,14 +43,27 @@ ApplyPropagation <- function(
 
     # todo: some checks for the network?
     # check that the network has the right genes
+    print('here')
+    # experimental: 
+    # network[network < 0.05] <- 0
+    # network <- methods::as(network, "CsparseMatrix")
+
+    # row-normalize 
+    row_sums <- Matrix::rowSums(network)
+    row_sums[row_sums == 0] <- 1
+    network <- network / row_sums
 
     # compute the difference between the perturbation and the observed expression
     delta <- exp_per - exp
+    delta <- methods::as(delta, "CsparseMatrix")
 
     # backups
     delta_orig <- delta 
     exp_orig <- exp 
     exp_per_orig <- exp_per
+
+    # define the "ceiling" of gene expression
+    max_obs <- apply(exp, 1, max)
 
     # what is the sign of the perturbation dir?
     perturb_sign <- sign(perturb_dir)
@@ -68,7 +81,10 @@ ApplyPropagation <- function(
         exp_update <- exp_per + delta # (delta * perturb_sign)
         exp_update[exp_update < 0] <- 0
 
-        exp_update <- round(exp_update)
+        # apply biological constraints (round such that we still have integers)
+        # exp_update <- round(exp_update)
+        exp_update <- methods::as(exp_update, "CsparseMatrix")
+        exp_update@x <- pmin(exp_update@x, max_obs[exp_update@i + 1])
 
         # update the delta
         delta <- exp_update - exp_per
@@ -78,5 +94,6 @@ ApplyPropagation <- function(
     # return the matrix with the signal propagation applied
     exp_prop <- exp_per + delta
     exp_prop[exp_prop < 0] <- 0
+    exp_prop <- round(exp_prop)
     exp_prop
 }

@@ -51,6 +51,8 @@ TFPerturbation <- function(
     pertub_dir,
     perturbation_name,
     graph='RNA_nn',
+    group.by = NULL,
+    group_name = NULL,
     n_iters = 1,
     delta_scale = 1,
     corr_sigma=0.05,
@@ -86,6 +88,15 @@ TFPerturbation <- function(
     # check perturb_dir 
     if(!is.numeric(perturb_dir)){
         stop(paste0('Invalid choice for perturb_dir. Valid choices are positive numbers (knock-in), negative numbers (knock-down), or 0 (knock-out).'))
+    }
+
+    # define groups based on group.by
+    if(is.null(group.by)){
+        group.by <- 'fake_group'
+        seurat_obj@meta.data[,group.by] <- "all"
+        groups <- c("all")
+    } else{
+        groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
     }
 
     # TODO: add checks
@@ -161,6 +172,8 @@ TFPerturbation <- function(
         features = selected_tf,
         perturb_dir = perturb_dir,
         cells_use = cells_use,
+        group.by = group.by,
+        layer = layer,
         slot = slot,
         assay = assay
     )
@@ -198,6 +211,9 @@ TFPerturbation <- function(
 
     # normalize the perturbation assay
     seurat_obj <- NormalizeData(seurat_obj, perturbation_name)
+
+    # early return, need to comment out or remove later
+   #  return(seurat_obj)
 
     ###########################################################################
     # Part 3: compute transition probabilities
@@ -283,7 +299,7 @@ ModulePerturbation <- function(
     mod,
     perturb_dir,
     perturbation_name,
-    graph,
+    graph='RNA_nn',
     group.by = NULL,
     group_name = NULL,
     n_hubs = 5,
@@ -436,8 +452,6 @@ ModulePerturbation <- function(
     }
     
     message(paste0("Selected Hubs: ", paste(hub_genes, collapse=", ")))
-
-
 
     # which cells are we selecting to apply the perturbation?
     cells_use <- colnames(seurat_obj)

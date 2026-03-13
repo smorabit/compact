@@ -86,8 +86,6 @@ ApplyPerturbation <- function(
         # get the current group:
         for(cur_group in groups){
 
-            print(cur_group)
-
             cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
 
             # get the obserbed gene expression
@@ -111,7 +109,6 @@ ApplyPerturbation <- function(
             # this line doesn't work
             ysim <- c(ysim, cur_ysim)
             cell_names <- c(cell_names, cur_cells)
-            print(length(ysim))
         }
 
         # set the names for ysim 
@@ -153,6 +150,7 @@ ApplyPerturbation <- function(
         exp_new <- rbind(delta_hub, exp_non)
 
     } else{
+
         sim_data <- sim_data[[1]]
 
         # re-order cells to match the original matrix
