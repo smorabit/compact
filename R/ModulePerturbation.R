@@ -190,7 +190,12 @@ TFPerturbation <- function(
         network = adj,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
-        n_iters = n_iters
+        n_iters = n_iters,
+        row_normalize = row_normalize,          
+        apply_ceiling = apply_ceiling,          
+        ceiling_multiplier = ceiling_multiplier, 
+        prune_network = prune_network,           
+        prune_percentile = prune_percentile    
     )
 
     # append the expression matrices:
@@ -299,13 +304,18 @@ ModulePerturbation <- function(
     mod,
     perturb_dir,
     perturbation_name,
-    graph='RNA_nn',
+    graph = 'RNA_nn',
     group.by = NULL,
     group_name = NULL,
     n_hubs = 5,
     n_iters = 3,
     expand_module = 0,
     delta_scale = 0.2,
+    row_normalize = FALSE,       
+    apply_ceiling = FALSE,       
+    ceiling_multiplier = 1.0,    
+    prune_network = FALSE,      
+    prune_percentile = 0.95,     
     corr_sigma = 0.05,
     n_threads = 4,
     use_velocyto = TRUE,
@@ -501,14 +511,19 @@ ModulePerturbation <- function(
 
     print('Applying signal propagation throughout co-expression network...')
     exp_prop <- ApplyPropagation(
-        seurat_obj,
-        exp[module_genes,cells_use],
-        exp_per[module_genes,cells_use],
-        network = cur_net,
-        perturb_dir = perturb_dir,
-        delta_scale = delta_scale,
-        n_iters = n_iters
-    )
+            seurat_obj = seurat_obj,
+            exp = exp[module_genes, cells_use],
+            exp_per = exp_per[module_genes, cells_use],
+            network = cur_net,
+            perturb_dir = perturb_dir,
+            delta_scale = delta_scale,
+            n_iters = n_iters,
+            row_normalize = row_normalize,          
+            apply_ceiling = apply_ceiling,          
+            ceiling_multiplier = ceiling_multiplier, 
+            prune_network = prune_network,           
+            prune_percentile = prune_percentile    
+        )
 
     if(!all(colnames(seurat_obj) %in% cells_use)){
         exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]
@@ -785,8 +800,14 @@ CustomPerturbation <- function(
         network = cur_net,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
-        n_iters = n_iters
+        n_iters = n_iters,
+        row_normalize = row_normalize,          
+        apply_ceiling = apply_ceiling,          
+        ceiling_multiplier = ceiling_multiplier, 
+        prune_network = prune_network,           
+        prune_percentile = prune_percentile    
     )
+
 
     if(!all(colnames(seurat_obj) %in% cells_use)){
         exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]

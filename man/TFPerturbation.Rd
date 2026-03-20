@@ -10,6 +10,8 @@ TFPerturbation(
   pertub_dir,
   perturbation_name,
   graph = "RNA_nn",
+  group.by = NULL,
+  group_name = NULL,
   n_iters = 1,
   delta_scale = 1,
   corr_sigma = 0.05,
