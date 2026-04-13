@@ -57,7 +57,14 @@ PerturbationTransitions <- function(
     if(use_velocyto){
         cc <- colDeltaCor_velocyto(exp_obs, delta, nthreads=n_threads)
     } else{
-        cc <- SparseColDeltaCor(exp_obs, delta, cell_graph)
+      print(class(exp_obs))
+      print(class(delta))
+      print(class(cell_graph))
+        cc <- SparseColDeltaCor(
+          methods::as(exp_obs, "CsparseMatrix"), 
+          methods::as(delta, "CsparseMatrix"), 
+          methods::as(cell_graph, "CsparseMatrix")
+        )
     }
 
     # fill the diagnoal with zeros (cells won't transition to self)
