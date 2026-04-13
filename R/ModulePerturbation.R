@@ -55,6 +55,11 @@ TFPerturbation <- function(
     group_name = NULL,
     n_iters = 1,
     delta_scale = 1,
+    row_normalize = FALSE,       
+    apply_ceiling = FALSE,       
+    ceiling_multiplier = 1.0,    
+    prune_network = FALSE,      
+    prune_percentile = 0.95,    
     corr_sigma=0.05,
     n_threads=4,
     use_velocyto=TRUE,
@@ -730,7 +735,7 @@ CustomPerturbation <- function(
     } else{
         print("Using specific features")
         # what are the top connected genes to our selected genes?
-        if(length(selected_features == 1)){
+        if(length(selected_features) == 1){
             cur_order <- rev(order(net[selected_features,]))
         } else{
 

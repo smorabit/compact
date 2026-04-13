@@ -57,11 +57,7 @@ PerturbationTransitions <- function(
     if(use_velocyto){
         cc <- colDeltaCor_velocyto(exp_obs, delta, nthreads=n_threads)
     } else{
-        if(use_graph_tp){
-            cc <- colDeltaCor_knn(exp_obs, delta, cell_graph, n_threads)
-        } else{
-            cc <- colDeltaCor_knn(exp_obs, delta, NULL, n_threads)
-        }
+        cc <- SparseColDeltaCor(exp_obs, delta, cell_graph)
     }
 
     # fill the diagnoal with zeros (cells won't transition to self)
@@ -121,133 +117,133 @@ PerturbationTransitions <- function(
 #'
 #' @import parallel pbapply
 #' @export
-colDeltaCor_knn <- function(observed_matrix, delta_matrix, knn_graph = NULL, n_cores = detectCores() - 1) {
+# colDeltaCor_knn <- function(observed_matrix, delta_matrix, knn_graph = NULL, n_cores = detectCores() - 1) {
   
-  n_cells <- ncol(observed_matrix)
-  n_genes <- nrow(observed_matrix)
+#   n_cells <- ncol(observed_matrix)
+#   n_genes <- nrow(observed_matrix)
   
-  # Variance-stabilizing transformation applied across all cells at once
-  q_delta <- sign(delta_matrix) * sqrt(abs(delta_matrix))
-  q_observed <- sign(observed_matrix) * sqrt(abs(observed_matrix))
+#   # Variance-stabilizing transformation applied across all cells at once
+#   q_delta <- sign(delta_matrix) * sqrt(abs(delta_matrix))
+#   q_observed <- sign(observed_matrix) * sqrt(abs(observed_matrix))
   
-  # Define function to compute correlations for one cell
-  compute_correlations_for_cell <- function(i, q_delta, q_observed, n_cells, knn_neighbors = NULL) {
+#   # Define function to compute correlations for one cell
+#   compute_correlations_for_cell <- function(i, q_delta, q_observed, n_cells, knn_neighbors = NULL) {
 
-    # Initialize a vector to store correlations for cell i
-    correlations <- numeric(n_cells)
+#     # Initialize a vector to store correlations for cell i
+#     correlations <- numeric(n_cells)
     
-    # Determine which cells to calculate correlations for
-    if (is.null(knn_neighbors)) {
-      neighbors <- 1:n_cells  # All cells
-    } else {
-      neighbors <- knn_neighbors[[i]]  # Only cells linked by KNN
-    }
+#     # Determine which cells to calculate correlations for
+#     if (is.null(knn_neighbors)) {
+#       neighbors <- 1:n_cells  # All cells
+#     } else {
+#       neighbors <- knn_neighbors[[i]]  # Only cells linked by KNN
+#     }
     
-    for (j in neighbors) {
-      if (j == i) next  # Skip self
+#     for (j in neighbors) {
+#       if (j == i) next  # Skip self
       
-      # Difference between observed expressions for variance-stabilizing
-      q_obs_diff <- q_observed[, j] - q_observed[, i]
+#       # Difference between observed expressions for variance-stabilizing
+#       q_obs_diff <- q_observed[, j] - q_observed[, i]
       
-      # Dot product and magnitudes for correlation
-      dot_product <- sum(q_delta[, i] * q_obs_diff)
-      magnitude_delta <- sqrt(sum(q_delta[, i]^2))
-      magnitude_obs_diff <- sqrt(sum(q_obs_diff^2))
+#       # Dot product and magnitudes for correlation
+#       dot_product <- sum(q_delta[, i] * q_obs_diff)
+#       magnitude_delta <- sqrt(sum(q_delta[, i]^2))
+#       magnitude_obs_diff <- sqrt(sum(q_obs_diff^2))
       
-      # Calculate correlation, handling cases where magnitudes are zero
-      if (magnitude_delta == 0 || magnitude_obs_diff == 0) {
-        correlations[j] <- 0
-      } else {
-        correlations[j] <- dot_product / (magnitude_delta * magnitude_obs_diff)
-      }
-    }
+#       # Calculate correlation, handling cases where magnitudes are zero
+#       if (magnitude_delta == 0 || magnitude_obs_diff == 0) {
+#         correlations[j] <- 0
+#       } else {
+#         correlations[j] <- dot_product / (magnitude_delta * magnitude_obs_diff)
+#       }
+#     }
     
-    return(correlations)
-  }
+#     return(correlations)
+#   }
   
-  # Preprocess the KNN neighbors list, if a graph is provided
-  knn_neighbors <- NULL
-  if (!is.null(knn_graph)) {
-    knn_neighbors <- lapply(1:n_cells, function(i) which(knn_graph[i, ] != 0))
-  }
+#   # Preprocess the KNN neighbors list, if a graph is provided
+#   knn_neighbors <- NULL
+#   if (!is.null(knn_graph)) {
+#     knn_neighbors <- lapply(1:n_cells, function(i) which(knn_graph[i, ] != 0))
+#   }
   
-  # Parallel processing for each cell with a progress bar
-  cl <- parallel::makeCluster(n_cores)
-  delta_correlation_list <- pbapply::pblapply(
-    1:n_cells, 
-    compute_correlations_for_cell, 
-    cl = cl, 
-    q_delta = q_delta, 
-    q_observed = q_observed, 
-    n_cells = n_cells,
-    knn_neighbors = knn_neighbors
-  )
-  parallel::stopCluster(cl)
+#   # Parallel processing for each cell with a progress bar
+#   cl <- parallel::makeCluster(n_cores)
+#   delta_correlation_list <- pbapply::pblapply(
+#     1:n_cells, 
+#     compute_correlations_for_cell, 
+#     cl = cl, 
+#     q_delta = q_delta, 
+#     q_observed = q_observed, 
+#     n_cells = n_cells,
+#     knn_neighbors = knn_neighbors
+#   )
+#   parallel::stopCluster(cl)
   
-  # Combine the list of correlations into a matrix
-  delta_correlation <- do.call(rbind, delta_correlation_list)
-  delta_correlation <- t(delta_correlation)
+#   # Combine the list of correlations into a matrix
+#   delta_correlation <- do.call(rbind, delta_correlation_list)
+#   delta_correlation <- t(delta_correlation)
   
-  return(delta_correlation)
-}
+#   return(delta_correlation)
+# }
 
 
-# this one doesn't include the KNN option
-colDeltaCor_all <- function(observed_matrix, delta_matrix, n_cores = detectCores() - 1) {
+# # this one doesn't include the KNN option
+# colDeltaCor_all <- function(observed_matrix, delta_matrix, n_cores = detectCores() - 1) {
   
-  n_cells <- ncol(observed_matrix)
-  n_genes <- nrow(observed_matrix)
+#   n_cells <- ncol(observed_matrix)
+#   n_genes <- nrow(observed_matrix)
   
-  # Variance-stabilizing transformation applied across all cells at once
-  q_delta <- sign(delta_matrix) * sqrt(abs(delta_matrix))
-  q_observed <- sign(observed_matrix) * sqrt(abs(observed_matrix))
+#   # Variance-stabilizing transformation applied across all cells at once
+#   q_delta <- sign(delta_matrix) * sqrt(abs(delta_matrix))
+#   q_observed <- sign(observed_matrix) * sqrt(abs(observed_matrix))
   
-  # Define function to compute correlations for one cell
-  compute_correlations_for_cell <- function(i, q_delta, q_observed, n_cells) {
-    # Initialize a vector to store correlations for cell i
-    correlations <- numeric(n_cells)
+#   # Define function to compute correlations for one cell
+#   compute_correlations_for_cell <- function(i, q_delta, q_observed, n_cells) {
+#     # Initialize a vector to store correlations for cell i
+#     correlations <- numeric(n_cells)
     
-    for (j in 1:n_cells) {
-      if (j == i) next  # Skip self
+#     for (j in 1:n_cells) {
+#       if (j == i) next  # Skip self
       
-      # Difference between observed expressions for variance-stabilizing
-      q_obs_diff <- q_observed[, j] - q_observed[, i]
+#       # Difference between observed expressions for variance-stabilizing
+#       q_obs_diff <- q_observed[, j] - q_observed[, i]
       
-      # Dot product and magnitudes for correlation
-      dot_product <- sum(q_delta[, i] * q_obs_diff)
-      magnitude_delta <- sqrt(sum(q_delta[, i]^2))
-      magnitude_obs_diff <- sqrt(sum(q_obs_diff^2))
+#       # Dot product and magnitudes for correlation
+#       dot_product <- sum(q_delta[, i] * q_obs_diff)
+#       magnitude_delta <- sqrt(sum(q_delta[, i]^2))
+#       magnitude_obs_diff <- sqrt(sum(q_obs_diff^2))
       
-      # Calculate correlation, handling cases where magnitudes are zero
-      if (magnitude_delta == 0 || magnitude_obs_diff == 0) {
-        correlations[j] <- 0
-      } else {
-        correlations[j] <- dot_product / (magnitude_delta * magnitude_obs_diff)
-      }
-    }
+#       # Calculate correlation, handling cases where magnitudes are zero
+#       if (magnitude_delta == 0 || magnitude_obs_diff == 0) {
+#         correlations[j] <- 0
+#       } else {
+#         correlations[j] <- dot_product / (magnitude_delta * magnitude_obs_diff)
+#       }
+#     }
     
-    return(correlations)
-  }
+#     return(correlations)
+#   }
   
-  # Parallel processing for each cell with a progress bar
-  # NOTE: 
-  cl <- makeCluster(n_cores)
-  delta_correlation_list <- pblapply(
-    1:n_cells, 
-    compute_correlations_for_cell, 
-    cl = cl, 
-    q_delta = q_delta, 
-    q_observed = q_observed, 
-    n_cells = n_cells
-  )
-  stopCluster(cl)
+#   # Parallel processing for each cell with a progress bar
+#   # NOTE: 
+#   cl <- makeCluster(n_cores)
+#   delta_correlation_list <- pblapply(
+#     1:n_cells, 
+#     compute_correlations_for_cell, 
+#     cl = cl, 
+#     q_delta = q_delta, 
+#     q_observed = q_observed, 
+#     n_cells = n_cells
+#   )
+#   stopCluster(cl)
   
-  # Combine the list of correlations into a matrix
-  delta_correlation <- do.call(rbind, delta_correlation_list)
-  delta_correlation <- t(delta_correlation)
+#   # Combine the list of correlations into a matrix
+#   delta_correlation <- do.call(rbind, delta_correlation_list)
+#   delta_correlation <- t(delta_correlation)
 
-  return(delta_correlation)
-}
+#   return(delta_correlation)
+# }
 
 
 ################################################################################

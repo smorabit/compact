@@ -34,4 +34,8 @@ Imports:
     reshape2,
     rlang,
     S4Vectors,
-    energy
+    energy,
+    Rcpp
+LinkingTo: 
+    Rcpp,
+    RcppArmadillo

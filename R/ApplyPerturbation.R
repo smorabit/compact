@@ -106,7 +106,6 @@ ApplyPerturbation <- function(
             cur_ysim <- SampleZINB(model, yobs)
             cur_ysim <- cur_ysim[1:length(cur_cells)]
             
-            # this line doesn't work
             ysim <- c(ysim, cur_ysim)
             cell_names <- c(cell_names, cur_cells)
         }
@@ -164,6 +163,10 @@ ApplyPerturbation <- function(
 
         # if in a knock-down experiment any feature fell below 0 expression, make it 0.
         delta_hub[delta_hub < 0 ] <- 0
+
+        print('here')
+        print(delta_hub)
+        print(dim(exp_non))
 
         # update the expression matrix with the perturbed values
         exp_new <- rbind(delta_hub, exp_non)
