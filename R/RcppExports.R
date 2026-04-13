@@ -2,6 +2,6 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 SparseColDeltaCor <- function(e, d, knn) {
-    .Call('_compact_SparseColDeltaCor', PACKAGE = 'compact', e, d, knn)
+    .Call(`_compact_SparseColDeltaCor`, e, d, knn)
 }
 
