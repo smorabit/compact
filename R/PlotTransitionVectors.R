@@ -180,11 +180,18 @@ PerturbationVectors <- function(
     tp <- Graphs(seurat_obj, graph_name)
 
     # run the helper function
-    arsd <- data.frame(t(embArrows_velocyto(
-        emb,
-        tp,
-        arrow_scale,
-        n_threads
+    # arsd <- data.frame(t(embArrows_velocyto(
+    #     emb,
+    #     tp,
+    #     arrow_scale,
+    #     n_threads
+    # )))
+
+    arsd <- data.frame(t(SparseEmbArrows(
+        emb = emb,
+        tp = tp_sparse,
+        arrowScale = arrow_scale,
+        nthreads = n_threads
     )))
 
     # replace NA with 0 

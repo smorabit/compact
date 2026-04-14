@@ -5,3 +5,7 @@ SparseColDeltaCor <- function(e, d, knn) {
     .Call(`_compact_SparseColDeltaCor`, e, d, knn)
 }
 
+SparseEmbArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
+    .Call(`_compact_SparseEmbArrows`, emb, tp, arrowScale, nthreads)
+}
+

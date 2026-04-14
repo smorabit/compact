@@ -24,9 +24,24 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// SparseEmbArrows
+arma::mat SparseEmbArrows(const arma::mat& emb, const arma::sp_mat& tp, double arrowScale, int nthreads);
+RcppExport SEXP _compact_SparseEmbArrows(SEXP embSEXP, SEXP tpSEXP, SEXP arrowScaleSEXP, SEXP nthreadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type emb(embSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type tp(tpSEXP);
+    Rcpp::traits::input_parameter< double >::type arrowScale(arrowScaleSEXP);
+    Rcpp::traits::input_parameter< int >::type nthreads(nthreadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(SparseEmbArrows(emb, tp, arrowScale, nthreads));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_compact_SparseColDeltaCor", (DL_FUNC) &_compact_SparseColDeltaCor, 3},
+    {"_compact_SparseEmbArrows", (DL_FUNC) &_compact_SparseEmbArrows, 4},
     {NULL, NULL, 0}
 };
 
