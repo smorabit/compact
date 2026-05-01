@@ -167,7 +167,8 @@ PerturbationVectors <- function(
     reduction = 'umap',
     n_threads=4,
     arrow_scale = 1,
-    max_pct = 0.90
+    max_pct = 0.90,
+    use_velocyto = FALSE
 ){
 
     # TODO: check reduction 
@@ -179,21 +180,24 @@ PerturbationVectors <- function(
     # get the graph from the seurat object
     tp <- Graphs(seurat_obj, graph_name)
     tp_sparse <- methods::as(tp, "CsparseMatrix")
-    
-    # run the helper function
-    # arsd <- data.frame(t(embArrows_velocyto(
-    #     emb,
-    #     tp,
-    #     arrow_scale,
-    #     n_threads
-    # )))
 
-    arsd <- data.frame(t(SparseEmbArrows(
-        emb = emb,
-        tp = tp_sparse,
-        arrowScale = arrow_scale,
-        nthreads = n_threads
-    )))
+    # run the helper function
+    if(use_velocyto){
+       #  print('in here!!!')
+        arsd <- data.frame(t(embArrows_velocyto(
+            emb,
+            tp,
+            arrow_scale,
+            n_threads
+        )))
+    } else{
+        arsd <- data.frame(t(SparseEmbArrows(
+            emb = emb,
+            tp = tp_sparse,
+            arrowScale = arrow_scale,
+            nthreads = n_threads
+        )))
+    }
 
     # replace NA with 0 
     arsd[is.na(arsd)] <- 0
@@ -255,59 +259,6 @@ grid_vectors <- function(x, embedded, resolution=40, scale=TRUE, group_min=5) {
     
 }
 
-
-
-
-embArrows <- function(embedding, transition_matrix, knn_graph, scale = 1, threshold = 0.1) {
-        
-    # Number of cells and dimensions
-    n_cells <- nrow(embedding)
-    n_dims <- ncol(embedding)
-  
-    # Example sparse matrix for transition probabilities
-    tpb <- Matrix::Matrix(data = knn_graph, sparse = TRUE)
-
-    # Column sums for non-zero elements
-    col_sums <- colSums(tpb)
-
-    tpb <- tpb %*% Diagonal(x = 1 / col_sums)
-
-    # Initialize delta_embedding matrix
-    delta_embedding <- matrix(0, nrow = n_cells, ncol = n_dims)
-    
-    # Transpose embedding for easier manipulation
-    transposed_embedding <- t(embedding)
-    
-    # Zero vector for normalization
-    zero_vec <- rep(0, n_dims)
-    
-    # Loop over each cell
-    for (i in 1:n_cells) {
-        
-        # Compute differences to every other cell
-        di <- sweep(transposed_embedding, 2, transposed_embedding[, i], "-")
-        
-        # Normalize and scale the differences (L2 norm)
-        di <- sweep(di, 2, sqrt(colSums(di^2)), "/") * scale
-        di[, i] <- zero_vec  # No distance to itself
-        
-        # Calculate displacement vector
-        transition_shift <- di %*% transition_matrix[, i]
-        binarized_shift <- di %*% tpb[, i]
-
-        # Print to debug
-        print(paste("Cell:", i))
-        print("transition_shift:")
-        print(transition_shift)
-        print("binarized_shift:")
-        print(binarized_shift)
-            
-        # Final delta embedding
-        delta_embedding[i, ] <- transition_shift - binarized_shift
-    }
-    
-    return(delta_embedding)
-}
 
 
 #' Compute Local Coherence of a Vector Field
@@ -445,3 +396,6 @@ embArrows_velocyto <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
 
 
 
+# SparseEmbArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
+#     .Call('_compact_SparseEmbArrows', PACKAGE = 'compact', emb, tp, arrowScale, nthreads)
+# }

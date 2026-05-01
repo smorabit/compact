@@ -48,10 +48,13 @@ CombinePerturbAssays(
 \item{allow_dense}{Logical; if FALSE (default), stop when any requested layer
 returns a dense matrix (to avoid RAM blow-ups).}
 
-\item{normalize_method}{Normalization method passed to \code{Seurat::NormalizeData()}
-for creating the composite \code{data} layer (default \code{"LogNormalize"}).}
+\item{normalize_method}{Deprecated/ignored. The composite \code{data} layer is
+always produced via \code{log_normalize()} (LogNormalize / \code{log1p})
+to match \code{ModulePerturbation()}. Kept only for backward compatibility.}
 
-\item{scale.factor}{Scale factor passed to \code{Seurat::NormalizeData()} (default \code{1e4}).}
+\item{scale.factor}{Scale factor passed to the internal \code{log_normalize()}
+helper (default \code{1e4}). Should match the value used when the input
+perturb assays were generated.}
 }
 \value{
 A Seurat object with a new composite perturbation assay.
@@ -81,8 +84,14 @@ via \code{.CheckPerturbBaselineConsistency()} for the unstamped assays
 
 Data layer handling:
 After combining \code{counts}, the function generates the composite assay's
-\code{data} layer by running \code{Seurat::NormalizeData()} on the new assay
-(e.g. \code{LogNormalize} with a configurable \code{scale.factor}).
+\code{data} layer by calling the package-internal \code{log_normalize()} helper
+(the same one used by \code{ModulePerturbation()}) with \code{col_sums} taken
+from the BASELINE counts (\code{colSums(base_counts)}), not from the composite
+counts. This preserves the per-cell denominator across the baseline assay and
+all perturb / composite assays, so their \code{data} layers remain directly
+comparable. \code{Seurat::NormalizeData()} is intentionally NOT used here
+because it would recompute library sizes from the composite counts, breaking
+that comparability.
 
 Combine by delta-superposition (counts only):
 \itemize{

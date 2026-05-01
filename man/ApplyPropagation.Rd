@@ -2,9 +2,7 @@
 % Please edit documentation in R/ApplyPropagation.R
 \name{ApplyPropagation}
 \alias{ApplyPropagation}
-\title{This function models the downstream secondary effects of an in-silico perturbation
-by propagating the initial expression changes through a gene-gene co-expression
-or regulatory network.}
+\title{Propagate In-Silico Perturbation Signal Through a Gene Network}
 \usage{
 ApplyPropagation(
   seurat_obj,

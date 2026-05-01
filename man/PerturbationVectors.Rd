@@ -10,7 +10,8 @@ PerturbationVectors(
   reduction = "umap",
   n_threads = 4,
   arrow_scale = 1,
-  max_pct = 0.9
+  max_pct = 0.9,
+  use_velocyto = FALSE
 )
 }
 \arguments{

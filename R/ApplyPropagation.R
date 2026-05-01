@@ -1,5 +1,5 @@
 
-' Propagate In-Silico Perturbation Signal Through a Gene Network
+#' Propagate In-Silico Perturbation Signal Through a Gene Network
 #'
 #' This function models the downstream secondary effects of an in-silico perturbation 
 #' by propagating the initial expression changes through a gene-gene co-expression 
@@ -93,6 +93,10 @@ ApplyPropagation <- function(
         # Compute the dot product between the TOM coefficients and the exp matrix
         delta <- network %*% delta
 
+        # how many non-zero entries?
+        sum(network == 0) / (nrow(network) * ncol(network))
+        sum(delta == 0) / (nrow(delta) * ncol(delta))
+
         # Penalize the delta, or else the values rapidly get too large
         delta <- delta * delta_scale
 
@@ -101,7 +105,7 @@ ApplyPropagation <- function(
         exp_update[exp_update < 0] <- 0
 
         # Ensure sparse format for memory efficiency and the ceiling subsetting
-        exp_update <- methods::as(exp_update, "CsparseMatrix")
+        # exp_update <- methods::as(exp_update, "CsparseMatrix")
         
         # 4. OPTIONAL: Apply biological constraints to the non-zero values
         if(apply_ceiling){
