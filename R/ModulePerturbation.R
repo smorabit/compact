@@ -127,12 +127,15 @@ TFPerturbation <- function(
         use_regulons=use_regulons,
         wgcna_name=wgcna_name
     )
-    cur_regulon <- subset(cur_network, tf == selected_tf & depth == 1)
+
+    # NOTE: doesn't this mean the depth > 1 doesn't work at all?
+    cur_regulon <- subset(cur_network, tf == selected_tf & depth == depth)
     cur_regulon_genes <- c( unique(cur_regulon$gene))
 
     # convert to igraph
     g <- cur_network %>% 
-        dplyr::mutate(score = Gain * sign(Cor)) %>%  
+        # dplyr::mutate(score = Gain * sign(Cor)) %>%  
+        dplyr::mutate(score = Cor) %>%
         dplyr::select(c(tf, gene, score)) %>% 
         dplyr::rename(source=tf, target=gene, value=score )
     names(g) <- c('source', 'target', 'value')
@@ -219,8 +222,17 @@ TFPerturbation <- function(
     )
     seurat_obj[[perturbation_name]] <- perturb_assay
 
-    # normalize the perturbation assay
-    seurat_obj <- NormalizeData(seurat_obj, perturbation_name)
+    # normalize the perturbed data:
+    exp_simulated_norm <- log_normalize(
+        exp_simulated, colSums(exp)
+    )
+
+    seurat_obj <- SetAssayData(
+        seurat_obj, 
+        assay = perturbation_name, 
+        layer = 'data',
+        new.data = exp_simulated_norm
+    )
 
     # early return, need to comment out or remove later
    #  return(seurat_obj)
