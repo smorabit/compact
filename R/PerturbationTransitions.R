@@ -57,9 +57,9 @@ PerturbationTransitions <- function(
     if(use_velocyto){
         cc <- colDeltaCor_velocyto(exp_obs, delta, nthreads=n_threads)
     } else{
-      print(class(exp_obs))
-      print(class(delta))
-      print(class(cell_graph))
+    #   print(class(exp_obs))
+    #   print(class(delta))
+    #   print(class(cell_graph))
         cc <- SparseColDeltaCor(
           methods::as(exp_obs, "CsparseMatrix"), 
           methods::as(delta, "CsparseMatrix"), 

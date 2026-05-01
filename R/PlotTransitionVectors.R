@@ -178,7 +178,8 @@ PerturbationVectors <- function(
 
     # get the graph from the seurat object
     tp <- Graphs(seurat_obj, graph_name)
-
+    tp_sparse <- methods::as(tp, "CsparseMatrix")
+    
     # run the helper function
     # arsd <- data.frame(t(embArrows_velocyto(
     #     emb,
