@@ -247,8 +247,14 @@ StampPerturbProvenance <- function(
 #'
 #' Data layer handling:
 #' After combining \code{counts}, the function generates the composite assay's
-#' \code{data} layer by running \code{Seurat::NormalizeData()} on the new assay
-#' (e.g. \code{LogNormalize} with a configurable \code{scale.factor}).
+#' \code{data} layer by calling the package-internal \code{log_normalize()} helper
+#' (the same one used by \code{ModulePerturbation()}) with \code{col_sums} taken
+#' from the BASELINE counts (\code{colSums(base_counts)}), not from the composite
+#' counts. This preserves the per-cell denominator across the baseline assay and
+#' all perturb / composite assays, so their \code{data} layers remain directly
+#' comparable. \code{Seurat::NormalizeData()} is intentionally NOT used here
+#' because it would recompute library sizes from the composite counts, breaking
+#' that comparability.
 #'
 #' Combine by delta-superposition (counts only):
 #' \itemize{
@@ -274,9 +280,12 @@ StampPerturbProvenance <- function(
 #' @param allow_unverified Logical; if provenance missing and heuristic checks disabled, proceed only if TRUE.
 #' @param allow_dense Logical; if FALSE (default), stop when any requested layer
 #'   returns a dense matrix (to avoid RAM blow-ups).
-#' @param normalize_method Normalization method passed to \code{Seurat::NormalizeData()}
-#'   for creating the composite \code{data} layer (default \code{"LogNormalize"}).
-#' @param scale.factor Scale factor passed to \code{Seurat::NormalizeData()} (default \code{1e4}).
+#' @param normalize_method Deprecated/ignored. The composite \code{data} layer is
+#'   always produced via \code{log_normalize()} (LogNormalize / \code{log1p})
+#'   to match \code{ModulePerturbation()}. Kept only for backward compatibility.
+#' @param scale.factor Scale factor passed to the internal \code{log_normalize()}
+#'   helper (default \code{1e4}). Should match the value used when the input
+#'   perturb assays were generated.
 #'
 #' @return A Seurat object with a new composite perturbation assay.
 #' @export
@@ -529,7 +538,8 @@ CombinePerturbAssays <- function(
   comp_counts <- combine_counts(base_counts, pert_counts)
 
   # ---- create new assay ----
-  .p("Writing composite assay '", new_assay, "' (counts) and normalizing to create data layer...")
+  .p("Writing composite assay '", new_assay, "' (counts) and normalizing data layer ",
+     "via log_normalize() with baseline colSums (matching ModulePerturbation)...")
 
   if (is_v5) {
     seurat_obj[[new_assay]] <- SeuratObject::CreateAssay5Object(counts = comp_counts)
@@ -537,32 +547,37 @@ CombinePerturbAssays <- function(
     seurat_obj[[new_assay]] <- Seurat::CreateAssayObject(counts = comp_counts)
   }
 
-  # normalize counts -> data for the new assay
-  old_default <- Seurat::DefaultAssay(seurat_obj)
-  on.exit({ Seurat::DefaultAssay(seurat_obj) <- old_default }, add = TRUE)
+  # Normalize using BASELINE col_sums to stay consistent with ModulePerturbation(),
+  # which calls log_normalize(exp_simulated, colSums(exp)). Using Seurat::NormalizeData()
+  # here would instead use colSums(comp_counts), giving a different denominator and
+  # breaking comparability with the baseline 'data' layer and with each P_i@data.
+  base_col_sums <- Matrix::colSums(base_counts)
+  comp_data <- compact:::log_normalize(comp_counts, base_col_sums, scale.factor = scale.factor)
 
-  Seurat::DefaultAssay(seurat_obj) <- new_assay
-  seurat_obj <- Seurat::NormalizeData(
-    seurat_obj,
-    assay = new_assay,
-    normalization.method = normalize_method,
-    scale.factor = scale.factor,
-    verbose = FALSE
-  )
+  if (is_v5) {
+    seurat_obj <- SeuratObject::SetAssayData(
+      seurat_obj, assay = new_assay, layer = "data", new.data = comp_data
+    )
+  } else {
+    seurat_obj <- Seurat::SetAssayData(
+      seurat_obj, assay = new_assay, slot = "data", new.data = comp_data
+    )
+  }
 
   # provenance for composite
   if (is.null(seurat_obj[[new_assay]]@misc)) seurat_obj[[new_assay]]@misc <- list()
   seurat_obj[[new_assay]]@misc$COMPACT <- list(
-    baseline_assay  = baseline_assay,
-    baseline_layers = c("counts"),
-    method          = "CombinePerturbAssays (counts-only; data re-normalized)",
-    components      = perturb_assays,
-    normalize_method = normalize_method,
+    baseline_assay   = baseline_assay,
+    baseline_layers  = c("counts"),
+    method           = "CombinePerturbAssays (counts combined; data = log_normalize w/ baseline colSums)",
+    components       = perturb_assays,
+    normalize_method = "LogNormalize",
     scale.factor     = scale.factor,
-    created_at      = as.character(Sys.time())
+    created_at       = as.character(Sys.time())
   )
 
-  .p("Done. Added assay '", new_assay, "'. (counts combined; data normalized)")
+  .p("Done. Added assay '", new_assay,
+     "'. (counts combined; data normalized against baseline colSums)")
   seurat_obj
 }
 
@@ -826,3 +841,10 @@ CombinePerturbAssays <- function(
 #
 #   seurat_obj
 # }
+
+
+
+
+
+
+#
