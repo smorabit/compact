@@ -45,27 +45,20 @@ ApplyPerturbation <- function(
         return(exp)
     }
 
-    # which cells are we using?
-    # if(is.null(group.by)){
-    #   cells_use <- colnames(seurat_obj)
-    # } else{
-    #     cells_use <- seurat_obj@meta.data %>% 
-    #       subset(get(group.by) %in% group_name) %>%
-    #       rownames
-    # }
+    # default to all cells if not specified
+    if(is.null(cells_use)) cells_use <- colnames(seurat_obj)
+
+    # default group.by to a single group covering all cells
+    if(is.null(group.by)){
+        group.by <- 'fake_group'
+        seurat_obj@meta.data[, group.by] <- 'all'
+    }
 
     # split the exp matrix based on selected features
     exp_hubs <- exp[features,cells_use]
     exp_non <- exp[!(rownames(exp) %in% features),cells_use]
 
-    # # define groups based on group.by
-    # if(is.null(group.by)){
-    #     group.by <- 'fake_group'
-    #     seurat_obj@meta.data[,group.by] <- "all"
-    #     groups <- c("all")
-    # } else{
-         groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
-    # }
+    groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
 
     # initialize progress bar
     pb <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
@@ -77,9 +70,8 @@ ApplyPerturbation <- function(
     sim_data <- lapply(1:length(features), function(i){
         
         feature <- features[i]
-        print(feature)
 
-        # initialize 
+        # initialize
         ysim <- c()
         cell_names <- c()
 
@@ -163,10 +155,6 @@ ApplyPerturbation <- function(
 
         # if in a knock-down experiment any feature fell below 0 expression, make it 0.
         delta_hub[delta_hub < 0 ] <- 0
-
-        print('here')
-        print(delta_hub)
-        print(dim(exp_non))
 
         # update the expression matrix with the perturbed values
         exp_new <- rbind(delta_hub, exp_non)
