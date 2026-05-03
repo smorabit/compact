@@ -1,8 +1,8 @@
 #' Calculate Log2 Fold Change of In-Silico Perturbation
 #'
 #' @description
-#' Computes the log2 fold change (Log2FC), mean delta, and average baseline 
-#' expression for genes following an in-silico perturbation. It compares the 
+#' Computes the log2 fold change (Log2FC), mean delta, and average baseline
+#' expression for genes following an in-silico perturbation. It compares the
 #' perturbed assay against the baseline observed expression.
 #'
 #' @param seurat_obj A Seurat object containing both the baseline and perturbed data.
@@ -13,9 +13,10 @@
 #' @param pseudocount Numeric. Pseudocount added to average expression before log2 transformation to prevent infinite values. Default is \code{1}.
 #' @param layer_norm Character. The layer/layer containing normalized data. Default is \code{'data'}.
 #' @param layer_counts Character. The layer/layer containing raw counts. Default is \code{'counts'}.
+#' @param wgcna_name Character. The name of the hdWGCNA experiment in \code{seurat_obj@misc}. If NULL, uses the active WGCNA experiment.
 #'
 #' @return A data.frame containing gene names, mean delta (raw counts difference), average baseline expression, Log2FC, and optionally module hub status.
-#' 
+#'
 #' @import Seurat
 #' @importFrom Matrix rowMeans rowSums
 #' @importFrom dplyr left_join rename mutate
@@ -28,47 +29,61 @@ PerturbationLog2FC <- function(
     n_hubs = 10,
     pseudocount = 1,
     layer_norm = 'data',
-    layer_counts = 'counts'
+    layer_counts = 'counts',
+    wgcna_name = NULL
 ) {
-    
+
+    if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
+
+    # validate assays
+    if(!(perturbation_name %in% names(seurat_obj@assays))){
+        stop(paste0("Perturbation assay '", perturbation_name, "' not found in seurat_obj. Available assays: ",
+                    paste(names(seurat_obj@assays), collapse = ', ')))
+    }
+    if(!(assay_obs %in% names(seurat_obj@assays))){
+        stop(paste0("Baseline assay '", assay_obs, "' not found in seurat_obj. Available assays: ",
+                    paste(names(seurat_obj@assays), collapse = ', ')))
+    }
+
     # 1. Determine features to analyze
     if (!is.null(module)) {
 
-        # Assuming GetHubGenes is an exported/internal function in your package
-        hub_df <- GetHubGenes(seurat_obj, n_hubs = Inf)
-        hub_df <- subset(hub_df, module == module)
-        
-        top_hubs <- GetHubGenes(seurat_obj, n_hubs = n_hubs)
-        top_hubs <- subset(top_hubs, module == module)$gene_name
-        
+        # get all genes in this module; use direct indexing to avoid subset()
+        # scoping bug where `module == module` compares the column to itself
+        hub_df <- GetHubGenes(seurat_obj, n_hubs = Inf, wgcna_name = wgcna_name)
+        hub_df <- hub_df[hub_df$module == module, ]
+
+        if(nrow(hub_df) == 0){
+            stop(paste0("Module '", module, "' not found. Check available modules with GetModules()."))
+        }
+
+        top_hubs <- GetHubGenes(seurat_obj, n_hubs = n_hubs, wgcna_name = wgcna_name)
+        top_hubs <- top_hubs[top_hubs$module == module, "gene_name"]
+
         hub_df$hub <- ifelse(hub_df$gene_name %in% top_hubs, 'hub', 'other')
         features <- hub_df$gene_name
     } else {
-        # If no module provided, use all genes present in the perturbed assay
+        # if no module provided, use all genes present in the perturbed assay
         features <- rownames(seurat_obj[[perturbation_name]])
     }
-    
+
     # 2. Extract matrices
-    # Note: Using Seurat's GetAssayData (works for v4 and mostly v5 backwards compatibility)
     X_counts <- GetAssayData(seurat_obj, assay = assay_obs, layer = layer_counts)[features, ]
     X_norm <- GetAssayData(seurat_obj, assay = assay_obs, layer = layer_norm)[features, ]
-    
+
     X_per_counts <- GetAssayData(seurat_obj, assay = perturbation_name, layer = layer_counts)[features, ]
     X_per_norm <- GetAssayData(seurat_obj, assay = perturbation_name, layer = layer_norm)[features, ]
-    
+
     # 3. Fast Matrix calculations
-    # Compute difference in raw counts
     delta_matrix <- X_per_counts - X_counts
-    
-    # Use Matrix::rowMeans for lightning-fast sparse matrix calculations
     mean_delta <- Matrix::rowMeans(delta_matrix)
     avg_exp <- Matrix::rowMeans(X_norm)
     avg_per_exp <- Matrix::rowMeans(X_per_norm)
-    
-    # Calculate Log2FC
+
+    # 4. Calculate Log2FC
     l2fc <- log2((avg_per_exp + pseudocount) / (avg_exp + pseudocount))
-    
-    # 4. Construct final dataframe
+
+    # 5. Construct final dataframe
     plot_df <- data.frame(
         gene_name = features,
         mean_delta = mean_delta,
@@ -76,11 +91,11 @@ PerturbationLog2FC <- function(
         log2fc = l2fc,
         stringsAsFactors = FALSE
     )
-    
-    # Merge hub info if a module was specified
+
+    # merge hub info if a module was specified
     if (!is.null(module)) {
         plot_df <- dplyr::left_join(plot_df, hub_df, by = "gene_name")
     }
-    
+
     return(plot_df)
 }
