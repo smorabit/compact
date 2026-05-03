@@ -106,13 +106,15 @@ PerturbationTransitions <- function(
     tp <- exp(cc / corr_sigma) * cell_graph
     col_sums <- Matrix::colSums(tp)
 
-    # cells with zero column sum have no valid neighbors after masking; set their
-    # transition column to zero rather than producing NaN
-    zero_cols <- col_sums == 0
+    # cells with zero or NA column sum (NA arises when SparseColDeltaCor
+    # returns NA for cells whose delta is all-zero) cannot be normalized;
+    # set those entries to 1 so the division leaves the all-zero column as-is
+    zero_cols <- is.na(col_sums) | col_sums == 0
     if(any(zero_cols)){
-        warning(sum(zero_cols), " cell(s) have zero column sum in the transition matrix ",
-                "(no neighbors after masking). Their transition probabilities will be set to zero.")
-        col_sums[zero_cols] <- 1  # avoid 0/0; column is already all-zero so result stays zero
+        warning(sum(zero_cols), " cell(s) have zero or NA column sum in the transition matrix ",
+                "(no neighbors after masking, or undefined correlation). ",
+                "Their transition probabilities will be set to zero.")
+        col_sums[zero_cols] <- 1  # avoid 0/0 or NA/0; column stays all-zero
     }
 
     tp <- t(t(tp) / col_sums)  # tp shows transition from a given column cell to different row cells
@@ -125,7 +127,7 @@ PerturbationTransitions <- function(
     # convert to Seurat Graph object, and add it to the Seurat object with the perturbation name
     tp <- Seurat::as.Graph(tp)
     graph_name <- paste0(perturbation_name, '_tp')
-    seurat_obj@graphs[graph_name] <- tp
+    seurat_obj@graphs[[graph_name]] <- tp
 
     # return the Seurat object 
     seurat_obj

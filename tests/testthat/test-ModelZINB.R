@@ -194,7 +194,7 @@ test_that("explicit ncells gives exactly that many simulated values", {
   n_want <- ncol(seurat_obj)
   result <- SampleZINB(model, yobs = yobs, ncells = n_want)
 
-  expect_length(result, n_want,
+  expect_equal(length(result), n_want,
     label = "simulated vector length equals the explicitly requested ncells")
 })
 
@@ -209,7 +209,7 @@ test_that("all-zero yobs returns a zero vector of length ncells", {
   yobs   <- rep(0, 100)
   result <- SampleZINB(model, yobs = yobs, ncells = 50L)
 
-  expect_length(result, 50L, label = "zero-yobs output has correct length")
+  expect_equal(length(result), 50L, label = "zero-yobs output has correct length")
   expect_true(all(result == 0), label = "all simulated values are zero when yobs is all-zero")
 })
 
@@ -227,6 +227,6 @@ test_that("ModelZINB → SampleZINB round-trip with ncells=length(cells_use) is 
   yobs      <- as.numeric(exp[expressed_gene, cells_sub])
   result    <- SampleZINB(model, yobs = yobs, ncells = length(cells_sub))
 
-  expect_length(result, length(cells_sub),
+  expect_equal(length(result), length(cells_sub),
     label = "round-trip output length matches number of input cells, not model$n")
 })
