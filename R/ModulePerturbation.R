@@ -364,9 +364,20 @@ ModulePerturbation <- function(
         stop(paste0("Invalid slot (", slot, "). Valid options for slot: counts, data, scale.data "))
     }
 
-    # check perturb_dir 
+    # check perturb_dir
     if(!is.numeric(perturb_dir)){
         stop(paste0('Invalid choice for perturb_dir. Valid choices are positive numbers (knock-in), negative numbers (knock-down), or 0 (knock-out).'))
+    }
+
+    # check graph exists in the Seurat object
+    if(!(graph %in% names(seurat_obj@graphs))){
+        stop(paste0("Graph '", graph, "' not found in seurat_obj@graphs. Available graphs: ",
+                    paste(names(seurat_obj@graphs), collapse = ', ')))
+    }
+
+    # check n_hubs is a positive integer
+    if(!is.numeric(n_hubs) || n_hubs < 1){
+        stop("n_hubs must be a positive integer (>= 1)")
     }
 
     # define groups based on group.by
@@ -375,7 +386,17 @@ ModulePerturbation <- function(
         seurat_obj@meta.data[,group.by] <- "all"
         groups <- c("all")
     } else{
+        if(!(group.by %in% colnames(seurat_obj@meta.data))){
+            stop(paste0("group.by column '", group.by, "' not found in seurat_obj@meta.data."))
+        }
         groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    }
+
+    # group_name is accepted for future use but cell-level filtering is not yet
+    # implemented; warn so callers are not misled into thinking it takes effect
+    if(!is.null(group_name)){
+        warning("group_name is not yet implemented; all cells will be perturbed. ",
+                "Set group_name = NULL to suppress this warning.")
     }
 
     if(!is.null(custom_network) & !is.null(custom_modules)){
@@ -397,41 +418,21 @@ ModulePerturbation <- function(
         modules <- modules[modules$gene_name %in% valid_genes, ]
         
     } else {
-        # Standard hdWGCNA Workflow
-        if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
-        
-        net <- GetTOM(seurat_obj, wgcna_name)
+        # standard hdWGCNA workflow
+        net     <- GetTOM(seurat_obj, wgcna_name)
         modules <- GetModules(seurat_obj, wgcna_name)
     }
 
     # -------------------------------------------------------------------------
     # Identify Hub Genes for the Target Module
     # -------------------------------------------------------------------------
-    
-    # Filter for the specific module being perturbed
+
     cur_mod_genes <- subset(modules, module == mod)
-    
+
     if(nrow(cur_mod_genes) == 0){
         stop(paste0("Module '", mod, "' not found in the provided module table."))
     }
 
-    # checks 
-    # TODO: which checks should go here and which should go inside the functions?
-    # it would be nice to do them all here so it errors out immediately.
-
-    # get the co-expression network:
-    #net <- GetTOM(seurat_obj, wgcna_name)
-
-    # get modules 
-    #modules <- GetModules(seurat_obj, wgcna_name)
-
-    # get top n hub genes in selected module 
-    # hubs <- GetHubGenes(seurat_obj, n=n_hubs, wgcna_name=wgcna_name) %>% 
-    #     subset(module == mod)
-    # hub_genes <- hubs$gene_name
-
-    # get the non-hubs in this module:
-    # non_hub_genes <- subset(modules, module == mod & !(gene_name %in% hub_genes)) %>% .$gene_name
     module_genes <- subset(modules, module == mod) %>% .$gene_name
 
      if(!is.null(custom_weights)){
