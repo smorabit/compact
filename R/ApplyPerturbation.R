@@ -94,9 +94,10 @@ ApplyPerturbation <- function(
                 layer=layer, slot=slot
             )
             
-            # simulate data by samping the distribution 
-            cur_ysim <- SampleZINB(model, yobs)
-            cur_ysim <- cur_ysim[1:length(cur_cells)]
+            # simulate data by sampling the distribution;
+            # ncells is passed explicitly because model$n includes the
+            # artificial zero appended by ModelZINB (add_zero = TRUE)
+            cur_ysim <- SampleZINB(model, yobs, ncells = length(cur_cells))
             
             ysim <- c(ysim, cur_ysim)
             cell_names <- c(cell_names, cur_cells)
