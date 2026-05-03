@@ -55,6 +55,15 @@ ApplyPropagation <- function(
     prune_percentile = 0.95
 ){
 
+    # n_iters must be at least 1; seq_len(0) would silently skip the loop but leave
+    # delta as (exp_per - exp), producing exp_prop = 2*exp_per - exp, which is wrong
+    if(!is.numeric(n_iters) || n_iters < 1){
+        stop("n_iters must be a positive integer (>= 1)")
+    }
+
+    # note: perturb_dir is accepted for API compatibility with callers but is not
+    # used in the propagation math; the sign of the effect is carried by exp_per.
+
     # 1. OPTIONAL: Prune the network based on edge weight percentiles
     if(prune_network){
         # Calculate the threshold value at the requested percentile
@@ -76,11 +85,6 @@ ApplyPropagation <- function(
     delta <- exp_per - exp
     delta <- methods::as(delta, "CsparseMatrix")
 
-    # Backups
-    delta_orig <- delta 
-    exp_orig <- exp 
-    exp_per_orig <- exp_per
-
     # 3. OPTIONAL: Define the biological ceiling with a dynamic multiplier
     if(apply_ceiling){
         # multiply the max observed by the buffer (e.g., 1.05 for a 5% buffer)
@@ -88,25 +92,21 @@ ApplyPropagation <- function(
     }
 
     # Run the signaling processing step iteratively
-    for(i in 1:n_iters){  
+    for(i in seq_len(n_iters)){
 
         # Compute the dot product between the TOM coefficients and the exp matrix
         delta <- network %*% delta
-
-        # how many non-zero entries?
-        sum(network == 0) / (nrow(network) * ncol(network))
-        sum(delta == 0) / (nrow(delta) * ncol(delta))
 
         # Penalize the delta, or else the values rapidly get too large
         delta <- delta * delta_scale
 
         # Update the expression matrix
-        exp_update <- exp_per + delta 
+        exp_update <- exp_per + delta
         exp_update[exp_update < 0] <- 0
 
-        # Ensure sparse format for memory efficiency and the ceiling subsetting
-        # exp_update <- methods::as(exp_update, "CsparseMatrix")
-        
+        # Ensure sparse format for memory efficiency and for the ceiling subsetting below
+        exp_update <- methods::as(exp_update, "CsparseMatrix")
+
         # 4. OPTIONAL: Apply biological constraints to the non-zero values
         if(apply_ceiling){
             exp_update@x <- pmin(exp_update@x, max_obs[exp_update@i + 1])
