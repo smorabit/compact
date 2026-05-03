@@ -149,6 +149,17 @@ TFPerturbation <- function(
     cur_regulon <- cur_network[cur_network$tf == selected_tf & cur_network$depth == depth, ]
     cur_regulon_genes <- unique(cur_regulon$gene)
 
+    # cur_regulon_genes is what gets passed to SparseColDeltaCor; fewer than 2
+    # genes causes a C++ out-of-bounds crash
+    if(length(cur_regulon_genes) < 2){
+        stop(paste0(
+            "The TF network for '", selected_tf, "' at depth=", depth,
+            " contains only ", length(cur_regulon_genes), " target gene(s). ",
+            "A minimum of 2 target genes is required for signal propagation. ",
+            "Try increasing 'depth' or choose a TF with a larger regulon."
+        ))
+    }
+
     # convert to igraph
     g <- cur_network %>%
         dplyr::mutate(score = Cor) %>%

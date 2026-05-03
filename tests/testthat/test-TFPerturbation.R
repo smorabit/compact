@@ -297,3 +297,28 @@ test_that("invalid group.by column stops with an informative error", {
     label  = "invalid group.by column gives informative error"
   )
 })
+
+# ---------------------------------------------------------------------------
+# 15. Single-gene TF network → informative error (not a C++ crash)
+# ---------------------------------------------------------------------------
+
+test_that("TF with a 1-gene network stops with an informative error", {
+  skip_if_no_data()
+
+  # ETV5 has exactly 1 target gene at depth=1; without the size check this
+  # would crash SparseColDeltaCor with a C++ out-of-bounds error
+  expect_error(
+    TFPerturbation(
+      seurat_obj,
+      selected_tf       = "ETV5",
+      perturb_dir       = -1,
+      perturbation_name = "test_err",
+      graph             = "originalexp_snn",
+      assay             = "originalexp",
+      depth             = 1,
+      use_velocyto      = FALSE
+    ),
+    regexp = "minimum of 2 target genes",
+    label  = "1-gene network gives informative error instead of C++ crash"
+  )
+})
