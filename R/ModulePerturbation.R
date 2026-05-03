@@ -622,31 +622,37 @@ ModulePerturbation <- function(
 
 #' CustomPerturbation
 #'
-#' This function enables in-silico gene expression perturbation analysis for user-selected 
-#' genes using a co-expression network. It applies primary perturbations to the selected 
-#' genes, propagates the signal throughout their co-expression neighborhood, and computes 
+#' This function enables in-silico gene expression perturbation analysis for user-selected
+#' genes using a co-expression network. It applies primary perturbations to the selected
+#' genes, propagates the signal throughout their co-expression neighborhood, and computes
 #' cell-cell transition probabilities.
 #'
 #' @return A Seurat object containing the in-silico perturbation results as a new assay.
 #'
 #' @param seurat_obj A Seurat object containing the gene expression and co-expression data.
 #' @param selected_features A character vector of gene names to perturb (e.g. candidate driver genes).
-#' @param perturb_dir A numeric value determining the type of perturbation to apply: 
-#' - negative for knock-down, 
-#' - positive for knock-in, 
+#' @param perturb_dir A numeric value determining the type of perturbation to apply:
+#' - negative for knock-down,
+#' - positive for knock-in,
 #' - 0 for knock-out.
-#' @param perturbation_name A string representing the name of the in-silico perturbation. 
+#' @param perturbation_name A string representing the name of the in-silico perturbation.
 #' This will be stored as a new assay in the Seurat object.
 #' @param graph Name of the cell-cell graph in `Graphs(seurat_obj)`, used for transition probability calculations.
 #' @param group.by Optional. A string specifying the column in `seurat_obj@meta.data` used for cell grouping.
 #' @param group_name Optional. A string or vector specifying the group(s) within `group.by` to use for perturbation.
 #' If NULL, perturbation is applied to all cells.
-#' @param n_connections Number of co-expressed genes to include alongside the selected features. 
-#' If NULL, defaults to the median module size.
-#' @param random_connections Logical. If TRUE, selects random non-selected genes instead of the most 
+#' @param n_connections Number of co-expressed neighborhood genes to include alongside the selected features.
+#' If NULL, defaults to the median module size. Ignored when \code{custom_weights} is provided.
+#' @param random_connections Logical. If TRUE, selects random non-selected genes instead of the most
 #' strongly co-expressed genes.
 #' @param exclude_grey_genes Logical. If TRUE, excludes grey (unassigned) genes from the co-expression network.
+#' @param n_iters Number of iterations for propagating the perturbation signal through the network. Default is 3.
 #' @param delta_scale A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.
+#' @param row_normalize Logical. If TRUE, normalizes the network rows before propagation. Default is FALSE.
+#' @param apply_ceiling Logical. If TRUE, caps propagated expression at each gene's observed maximum. Default is FALSE.
+#' @param ceiling_multiplier Numeric. Scaling factor for the expression ceiling. Default is 1.0.
+#' @param prune_network Logical. If TRUE, removes weak edges from the network before propagation. Default is FALSE.
+#' @param prune_percentile Numeric. Percentile threshold for pruning network edges. Default is 0.95.
 #' @param corr_sigma A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.
 #' @param n_threads Number of threads to use for parallel computation during correlation calculations. Default is 4.
 #' @param use_velocyto Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is TRUE.
@@ -655,23 +661,29 @@ ModulePerturbation <- function(
 #' @param layer Layer in the assay used for the perturbation. Default is 'counts'.
 #' @param slot Slot to extract data for aggregation (e.g., "counts", "data", or "scale.data"). Default is 'counts'.
 #' @param assay Name of the assay in `seurat_obj` containing the expression data. Default is 'RNA'.
+#' @param custom_network Optional. A pre-computed gene-by-gene network matrix (e.g., a correlation matrix or TOM).
+#' Must be supplied together with \code{custom_modules}. When provided, bypasses \code{GetTOM}.
+#' @param custom_modules Optional. A data.frame with at least \code{gene_name} and \code{module} columns,
+#' analogous to the output of \code{GetModules}. Must be supplied together with \code{custom_network}.
+#' @param custom_weights Optional. Name of a column in \code{custom_modules} to use for ranking neighborhood
+#' genes instead of network connectivity (column sums). The top \code{n_connections} genes by this score
+#' are selected as the propagation neighborhood.
 #' @param wgcna_name Optional. Name of the hdWGCNA experiment in `seurat_obj@misc`. If NULL, defaults to the active WGCNA experiment.
 #'
-#' @details 
-#' Following co-expression network analysis with hdWGCNA, `GenePerturbation` allows us to perform 
-#' in-silico perturbation of any set of user-specified genes. This analysis consists of several key steps:
+#' @details
+#' \code{CustomPerturbation} allows in-silico perturbation of any user-specified set of genes without
+#' requiring them to be module hub genes. The analysis consists of three steps:
 #'
-#' 1. **Apply a primary perturbation** to the selected genes (e.g. knock-in, knock-down, or knock-out).
+#' 1. **Primary perturbation**: applies a knock-in, knock-down, or knock-out to \code{selected_features}.
 #'
-#' 2. **Apply a secondary perturbation** to their co-expressed neighbors using a signal propagation 
-#' algorithm. Given the gene-gene co-expression network from hdWGCNA, the perturbation signal 
-#' is propagated iteratively using the network adjacency matrix.
+#' 2. **Signal propagation**: the perturbation signal is propagated to the \code{n_connections} most
+#' strongly co-expressed neighborhood genes via iterative network diffusion.
 #'
-#' 3. **Compute cell-cell transition probabilities** to quantify how the perturbation shifts 
-#' cellular states in the latent space or graph.
+#' 3. **Transition probabilities**: cell-cell transition probabilities are computed from the simulated
+#' expression state to quantify phenotypic shifts.
 #'
-#' The result is stored as a new assay in the Seurat object with normalized simulated expression data 
-#' and computed transition probabilities.
+#' Either the hdWGCNA TOM (via \code{wgcna_name}) or a user-supplied \code{custom_network} /
+#' \code{custom_modules} pair can be used as the underlying co-expression network.
 #'
 #' @import Seurat
 #' @export
@@ -686,123 +698,159 @@ CustomPerturbation <- function(
     n_connections = NULL,
     random_connections = FALSE,
     exclude_grey_genes = FALSE,
+    n_iters = 3,
     delta_scale = 0.2,
-    corr_sigma=0.05,
-    n_threads=4,
-    use_velocyto=TRUE,
+    row_normalize = FALSE,
+    apply_ceiling = FALSE,
+    ceiling_multiplier = 1.0,
+    prune_network = FALSE,
+    prune_percentile = 0.95,
+    corr_sigma = 0.05,
+    n_threads = 4,
+    use_velocyto = TRUE,
     use_graph_tp = FALSE,
     use_counts_tp = FALSE,
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
-    wgcna_name=NULL
+    custom_network = NULL,
+    custom_modules = NULL,
+    custom_weights = NULL,
+    wgcna_name = NULL
 ){
 
-    # set as active assay if wgcna_name is not given
-    if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
+    if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
 
     # check assay
     if(!(assay %in% names(seurat_obj@assays))){
-        stop(paste0("Invalid assay (", assay, "). Assays in Seurat object: ", paste(names(seurat_obj@assays), collapse=', ')))
+        stop(paste0("Invalid assay (", assay, "). Assays in Seurat object: ",
+                    paste(names(seurat_obj@assays), collapse = ', ')))
     }
 
-    # switch to this assay:
     orig_assay <- DefaultAssay(seurat_obj)
     DefaultAssay(seurat_obj) <- assay
 
     # check slot
     if(!(slot %in% c('counts', 'data', 'scale.data'))){
-        stop(paste0("Invalid slot (", slot, "). Valid options for slot: counts, data, scale.data "))
+        stop(paste0("Invalid slot (", slot, "). Valid options for slot: counts, data, scale.data"))
     }
 
-    # check perturb_dir 
+    # check perturb_dir
     if(!is.numeric(perturb_dir)){
         stop(paste0('Invalid choice for perturb_dir. Valid choices are positive numbers (knock-in), negative numbers (knock-down), or 0 (knock-out).'))
+    }
+
+    # check graph exists in the Seurat object
+    if(!(graph %in% names(seurat_obj@graphs))){
+        stop(paste0("Graph '", graph, "' not found in seurat_obj@graphs. Available graphs: ",
+                    paste(names(seurat_obj@graphs), collapse = ', ')))
     }
 
     # define groups based on group.by
     if(is.null(group.by)){
         group.by <- 'fake_group'
-        seurat_obj@meta.data[,group.by] <- "all"
+        seurat_obj@meta.data[, group.by] <- "all"
         groups <- c("all")
-    } else{
-        groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    } else {
+        if(!(group.by %in% colnames(seurat_obj@meta.data))){
+            stop(paste0("group.by column '", group.by, "' not found in seurat_obj@meta.data."))
+        }
+        groups <- unique(as.character(seurat_obj@meta.data[, group.by]))
     }
 
-    # checks 
-    # TODO: which checks should go here and which should go inside the functions?
-    # it would be nice to do them all here so it errors out immediately.
-
-    # get the TOM:
-    net <- GetTOM(seurat_obj, wgcna_name)
-
-    # get modules 
-    modules <- GetModules(seurat_obj, wgcna_name)
+    # load network and modules: use custom inputs when provided, otherwise hdWGCNA
+    if(!is.null(custom_network) & !is.null(custom_modules)){
+        message("Using provided custom network and module table...")
+        if(!all(c('gene_name', 'module') %in% colnames(custom_modules))){
+            stop("custom_modules must contain columns: 'gene_name' and 'module'")
+        }
+        net <- custom_network
+        modules <- custom_modules
+        valid_genes <- intersect(rownames(net), modules$gene_name)
+        net <- net[valid_genes, valid_genes]
+        modules <- modules[modules$gene_name %in% valid_genes, ]
+    } else {
+        net <- GetTOM(seurat_obj, wgcna_name)
+        modules <- GetModules(seurat_obj, wgcna_name)
+    }
 
     if(exclude_grey_genes){
-        modules <- subset(modules, module != 'grey') %>% 
+        modules <- subset(modules, module != 'grey') %>%
             dplyr::mutate(module = droplevels(module))
         net <- net[modules$gene_name, modules$gene_name]
     }
 
-    # calculate the size of each module 
+    # validate selected_features are present in the network
+    missing_features <- setdiff(selected_features, rownames(net))
+    if(length(missing_features) > 0){
+        stop(paste0("The following selected_features are not found in the network: ",
+                    paste(missing_features, collapse = ', ')))
+    }
+
+    # default n_connections to the median non-grey module size
     if(is.null(n_connections)){
         mod_sizes <- table(modules$module)
         mod_sizes <- mod_sizes[names(mod_sizes) != 'grey']
-        n_connections <- median(mod_sizes)
+        n_connections <- if(length(mod_sizes) > 0) as.integer(median(mod_sizes)) else 50L
     }
 
-    # are we selecting specific genes or random genes?
-    if(random_connections){
-        print(paste0("Randomly selecting", n_connections, " genes ..."))
-        hub_genes <- selected_features
-        non_hub_genes <- sample(setdiff(rownames(net), hub_genes), n_connections)
-        module_genes <- c(hub_genes, non_hub_genes)
-    } else{
-        print("Using specific features")
-        # what are the top connected genes to our selected genes?
-        if(length(selected_features) == 1){
-            cur_order <- rev(order(net[selected_features,]))
-        } else{
+    # select neighborhood genes for signal propagation
+    if(!is.null(custom_weights)){
 
-            # TODO: should this be colSums, or should we calculate median / mean???
-            # how similar are the gene sets if we select by sum, median, mean?
-            cur_order <- rev(order(colSums(net[selected_features,])))
+        if(!(custom_weights %in% colnames(modules))){
+            stop(paste0("Column '", custom_weights, "' not found in custom_modules."))
         }
-        module_genes <- c(selected_features, rownames(net)[cur_order][1:n_connections])
-        hub_genes <- selected_features 
-        non_hub_genes <- setdiff(module_genes, hub_genes)
+        message(paste0("Selecting ", n_connections, " neighborhood genes by '", custom_weights, "'..."))
+        non_sel <- modules[!(modules$gene_name %in% selected_features), ]
+        non_sel <- non_sel[order(non_sel[[custom_weights]], decreasing = TRUE), ]
+        non_hub_genes <- non_sel$gene_name[seq_len(min(n_connections, nrow(non_sel)))]
+        hub_genes <- selected_features
+        module_genes <- unique(c(hub_genes, non_hub_genes))
+
+    } else if(random_connections){
+
+        message(paste0("Randomly selecting ", n_connections, " neighborhood genes..."))
+        hub_genes <- selected_features
+        candidates <- setdiff(rownames(net), hub_genes)
+        non_hub_genes <- sample(candidates, min(n_connections, length(candidates)))
+        module_genes <- unique(c(hub_genes, non_hub_genes))
+
+    } else {
+
+        message("Selecting neighborhood genes by network connectivity...")
+        if(length(selected_features) == 1){
+            conn_scores <- net[selected_features, ]
+        } else {
+            conn_scores <- colSums(net[selected_features, ])
+        }
+        # exclude selected_features themselves from the candidate pool
+        candidates <- setdiff(names(sort(conn_scores, decreasing = TRUE)), selected_features)
+        non_hub_genes <- candidates[seq_len(min(n_connections, length(candidates)))]
+        hub_genes <- selected_features
+        module_genes <- unique(c(hub_genes, non_hub_genes))
+
     }
 
-    # define the groups
-    groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    message(paste0("Network neighborhood: ", length(hub_genes), " perturbed gene(s) + ",
+                   length(non_hub_genes), " neighborhood gene(s)"))
 
-    # which cells are we selecting to apply the perturbation?
     cells_use <- colnames(seurat_obj)
-    # if(is.null(group.by)){
-    #   cells_use <- colnames(seurat_obj)
-    # } else{
-    #     cells_use <- seurat_obj@meta.data %>% 
-    #       subset(get(group.by) %in% group_name) %>%
-    #       rownames
-    # }
 
     ###########################################################################
     # Set up the observed expression matrix
     ###########################################################################
 
-    # get the expression matrix:
     if(hdWGCNA::CheckSeurat5()){
-        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, layer=layer)
+        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, layer = layer)
     } else{
-        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, slot=slot)
+        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, slot = slot)
     }
 
     ###########################################################################
-    # Part 1: apply the perturbation to the selected hub genes:
+    # Part 1: apply the perturbation to the selected features
     ###########################################################################
 
-    print('Applying primary in-silico perturbation to selected genes...')
+    message('Applying primary in-silico perturbation to selected genes...')
     exp_per <- ApplyPerturbation(
         seurat_obj,
         exp,
@@ -810,66 +858,58 @@ CustomPerturbation <- function(
         perturb_dir = perturb_dir,
         cells_use = cells_use,
         group.by = group.by,
-       # group_name = group_name,
         layer = layer,
         slot = slot,
         assay = assay
     )
 
     ###########################################################################
-    # Part 2: apply signal propagation throughout this module 
+    # Part 2: propagate signal through the co-expression neighborhood
     ###########################################################################
 
-    # get the TOM for the genes in this module
     cur_net <- net[module_genes, module_genes]
 
-    print('Applying signal propagation throughout co-expression network...')
+    message('Applying signal propagation throughout co-expression network...')
     exp_prop <- ApplyPropagation(
         seurat_obj,
-        exp[module_genes,cells_use],
-        exp_per[module_genes,cells_use],
+        exp[module_genes, cells_use],
+        exp_per[module_genes, cells_use],
         network = cur_net,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
         n_iters = n_iters,
-        row_normalize = row_normalize,          
-        apply_ceiling = apply_ceiling,          
-        ceiling_multiplier = ceiling_multiplier, 
-        prune_network = prune_network,           
-        prune_percentile = prune_percentile    
+        row_normalize = row_normalize,
+        apply_ceiling = apply_ceiling,
+        ceiling_multiplier = ceiling_multiplier,
+        prune_network = prune_network,
+        prune_percentile = prune_percentile
     )
-
 
     if(!all(colnames(seurat_obj) %in% cells_use)){
-        exp_prop_other <- exp[module_genes,setdiff(colnames(seurat_obj), cells_use)]
+        exp_prop_other <- exp[module_genes, setdiff(colnames(seurat_obj), cells_use)]
         exp_prop <- cbind(exp_prop, exp_prop_other)
-        exp_prop <- exp_prop[,colnames(seurat_obj)]
+        exp_prop <- exp_prop[, colnames(seurat_obj)]
     }
 
-    # append the expression matrices:
+    # combine propagated module genes with unchanged non-module genes
     exp_simulated <- rbind(
-        exp_per[!(rownames(exp_per) %in% module_genes),], # genes that aren't in this module
-        exp_prop # genes from this module with perturbations
+        exp_per[!(rownames(exp_per) %in% module_genes), ],
+        exp_prop
     )
 
-    # make sure the order matches the original expression matrix
-    exp_simulated <- exp_simulated[rownames(seurat_obj),colnames(seurat_obj)]
+    # restore original gene and cell order
+    exp_simulated <- exp_simulated[rownames(seurat_obj), colnames(seurat_obj)]
 
-    # add perturbation assay to the Seurat object:
-    perturb_assay <- CreateAssayObject(
-        exp_simulated,
-        assay = perturbation_name
-    )
+    # add perturbation assay to the Seurat object
+    perturb_assay <- CreateAssayObject(exp_simulated, assay = perturbation_name)
     seurat_obj[[perturbation_name]] <- perturb_assay
 
-    # normalize the perturbed data:
-    exp_simulated_norm <- log_normalize(
-        exp_simulated, colSums(exp)
-    )
+    # normalize the perturbed data
+    exp_simulated_norm <- log_normalize(exp_simulated, colSums(exp))
 
     seurat_obj <- SetAssayData(
-        seurat_obj, 
-        assay = perturbation_name, 
+        seurat_obj,
+        assay = perturbation_name,
         layer = 'data',
         new.data = exp_simulated_norm
     )
@@ -878,28 +918,23 @@ CustomPerturbation <- function(
     # Part 3: compute transition probabilities
     ###########################################################################
 
-    if(use_counts_tp){
-        layer_tp <- 'counts'; slot_tp <- 'counts'
-    } else{
-        layer_tp <- 'data'; slot_tp <- 'data'
-    }
+    layer_tp <- if(use_counts_tp) 'counts' else 'data'
 
-    print('Computing cell-cell transition probabilities based on the perturbation...')
+    message('Computing cell-cell transition probabilities based on the perturbation...')
     seurat_obj <- PerturbationTransitions(
         seurat_obj,
         perturbation_name,
-        features=module_genes,
-        graph=graph, 
-        use_velocyto=use_velocyto,
+        features = module_genes,
+        graph = graph,
+        use_velocyto = use_velocyto,
         use_graph_tp = use_graph_tp,
-        corr_sigma=corr_sigma,
-        n_threads=n_threads,
-        layer=layer_tp,
-        slot=layer_tp, 
-        assay=assay
+        corr_sigma = corr_sigma,
+        n_threads = n_threads,
+        layer = layer_tp,
+        slot = layer_tp,
+        assay = assay
     )
 
-    # return the Seurat object
     seurat_obj
 
 }
