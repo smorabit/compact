@@ -70,6 +70,7 @@ TFPerturbation <- function(
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
+    n_workers = 1,
     wgcna_name = NULL
 ){
 
@@ -201,7 +202,8 @@ TFPerturbation <- function(
         group.by = group.by,
         layer = layer,
         slot = slot,
-        assay = assay
+        assay = assay,
+        n_workers = n_workers
     )
 
     ###########################################################################
@@ -354,8 +356,9 @@ ModulePerturbation <- function(
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
-    custom_network = NULL, 
-    custom_modules = NULL,  
+    n_workers = 1,
+    custom_network = NULL,
+    custom_modules = NULL,
     custom_weights = NULL,
     wgcna_name = NULL
 ){
@@ -530,7 +533,8 @@ ModulePerturbation <- function(
        # group_name = group_name,
         layer = layer,
         slot = slot,
-        assay = assay
+        assay = assay,
+        n_workers = n_workers
     )
 
     ###########################################################################
@@ -713,6 +717,7 @@ CustomPerturbation <- function(
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
+    n_workers = 1,
     custom_network = NULL,
     custom_modules = NULL,
     custom_weights = NULL,
@@ -860,7 +865,8 @@ CustomPerturbation <- function(
         group.by = group.by,
         layer = layer,
         slot = slot,
-        assay = assay
+        assay = assay,
+        n_workers = n_workers
     )
 
     ###########################################################################

@@ -13,18 +13,22 @@
 #' @param layer Character. The Seurat v5 layer to extract data from. Default is \code{'counts'}.
 #' @param slot Character. The Seurat v4 slot to extract data from. Default is \code{'counts'}.
 #' @param assay Character. The assay in \code{seurat_obj} containing expression information. Default is \code{'RNA'}.
-#' 
-#' @details 
-#' The function models the baseline expression of target features using a Zero-Inflated 
-#' Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics 
-#' typical of single-cell RNA-seq data . 
-#' It samples from this distribution, scales the values by \code{perturb_dir}, and updates the 
+#' @param n_workers Integer. Number of parallel workers for fitting and sampling the ZINB model across
+#' features. Uses fork-based parallelism (\code{parallel::mclapply}) so memory usage does not scale with
+#' worker count. Default is \code{1} (serial). Values > 1 disable the progress bar.
+#'
+#' @details
+#' The function models the baseline expression of target features using a Zero-Inflated
+#' Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics
+#' typical of single-cell RNA-seq data .
+#' It samples from this distribution, scales the values by \code{perturb_dir}, and updates the
 #' original expression matrix. Any perturbed counts that fall below zero are strictly bounded to zero.
 #'
 #' @return A \code{dgCMatrix} object containing the updated expression matrix with the applied perturbations.
-#' 
+#'
 #' @import Seurat
 #' @importFrom Matrix Matrix
+#' @importFrom parallel mclapply
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
 ApplyPerturbation <- function(
@@ -36,7 +40,8 @@ ApplyPerturbation <- function(
     group.by = NULL,
     layer = 'counts',
     slot = 'counts',
-    assay = 'RNA'
+    assay = 'RNA',
+    n_workers = 1
 ){
 
    # if we are doing a knock-out:
@@ -60,61 +65,58 @@ ApplyPerturbation <- function(
 
     groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
 
-    # initialize progress bar
-    pb <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
-
-    # for each feature, model expression 
+    # per-feature ZINB fit + sample; each feature is independent so this is
+    # embarrassingly parallel. fork-based mclapply (n_workers > 1) keeps memory
+    # flat because workers share the parent's address space via copy-on-write
+    # and only read seurat_obj / exp_hubs — no large objects are copied.
     # TODO: add options for other models aside from ZINB like Poisson etc.
     # TODO: add option to return the model (just in case?)
     # TODO: should the SampleZINB function return a sparse vector?
-    sim_data <- lapply(1:length(features), function(i){
-        
+    worker <- function(i){
         feature <- features[i]
 
-        # initialize
-        ysim <- c()
+        ysim       <- c()
         cell_names <- c()
 
-        # get the current group:
         for(cur_group in groups){
-
             cur_cells <- subset(seurat_obj@meta.data, get(group.by) == cur_group) %>% rownames()
 
-            # get the obserbed gene expression
-            if(length(features) == 1){
-                yobs <- exp_hubs[cur_cells]
-            } else{
-                yobs <- exp_hubs[feature,cur_cells]
-            }
+            yobs <- if(length(features) == 1) exp_hubs[cur_cells] else exp_hubs[feature, cur_cells]
 
-            # model expression as a ZINB
             model <- ModelZINB(
-                seurat_obj, 
-                feature=feature, cells_use=cur_cells, 
-                layer=layer, slot=slot
+                seurat_obj,
+                feature   = feature,
+                cells_use = cur_cells,
+                layer     = layer,
+                slot      = slot
             )
-            
-            # simulate data by sampling the distribution;
+
             # ncells is passed explicitly because model$n includes the
             # artificial zero appended by ModelZINB (add_zero = TRUE)
-            cur_ysim <- SampleZINB(model, yobs, ncells = length(cur_cells))
-            
-            ysim <- c(ysim, cur_ysim)
+            cur_ysim   <- SampleZINB(model, yobs, ncells = length(cur_cells))
+            ysim       <- c(ysim, cur_ysim)
             cell_names <- c(cell_names, cur_cells)
         }
 
-        # set the names for ysim 
         names(ysim) <- cell_names
-        
-        # update progress bar
-        setTxtProgressBar(pb, i)
-
-        # return the simulated data
         ysim
-    })
+    }
 
-    # close progress bar
-    close(pb)
+    if(n_workers == 1){
+        pb       <- utils::txtProgressBar(min = 0, max = length(features), style = 3, width = 50, char = "=")
+        sim_data <- lapply(seq_along(features), function(i){
+            result <- worker(i)
+            utils::setTxtProgressBar(pb, i)
+            result
+        })
+        close(pb)
+    } else {
+        sim_data <- parallel::mclapply(
+            seq_along(features), worker,
+            mc.cores      = n_workers,
+            mc.preschedule = FALSE   # avoids load imbalance since ZINB fit time varies by gene
+        )
+    }
 
     # is there one gene or more than 1 being perturbed?
     if(length(sim_data) > 1){

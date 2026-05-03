@@ -250,3 +250,61 @@ test_that("NULL cells_use defaults to all cells and produces correct dimensions"
   expect_equal(colnames(result), colnames(seurat_obj),
     label = "NULL cells_use: cell order matches seurat_obj")
 })
+
+# ---------------------------------------------------------------------------
+# 11. n_workers > 1: parallel path produces same dimensions and non-negative
+#     counts as the serial path (correctness, not exact value equality since
+#     ZINB sampling is stochastic)
+# ---------------------------------------------------------------------------
+
+test_that("n_workers=2 parallel path returns same dimensions and valid counts as serial", {
+  skip_if_no_data()
+  set.seed(1)
+
+  result_par <- ApplyPerturbation(
+    seurat_obj, exp,
+    features    = hub_genes,
+    perturb_dir = 1,
+    cells_use   = colnames(seurat_obj),
+    group.by    = "branch",
+    n_workers   = 2
+  )
+
+  expect_equal(dim(result_par), dim(exp),
+    label = "parallel: output dimensions match input")
+  expect_equal(rownames(result_par), rownames(exp),
+    label = "parallel: rownames preserved")
+  expect_equal(colnames(result_par), colnames(seurat_obj),
+    label = "parallel: colnames preserved")
+  expect_true(min(result_par) >= 0,
+    label = "parallel: no negative counts")
+})
+
+# ---------------------------------------------------------------------------
+# 12. n_workers > 1 knockout: same deterministic result as serial knockout
+# ---------------------------------------------------------------------------
+
+test_that("n_workers=2 knockout gives identical result to serial knockout", {
+  skip_if_no_data()
+
+  result_serial <- ApplyPerturbation(
+    seurat_obj, exp,
+    features    = hub_genes,
+    perturb_dir = 0,
+    cells_use   = colnames(seurat_obj),
+    group.by    = "branch",
+    n_workers   = 1
+  )
+
+  result_par <- ApplyPerturbation(
+    seurat_obj, exp,
+    features    = hub_genes,
+    perturb_dir = 0,
+    cells_use   = colnames(seurat_obj),
+    group.by    = "branch",
+    n_workers   = 2
+  )
+
+  expect_equal(result_par, result_serial,
+    label = "parallel knockout is bit-for-bit identical to serial knockout")
+})
