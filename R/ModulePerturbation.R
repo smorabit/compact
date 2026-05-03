@@ -48,21 +48,21 @@
 TFPerturbation <- function(
     seurat_obj,
     selected_tf,
-    pertub_dir,
+    perturb_dir,
     perturbation_name,
-    graph='RNA_nn',
+    graph = 'RNA_nn',
     group.by = NULL,
     group_name = NULL,
     n_iters = 1,
     delta_scale = 1,
-    row_normalize = FALSE,       
-    apply_ceiling = FALSE,       
-    ceiling_multiplier = 1.0,    
-    prune_network = FALSE,      
-    prune_percentile = 0.95,    
-    corr_sigma=0.05,
-    n_threads=4,
-    use_velocyto=TRUE,
+    row_normalize = FALSE,
+    apply_ceiling = FALSE,
+    ceiling_multiplier = 1.0,
+    prune_network = FALSE,
+    prune_percentile = 0.95,
+    corr_sigma = 0.05,
+    n_threads = 4,
+    use_velocyto = TRUE,
     use_graph_tp = FALSE,
     depth = 2,
     target_type = "both",
@@ -70,110 +70,117 @@ TFPerturbation <- function(
     layer = 'counts',
     slot = 'counts',
     assay = 'RNA',
-    wgcna_name=NULL
+    wgcna_name = NULL
 ){
 
     # set as active assay if wgcna_name is not given
-    if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
+    if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
 
     # check assay
     if(!(assay %in% names(seurat_obj@assays))){
-        stop(paste0("Invalid assay (", assay, "). Assays in Seurat object: ", paste(names(seurat_obj@assays), collapse=', ')))
+        stop(paste0("Invalid assay (", assay, "). Assays in Seurat object: ",
+                    paste(names(seurat_obj@assays), collapse = ', ')))
     }
 
-    # switch to this assay:
+    # switch to this assay
     orig_assay <- DefaultAssay(seurat_obj)
     DefaultAssay(seurat_obj) <- assay
 
     # check slot
     if(!(slot %in% c('counts', 'data', 'scale.data'))){
-        stop(paste0("Invalid slot (", slot, "). Valid options for slot: counts, data, scale.data "))
+        stop(paste0("Invalid slot (", slot, "). Valid options for slot: counts, data, scale.data"))
     }
 
-    # check perturb_dir 
+    # check perturb_dir
     if(!is.numeric(perturb_dir)){
         stop(paste0('Invalid choice for perturb_dir. Valid choices are positive numbers (knock-in), negative numbers (knock-down), or 0 (knock-out).'))
+    }
+
+    # check graph exists in the Seurat object
+    if(!(graph %in% names(seurat_obj@graphs))){
+        stop(paste0("Graph '", graph, "' not found in seurat_obj@graphs. Available graphs: ",
+                    paste(names(seurat_obj@graphs), collapse = ', ')))
     }
 
     # define groups based on group.by
     if(is.null(group.by)){
         group.by <- 'fake_group'
-        seurat_obj@meta.data[,group.by] <- "all"
+        seurat_obj@meta.data[, group.by] <- "all"
         groups <- c("all")
-    } else{
-        groups <- unique(as.character(seurat_obj@meta.data[,group.by]))
+    } else {
+        if(!(group.by %in% colnames(seurat_obj@meta.data))){
+            stop(paste0("group.by column '", group.by, "' not found in seurat_obj@meta.data."))
+        }
+        groups <- unique(as.character(seurat_obj@meta.data[, group.by]))
     }
 
-    # TODO: add checks
-
-    # get modules 
+    # get modules
     modules <- GetModules(seurat_obj, wgcna_name)
 
     # set up the TF network
     tf_regulons <- GetTFRegulons(seurat_obj)
+
+    # check that the selected TF has a regulon
+    if(!(selected_tf %in% unique(tf_regulons$tf))){
+        stop(paste0("TF '", selected_tf, "' not found in TF regulons. ",
+                    "Use GetTFRegulons(seurat_obj) to see available TFs."))
+    }
+
     tfs <- unique(tf_regulons$tf)
     tf_modules <- subset(modules, gene_name %in% tfs & module != 'grey')
 
     # get the target genes of the selected tf
     cur_regulon <- subset(tf_regulons, tf == selected_tf)
-    cur_regulon_genes <- c( unique(cur_regulon$gene))
-    
+    cur_regulon_genes <- unique(cur_regulon$gene)
+
     # get the TF network for the selected TF
     cur_network <- GetTFTargetGenes(
         seurat_obj,
-        selected_tfs=selected_tf, 
-        depth=depth, 
-        target_type=target_type,
-        use_regulons=use_regulons,
-        wgcna_name=wgcna_name
+        selected_tfs = selected_tf,
+        depth = depth,
+        target_type = target_type,
+        use_regulons = use_regulons,
+        wgcna_name = wgcna_name
     )
 
-    # NOTE: doesn't this mean the depth > 1 doesn't work at all?
-    cur_regulon <- subset(cur_network, tf == selected_tf & depth == depth)
-    cur_regulon_genes <- c( unique(cur_regulon$gene))
+    # use direct indexing to avoid subset() scoping bug: `depth == depth`
+    # would compare the column to itself when `depth` exists as both a column
+    # name and a function parameter
+    cur_regulon <- cur_network[cur_network$tf == selected_tf & cur_network$depth == depth, ]
+    cur_regulon_genes <- unique(cur_regulon$gene)
 
     # convert to igraph
-    g <- cur_network %>% 
-        # dplyr::mutate(score = Gain * sign(Cor)) %>%  
+    g <- cur_network %>%
         dplyr::mutate(score = Cor) %>%
-        dplyr::select(c(tf, gene, score)) %>% 
-        dplyr::rename(source=tf, target=gene, value=score )
+        dplyr::select(c(tf, gene, score)) %>%
+        dplyr::rename(source = tf, target = gene, value = score)
     names(g) <- c('source', 'target', 'value')
-    g <- igraph::graph_from_data_frame(
-        g, 
-        directed=TRUE
-    )
+    g <- igraph::graph_from_data_frame(g, directed = TRUE)
 
-    # get adjacency matrix from igraph:
-    adj <- igraph::as_adjacency_matrix(g, attr='value')
+    # get adjacency matrix from igraph
+    adj <- igraph::as_adjacency_matrix(g, attr = 'value')
     tfnet_genes <- rownames(adj)
-
-    # order the genes
     adj <- adj[tfnet_genes, tfnet_genes]
-    print(dim(adj))
-
-    # transpose the matrix 
     adj <- t(adj)
 
-    # get cell barcodes:
+    # get cell barcodes
     cells_use <- colnames(seurat_obj)
 
     ###########################################################################
     # Set up the observed expression matrix
     ###########################################################################
 
-    # get the expression matrix:
     if(hdWGCNA::CheckSeurat5()){
-        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, layer=layer)
+        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, layer = layer)
     } else{
-        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, slot=slot)
+        exp <- Seurat::GetAssayData(seurat_obj, assay = assay, slot = slot)
     }
 
     ###########################################################################
-    # Part 1: apply the perturbation to the selected hub genes:
+    # Part 1: apply the perturbation to the selected TF
     ###########################################################################
 
-    print(paste0('Applying primary in-silico perturbation on  ', selected_tf))
+    message('Applying primary in-silico perturbation on ', selected_tf, '...')
     exp_per <- ApplyPerturbation(
         seurat_obj,
         exp,
@@ -187,73 +194,68 @@ TFPerturbation <- function(
     )
 
     ###########################################################################
-    # Part 2: apply signal propagation throughout this module 
+    # Part 2: apply signal propagation throughout the TF regulatory network
     ###########################################################################
 
-    print('Applying signal propagation throughout TF Regulatory network...')
+    message('Applying signal propagation throughout TF regulatory network...')
     exp_prop <- ApplyPropagation(
         seurat_obj,
-        exp[tfnet_genes,cells_use],
-        exp_per[tfnet_genes,cells_use],
+        exp[tfnet_genes, cells_use],
+        exp_per[tfnet_genes, cells_use],
         network = adj,
         perturb_dir = perturb_dir,
         delta_scale = delta_scale,
         n_iters = n_iters,
-        row_normalize = row_normalize,          
-        apply_ceiling = apply_ceiling,          
-        ceiling_multiplier = ceiling_multiplier, 
-        prune_network = prune_network,           
-        prune_percentile = prune_percentile    
+        row_normalize = row_normalize,
+        apply_ceiling = apply_ceiling,
+        ceiling_multiplier = ceiling_multiplier,
+        prune_network = prune_network,
+        prune_percentile = prune_percentile
     )
 
-    # append the expression matrices:
+    # append the expression matrices
     exp_simulated <- rbind(
-        exp_per[!(rownames(exp_per) %in% tfnet_genes),], # genes that aren't in this module
-        exp_prop # genes from this module with perturbations
+        exp_per[!(rownames(exp_per) %in% tfnet_genes), ],
+        exp_prop
     )
 
     # make sure the order matches the original expression matrix
-    exp_simulated <- exp_simulated[rownames(seurat_obj),colnames(seurat_obj)]
+    exp_simulated <- exp_simulated[rownames(seurat_obj), colnames(seurat_obj)]
 
-    # add perturbation assay to the Seurat object:
+    # add perturbation assay to the Seurat object
     perturb_assay <- CreateAssayObject(
         exp_simulated,
         assay = perturbation_name
     )
     seurat_obj[[perturbation_name]] <- perturb_assay
 
-    # normalize the perturbed data:
-    exp_simulated_norm <- log_normalize(
-        exp_simulated, colSums(exp)
-    )
+    # normalize the perturbed data
+    exp_simulated_norm <- log_normalize(exp_simulated, colSums(exp))
 
     seurat_obj <- SetAssayData(
-        seurat_obj, 
-        assay = perturbation_name, 
+        seurat_obj,
+        assay = perturbation_name,
         layer = 'data',
         new.data = exp_simulated_norm
     )
-
-    # early return, need to comment out or remove later
-   #  return(seurat_obj)
 
     ###########################################################################
     # Part 3: compute transition probabilities
     ###########################################################################
 
-    print('Computing cell-cell transition probabilities based on the perturbation...')
+    message('Computing cell-cell transition probabilities based on the perturbation...')
     seurat_obj <- PerturbationTransitions(
         seurat_obj,
         perturbation_name,
-        features=cur_regulon_genes,
-        graph=graph, 
-        use_velocyto=use_velocyto,
+        features = cur_regulon_genes,
+        graph = graph,
+        use_velocyto = use_velocyto,
         use_graph_tp = use_graph_tp,
-        corr_sigma=corr_sigma,
-        n_threads=n_threads,
-        layer='data',
-        slot='data', 
-        assay=assay
+        corr_sigma = corr_sigma,
+        n_threads = n_threads,
+        layer = 'data',
+        slot = 'data',
+        assay = assay
     )
 
     # return the Seurat object
