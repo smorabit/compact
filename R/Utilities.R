@@ -99,3 +99,79 @@ PerturbationLog2FC <- function(
 
     return(plot_df)
 }
+
+#' Check for Signal Saturation After Network Propagation
+#'
+#' After running \code{ApplyPropagation}, checks whether the propagated
+#' expression has saturated at the biological floor (0) or ceiling (max observed
+#' expression). Heavy saturation can cause up- and down-regulation perturbations
+#' to produce indistinguishable transition vector fields.
+#'
+#' @param exp_obs A features-by-cells matrix of baseline (unperturbed) expression counts.
+#' @param exp_prop A features-by-cells matrix of the final propagated expression counts
+#'   (output of \code{ApplyPropagation}).
+#' @param delta_scale Numeric. The \code{delta_scale} used during propagation; reported in the warning.
+#' @param n_iters Integer. The \code{n_iters} used during propagation; reported in the warning.
+#' @param apply_ceiling Logical. Whether a ceiling constraint was applied during propagation.
+#'   Default \code{FALSE}.
+#' @param max_obs Numeric vector. Per-gene ceiling values (length equal to \code{nrow(exp_prop)}).
+#'   Only used when \code{apply_ceiling = TRUE}.
+#' @param saturation_thresh Numeric. Fraction of perturbed gene-cell entries that must be
+#'   saturated to trigger a warning. Default \code{0.5}.
+#'
+#' @return Invisibly returns a named list with \code{floor_frac} and, if
+#'   \code{apply_ceiling = TRUE}, \code{ceil_frac} — the computed saturation fractions.
+#'
+#' @details
+#' Perturbed genes are identified as rows where the sum of \code{|exp_prop - exp_obs|}
+#' is non-zero. Among those rows, floor saturation is the fraction of gene-cell entries
+#' where propagated expression equals 0. If \code{apply_ceiling = TRUE}, ceiling saturation
+#' is the fraction of entries at or above \code{max_obs}. A warning is issued for each
+#' fraction exceeding \code{saturation_thresh}.
+#'
+#' @export
+CheckSaturation <- function(
+    exp_obs,
+    exp_prop,
+    delta_scale,
+    n_iters,
+    apply_ceiling = FALSE,
+    max_obs = NULL,
+    saturation_thresh = 0.5
+) {
+    perturbed_genes <- which(Matrix::rowSums(abs(exp_prop - exp_obs)) > 0)
+    result <- list()
+
+    if (length(perturbed_genes) == 0) {
+        return(invisible(result))
+    }
+
+    prop_sub <- as.matrix(exp_prop[perturbed_genes, , drop = FALSE])
+
+    # floor saturation: entries driven to expression = 0
+    floor_frac <- mean(prop_sub == 0)
+    result$floor_frac <- floor_frac
+
+    if (floor_frac > saturation_thresh) {
+        warning(sprintf(
+            "%.0f%% of perturbed gene-cell entries saturated at the expression floor (= 0) after propagation. Up- and down-regulation perturbations may produce indistinguishable results. Consider reducing `delta_scale` (current: %.2f) or `n_iters` (current: %d), or setting `row_normalize = TRUE`.",
+            floor_frac * 100, delta_scale, n_iters
+        ), call. = FALSE)
+    }
+
+    # ceiling saturation: entries driven to max_obs (only when apply_ceiling = TRUE)
+    if (apply_ceiling && !is.null(max_obs)) {
+        ceil_check <- sweep(prop_sub, 1, max_obs[perturbed_genes], ">=")
+        ceil_frac <- mean(ceil_check)
+        result$ceil_frac <- ceil_frac
+
+        if (ceil_frac > saturation_thresh) {
+            warning(sprintf(
+                "%.0f%% of perturbed gene-cell entries saturated at the expression ceiling after propagation. Up- and down-regulation perturbations may produce indistinguishable results. Consider reducing `delta_scale` (current: %.2f) or `n_iters` (current: %d), or setting `row_normalize = TRUE`.",
+                ceil_frac * 100, delta_scale, n_iters
+            ), call. = FALSE)
+        }
+    }
+
+    invisible(result)
+}

@@ -18,19 +18,24 @@
 #' @param prune_network Logical. If \code{TRUE}, removes weak background edges from the network prior to propagation based on a calculated percentile threshold. Highly recommended for dense networks like WGCNA TOMs. Default is \code{FALSE}.
 #' @param prune_percentile Numeric. The percentile threshold (between 0 and 1) used to prune the network if \code{prune_network = TRUE}. For example, \code{0.95} drops the weakest 95\% of edges and retains only the top 5\% strongest connections. Default is \code{0.95}.
 #' 
-#' @details 
-#' The function calculates the initial difference (\code{delta}) between the perturbed 
-#' and baseline expression matrices. Over \code{n_iters} iterations, this \code{delta} 
-#' is multiplied by the gene-gene \code{network} matrix via dot product. 
-#' This mathematical diffusion simulates how a change in a hub gene ripples out to its 
+#' @details
+#' The function calculates the initial difference (\code{delta}) between the perturbed
+#' and baseline expression matrices. Over \code{n_iters} iterations, this \code{delta}
+#' is multiplied by the gene-gene \code{network} matrix via dot product.
+#' This mathematical diffusion simulates how a change in a hub gene ripples out to its
 #' connected targets.
-#' 
-#' To maintain stability and biological realism, the propagated signal is penalized at each step by the 
-#' \code{delta_scale} parameter. Users can further stabilize the diffusion by pruning weak network edges 
-#' (\code{prune_network}), row-normalizing the network (\code{row_normalize}), and enforcing a strict 
-#' biological ceiling (\code{apply_ceiling}) to prevent genes from entering biologically impossible 
-#' high-expression states. Finally, total expression is strictly floored at 0 to 
+#'
+#' To maintain stability and biological realism, the propagated signal is penalized at each step by the
+#' \code{delta_scale} parameter. Users can further stabilize the diffusion by pruning weak network edges
+#' (\code{prune_network}), row-normalizing the network (\code{row_normalize}), and enforcing a strict
+#' biological ceiling (\code{apply_ceiling}) to prevent genes from entering biologically impossible
+#' high-expression states. Finally, total expression is strictly floored at 0 to
 #' prevent negative read counts, and the final matrix is rounded to represent valid count data.
+#'
+#' After propagation, a saturation check is performed on the perturbed genes. If more than 50\% of
+#' perturbed gene-cell entries have been driven to the expression floor (= 0) or ceiling, a warning is
+#' issued, since heavily saturated signals can cause up- and down-regulation perturbations to produce
+#' indistinguishable transition vector fields.
 #'
 #' @return A matrix (or \code{dgCMatrix}) containing the fully updated expression 
 #'   matrix representing the global cell state after the perturbation signal has 
@@ -119,11 +124,22 @@ ApplyPropagation <- function(
     
     # Return the matrix with the signal propagation applied
     exp_prop <- exp_per + delta
-    
+
     # Floor negative values to 0 and round to maintain integer count structure
     exp_prop[exp_prop < 0] <- 0
     exp_prop <- round(exp_prop)
-    
+
+    # check for signal saturation: heavy saturation can cause up- and down-regulation
+    # perturbations to produce indistinguishable vector fields
+    CheckSaturation(
+        exp_obs      = exp,
+        exp_prop     = exp_prop,
+        delta_scale  = delta_scale,
+        n_iters      = n_iters,
+        apply_ceiling = apply_ceiling,
+        max_obs      = if (apply_ceiling) max_obs else NULL
+    )
+
     return(exp_prop)
 }
 
