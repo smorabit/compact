@@ -35,6 +35,7 @@ Imports:
     rlang,
     S4Vectors,
     energy,
+    RSpectra,
     Rcpp
 LinkingTo: 
     Rcpp,

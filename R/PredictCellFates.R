@@ -107,18 +107,22 @@ PredictPerturbationTime <- function(
     cell_graph <- Graphs(seurat_obj, slot = graph)
     cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
     diag(cell_graph) <- 1
-    
+
     # get the transition probability matrix
+    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
+    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
+    # the correct row-stochastic transition matrix for downstream computations.
     tp <- Graphs(seurat_obj, slot = tp_graph_name)
     tp <- Matrix::Matrix(tp, sparse = TRUE)
     tp[is.na(tp)] <- 0
-    
+    tp <- t(tp)
+
     # mask transition probabilities with KNN graph
     tp <- tp * cell_graph
 
     # row-normalize to create Markov transition matrix P
     row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1 
+    row_sums[row_sums == 0] <- 1
     P <- tp / row_sums
 
     # -------------------------------------------------------------------------
@@ -184,6 +188,7 @@ PredictPerturbationTime <- function(
 
     # add to Seurat metadata under the user-specified column name
     final_times <- perturbation_pseudotime[colnames(seurat_obj), 'time']
+    names(final_times) <- colnames(seurat_obj)
     seurat_obj <- AddMetaData(
         object = seurat_obj,
         metadata = final_times,
@@ -256,31 +261,37 @@ PredictAttractors <- function(
     cell_graph <- Graphs(seurat_obj, slot = graph)
     cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
     diag(cell_graph) <- 1
-    
+
     # get the transition probability matrix
+    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
+    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
+    # the correct row-stochastic transition matrix for downstream computations.
     tp <- Graphs(seurat_obj, slot = tp_graph_name)
     tp <- Matrix::Matrix(tp, sparse = TRUE)
     tp[is.na(tp)] <- 0
-    
+    tp <- t(tp)
+
     # mask transition probabilities with KNN graph
     tp <- tp * cell_graph
 
     # row-normalize to create Markov transition matrix P
     row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1 
+    row_sums[row_sums == 0] <- 1
     P <- tp / row_sums
 
     # -------------------------------------------------------------------------
     # identify attractors
     # -------------------------------------------------------------------------
 
-    # calculate the left eigenvector
+    # calculate the dominant left eigenvector of P (= dominant right eigenvector
+    # of t(P)), which gives the stationary distribution of the random walk
     eig_res <- RSpectra::eigs(t(P), k = 1, which = "LR")
-    
-    # extract the real part of the eigenvector
-    stat_dist <- Re(eig_res$vectors[, 1])
 
-    # normalize such that probabilities sum to 1
+    # extract the real part; take absolute value before normalizing because
+    # ARPACK's Lanczos solver can return sign-ambiguous eigenvectors and a
+    # reducible P (disconnected graph components) can produce near-zero negative
+    # entries that would otherwise yield negative attractor scores
+    stat_dist <- abs(Re(eig_res$vectors[, 1]))
     stat_dist <- stat_dist / sum(stat_dist)
     names(stat_dist) <- rownames(P)
 
@@ -430,18 +441,22 @@ PredictFates <- function(
     cell_graph <- Graphs(seurat_obj, slot = graph)
     cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
     diag(cell_graph) <- 1
-    
+
     # get the transition probability matrix
+    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
+    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
+    # the correct row-stochastic transition matrix for downstream computations.
     tp <- Graphs(seurat_obj, slot = tp_graph_name)
     tp <- Matrix::Matrix(tp, sparse = TRUE)
     tp[is.na(tp)] <- 0
-    
+    tp <- t(tp)
+
     # mask transition probabilities with KNN graph
     tp <- tp * cell_graph
 
     # row-normalize to create Markov transition matrix P
     row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1 
+    row_sums[row_sums == 0] <- 1
     P <- tp / row_sums
 
     # -------------------------------------------------------------------------
@@ -600,18 +615,22 @@ PredictCommitment <- function(
     cell_graph <- Graphs(seurat_obj, slot = graph)
     cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
     diag(cell_graph) <- 1
-    
+
     # get the transition probability matrix
+    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
+    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
+    # the correct row-stochastic transition matrix for downstream computations.
     tp <- Graphs(seurat_obj, slot = tp_graph_name)
     tp <- Matrix::Matrix(tp, sparse = TRUE)
     tp[is.na(tp)] <- 0
-    
+    tp <- t(tp)
+
     # mask transition probabilities with KNN graph
     tp <- tp * cell_graph
 
     # row-normalize to create Markov transition matrix P
     row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1 
+    row_sums[row_sums == 0] <- 1
     P <- tp / row_sums
 
     # -------------------------------------------------------------------------
