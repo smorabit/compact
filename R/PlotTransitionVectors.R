@@ -419,9 +419,3 @@ VectorFieldCoherence <- function(
 embArrows_velocyto <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
     .Call('_velocyto_R_embArrows', PACKAGE = 'velocyto.R', emb, tp, arrowScale, nthreads)
 }
-
-
-
-# SparseEmbArrows <- function(emb, tp, arrowScale = 1.0, nthreads = 1L) {
-#     .Call('_compact_SparseEmbArrows', PACKAGE = 'compact', emb, tp, arrowScale, nthreads)
-# }

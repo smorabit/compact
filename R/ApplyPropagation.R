@@ -53,9 +53,9 @@ ApplyPropagation <- function(
     perturb_dir,
     n_iters = 3,
     delta_scale = 0.2,
-    row_normalize = FALSE,
-    apply_ceiling = FALSE,
-    ceiling_multiplier = 1.0,
+    row_normalize = TRUE,
+    apply_ceiling = TRUE,
+    ceiling_multiplier = 2.0,
     prune_network = FALSE,
     prune_percentile = 0.95
 ){
@@ -69,28 +69,28 @@ ApplyPropagation <- function(
     # note: perturb_dir is accepted for API compatibility with callers but is not
     # used in the propagation math; the sign of the effect is carried by exp_per.
 
-    # 1. OPTIONAL: Prune the network based on edge weight percentiles
+    # prune the network based on edge weight percentiles
     if(prune_network){
         # Calculate the threshold value at the requested percentile
         threshold <- quantile(as.vector(network), prune_percentile, na.rm = TRUE)
         network[network < threshold] <- 0
     }
     
-    # 2. OPTIONAL: Row-normalize the network to prevent summation explosion
+    # row-normalize the network to prevent summation explosion
     if(row_normalize){
         row_sums <- Matrix::rowSums(network)
         row_sums[row_sums == 0] <- 1
         network <- network / row_sums
     }
 
-    # Ensure network is a sparse matrix for fast multiplication
+    # ensure network is a sparse matrix for fast multiplication
     network <- methods::as(network, "CsparseMatrix")
 
-    # Compute the initial difference between perturbation and observed expression
+    # compute the initial difference between perturbation and observed expression
     delta <- exp_per - exp
     delta <- methods::as(delta, "CsparseMatrix")
 
-    # 3. OPTIONAL: Define the biological ceiling with a dynamic multiplier
+    # dDefine the biological ceiling with a dynamic multiplier
     if(apply_ceiling){
         # multiply the max observed by the buffer (e.g., 1.05 for a 5% buffer)
         max_obs <- apply(exp, 1, max) * ceiling_multiplier
@@ -145,72 +145,3 @@ ApplyPropagation <- function(
 
 
 
-
-
-
-# ApplyPropagation <- function(
-#     seurat_obj,
-#     exp,
-#     exp_per,
-#     network,
-#     perturb_dir = perturb_dir,
-#     n_iters = 3,
-#     delta_scale = 0.2
-# ){
-
-#     # todo: some checks for the network?
-#     # check that the network has the right genes
-
-#     # experimental: 
-#     # network[network < 0.05] <- 0
-#     # network <- methods::as(network, "CsparseMatrix")
-
-#     # row-normalize 
-#     row_sums <- Matrix::rowSums(network)
-#     row_sums[row_sums == 0] <- 1
-#     network <- network / row_sums
-
-#     # compute the difference between the perturbation and the observed expression
-#     delta <- exp_per - exp
-#     delta <- methods::as(delta, "CsparseMatrix")
-
-#     # backups
-#     delta_orig <- delta 
-#     exp_orig <- exp 
-#     exp_per_orig <- exp_per
-
-#     # define the "ceiling" of gene expression
-#     max_obs <- apply(exp, 1, max)
-
-#     # what is the sign of the perturbation dir?
-#     perturb_sign <- sign(perturb_dir)
-
-#     # run the signaling processing step iteratively
-#     for(i in 1:n_iters){  
-
-#         # compute the dot product between the TOM coefficients and the exp matrix
-#         delta <- network %*% delta
-
-#         # penalize the delta, or else the values rapidly get too large
-#         delta <- delta * delta_scale
-
-#         # update the expression matrix:
-#         exp_update <- exp_per + delta # (delta * perturb_sign)
-#         exp_update[exp_update < 0] <- 0
-
-#         # apply biological constraints (round such that we still have integers)
-#         # exp_update <- round(exp_update)
-#         exp_update <- methods::as(exp_update, "CsparseMatrix")
-#         exp_update@x <- pmin(exp_update@x, max_obs[exp_update@i + 1])
-
-#         # update the delta
-#         delta <- exp_update - exp_per
-
-#     }
-    
-#     # return the matrix with the signal propagation applied
-#     exp_prop <- exp_per + delta
-#     exp_prop[exp_prop < 0] <- 0
-#     exp_prop <- round(exp_prop)
-#     exp_prop
-# }

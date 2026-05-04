@@ -82,16 +82,17 @@ PerturbationTransitions <- function(
     }
 
     # subset by selected features
-    # and convert to dense matrix (TODO: figure out a way to avoid this?)
-    exp_obs <- as.matrix(exp_obs[features,])
-    exp_per <- as.matrix(exp_per[features,])
-
-    delta <- exp_per - exp_obs
+    exp_obs <- exp_obs[features,]
+    exp_per <- exp_per[features,]
 
     # run the Velocyto colDeltaCor function
     if(use_velocyto){
+        
+        # convert to dense (only needed for velocyto)
+        delta <- as.matrix(exp_per) - as.matrix(exp_obs)
         cc <- colDeltaCor_velocyto(exp_obs, delta, nthreads=n_threads)
     } else{
+        delta <- exp_per - exp_obs
         cc <- SparseColDeltaCor(
           methods::as(exp_obs, "CsparseMatrix"),
           methods::as(delta, "CsparseMatrix"),
