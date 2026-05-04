@@ -38,7 +38,7 @@
 #'
 #' @export
 PlotTransitionVectors <- function(
-    seurat_obj, 
+    seurat_obj,
     perturbation_name,
     color.by,
     reduction = 'umap',
@@ -50,23 +50,33 @@ PlotTransitionVectors <- function(
     point_size = 1,
     arrow_size = 0.25,
     raster_dpi = 300,
-    arrow_alpha = TRUE
+    arrow_alpha = TRUE,
+    use_velocyto = FALSE
 ){
 
-    # This function gives us the dataframe with vector coordinates 
+    # validate color.by before doing anything expensive
+    if (!color.by %in% colnames(seurat_obj@meta.data)) {
+        stop(sprintf(
+            "color.by column '%s' not found in seurat_obj metadata. Available columns: %s",
+            color.by, paste(colnames(seurat_obj@meta.data), collapse = ", ")
+        ))
+    }
+
+    # this function gives us the dataframe with vector coordinates
     # (ars) and vector distances (arsd)
     vectors <- PerturbationVectors(
         seurat_obj,
         perturbation_name = perturbation_name,
-        reduction = reduction, 
+        reduction = reduction,
         arrow_scale = arrow_scale,
-        max_pct = max_pct
+        max_pct = max_pct,
+        use_velocyto = use_velocyto
     )
-    ars <- vectors$ars 
+    ars <- vectors$ars
     arsd <- vectors$arsd
 
-    # Get the UMAP embedding from the seurat object 
-    # and subset to only keep cells that we have arrows for.
+    # get the UMAP embedding from the seurat object
+    # and subset to only keep cells that we have arrows for
     emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
     colnames(emb) <- paste0('emb_', 1:ncol(emb))
 
@@ -101,9 +111,9 @@ PlotTransitionVectors <- function(
                 xend=end.xd, 
                 yend=end.yd,
                 alpha = vector.length 
-            ), 
-            arrow=grid::arrow(length=unit(0.1, "cm")), 
-            size=arrow_size
+            ),
+            arrow=grid::arrow(length=unit(0.1, "cm")),
+            linewidth=arrow_size
         )
     } else{
         p <- p +
@@ -115,9 +125,9 @@ PlotTransitionVectors <- function(
                 y=start.emb_2, 
                 xend=end.xd, 
                 yend=end.yd
-            ), 
-            arrow=grid::arrow(length=unit(0.1, "cm")), 
-            size=arrow_size
+            ),
+            arrow=grid::arrow(length=unit(0.1, "cm")),
+            linewidth=arrow_size
         )
     }
 
@@ -171,8 +181,23 @@ PerturbationVectors <- function(
     use_velocyto = FALSE
 ){
 
-    # TODO: check reduction 
     graph_name <- paste0(perturbation_name, '_tp')
+
+    # validate reduction
+    if (!reduction %in% names(seurat_obj@reductions)) {
+        stop(sprintf(
+            "Reduction '%s' not found in Seurat object. Available reductions: %s",
+            reduction, paste(names(seurat_obj@reductions), collapse = ", ")
+        ))
+    }
+
+    # validate that the transition probability graph exists
+    if (!graph_name %in% names(seurat_obj@graphs)) {
+        stop(sprintf(
+            "Transition probability graph '%s' not found in Seurat object graphs. Available graphs: %s",
+            graph_name, paste(names(seurat_obj@graphs), collapse = ", ")
+        ))
+    }
 
     # get the 2D embedding
     emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
@@ -306,7 +331,8 @@ VectorFieldCoherence <- function(
     n_threads = 4,
     arrow_scale = 1,
     max_pct = 0.90,
-    weighted = FALSE
+    weighted = FALSE,
+    use_velocyto = FALSE
 ){
 
     # --- Checks ---
@@ -320,12 +346,11 @@ VectorFieldCoherence <- function(
                      reduction, paste(names(seurat_obj@reductions), collapse = ", ")))
     }
 
-    # check perturbation_name (assay or data)
+    # check that the transition probability graph exists
     graph_name <- paste0(perturbation_name, "_tp")
-    if (!graph_name %in% names(seurat_obj@assays) && 
-        !perturbation_name %in% names(seurat_obj@assays)) {
-        stop(sprintf("Perturbation '%s' not found in Seurat object assays. Available assays: %s",
-                     perturbation_name, paste(names(seurat_obj@assays), collapse = ", ")))
+    if (!graph_name %in% names(seurat_obj@graphs)) {
+        stop(sprintf("Transition probability graph '%s' not found in Seurat object graphs. Available graphs: %s",
+                     graph_name, paste(names(seurat_obj@graphs), collapse = ", ")))
     }
 
     # check graph slot
@@ -349,9 +374,10 @@ VectorFieldCoherence <- function(
     vectors <- PerturbationVectors(
         seurat_obj,
         perturbation_name = perturbation_name,
-        reduction = reduction, 
+        reduction = reduction,
         arrow_scale = arrow_scale,
-        max_pct = max_pct
+        max_pct = max_pct,
+        use_velocyto = use_velocyto
     )
     vector_field <- vectors$arsd
     
