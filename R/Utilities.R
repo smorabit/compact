@@ -198,8 +198,8 @@ CheckSaturation <- function(
 #' @param n_iters Integer. The \code{n_iters} used during propagation; reported
 #'   in the warning.
 #' @param min_mean_delta Numeric. Minimum mean absolute delta in downstream
-#'   genes considered detectable after integer rounding. Defaults to \code{0.5},
-#'   the smallest change that can survive \code{round()}.
+#'   genes considered a detectable signal. Defaults to \code{0.001}, which is
+#'   appropriate for log-normalized expression space.
 #'
 #' @return Invisibly returns a named list with:
 #'   \describe{
@@ -224,7 +224,7 @@ CheckSignalDecay <- function(
     row_normalize,
     delta_scale,
     n_iters,
-    min_mean_delta = 0.5
+    min_mean_delta = 0.001
 ) {
     result <- list()
 
@@ -251,11 +251,10 @@ CheckSignalDecay <- function(
         if (row_normalize && delta_scale <= 1) {
             warning(sprintf(
                 paste0(
-                    "Mean absolute delta in downstream genes (%.4f) is below the detectable ",
-                    "threshold (%.1f counts) and will likely be lost to integer rounding. ",
-                    "With row_normalize = TRUE, a delta_scale <= 1 (current: %.2f) guarantees ",
-                    "signal decay over iterations because the row-normalized network can only ",
-                    "redistribute signal, not amplify it. ",
+                    "Mean absolute delta in downstream genes (%.6f) is below the detectable ",
+                    "threshold (%.4f). With row_normalize = TRUE, a delta_scale <= 1 ",
+                    "(current: %.2f) guarantees signal decay over iterations because the ",
+                    "row-normalized network can only redistribute signal, not amplify it. ",
                     "Consider setting row_normalize = FALSE to preserve propagation signal."
                 ),
                 mean_delta_downstream, min_mean_delta, delta_scale
@@ -263,9 +262,9 @@ CheckSignalDecay <- function(
         } else {
             warning(sprintf(
                 paste0(
-                    "Mean absolute delta in downstream genes (%.4f) is below the detectable ",
-                    "threshold (%.1f counts) and will likely be lost to integer rounding. ",
-                    "Consider increasing delta_scale (current: %.2f) or n_iters (current: %d)."
+                    "Mean absolute delta in downstream genes (%.6f) is below the detectable ",
+                    "threshold (%.4f). Consider increasing delta_scale (current: %.2f) or ",
+                    "n_iters (current: %d)."
                 ),
                 mean_delta_downstream, min_mean_delta, delta_scale, n_iters
             ), call. = FALSE)

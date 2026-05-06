@@ -54,7 +54,6 @@ if (file.exists(data_path) && file.exists(tom_path)) {
     n_iters           = 1,
     delta_scale       = 0.05,
     row_normalize     = FALSE,
-    apply_ceiling     = FALSE,
     use_velocyto      = FALSE,
     custom_network    = TOM,
     custom_modules    = mods
@@ -71,7 +70,6 @@ if (file.exists(data_path) && file.exists(tom_path)) {
     n_iters           = 1,
     delta_scale       = 0.05,
     row_normalize     = FALSE,
-    apply_ceiling     = FALSE,
     use_velocyto      = FALSE,
     custom_network    = TOM,
     custom_modules    = mods
