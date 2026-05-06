@@ -175,3 +175,102 @@ CheckSaturation <- function(
 
     invisible(result)
 }
+
+#' Check for Propagation Signal Decay
+#'
+#' After running \code{ApplyPropagation}, checks whether the propagated signal
+#' reaching downstream (non-directly-perturbed) genes has decayed below a
+#' detectable threshold. With \code{row_normalize = TRUE} and
+#' \code{delta_scale <= 1}, the row-normalized network acts as a stochastic
+#' matrix — repeated multiplication can only redistribute signal, never amplify
+#' it — so the propagated delta decays geometrically toward zero and is often
+#' lost to integer rounding.
+#'
+#' @param delta_initial A features-by-cells matrix of the initial perturbation
+#'   delta (\code{exp_per - exp}) before any propagation iterations.
+#' @param delta_final A features-by-cells matrix of the propagated delta after
+#'   \code{n_iters} iterations (i.e., the delta added to \code{exp_per} to
+#'   produce the final propagated expression).
+#' @param row_normalize Logical. Whether the network was row-normalized during
+#'   propagation.
+#' @param delta_scale Numeric. The \code{delta_scale} used during propagation;
+#'   reported in the warning.
+#' @param n_iters Integer. The \code{n_iters} used during propagation; reported
+#'   in the warning.
+#' @param min_mean_delta Numeric. Minimum mean absolute delta in downstream
+#'   genes considered detectable after integer rounding. Defaults to \code{0.5},
+#'   the smallest change that can survive \code{round()}.
+#'
+#' @return Invisibly returns a named list with:
+#'   \describe{
+#'     \item{\code{mean_delta_initial}}{Mean absolute delta across directly
+#'       perturbed gene-cell entries.}
+#'     \item{\code{mean_delta_downstream}}{Mean absolute delta across downstream
+#'       gene-cell entries after propagation.}
+#'   }
+#'
+#' @details
+#' Directly perturbed genes are identified as rows where the sum of
+#' \code{|delta_initial|} is non-zero. All remaining rows are treated as
+#' downstream. A warning is issued when the mean absolute downstream delta
+#' is below \code{min_mean_delta}, with specific guidance when
+#' \code{row_normalize = TRUE} and \code{delta_scale <= 1} — the parameter
+#' combination that guarantees decay regardless of \code{n_iters}.
+#'
+#' @export
+CheckSignalDecay <- function(
+    delta_initial,
+    delta_final,
+    row_normalize,
+    delta_scale,
+    n_iters,
+    min_mean_delta = 0.5
+) {
+    result <- list()
+
+    # identify directly perturbed genes (non-zero initial delta) and downstream genes
+    directly_perturbed <- which(Matrix::rowSums(abs(delta_initial)) > 0)
+    downstream_genes   <- setdiff(seq_len(nrow(delta_initial)), directly_perturbed)
+
+    if (length(downstream_genes) == 0 || length(directly_perturbed) == 0) {
+        return(invisible(result))
+    }
+
+    mean_delta_initial    <- mean(abs(as.matrix(delta_initial[directly_perturbed, , drop = FALSE])))
+    mean_delta_downstream <- mean(abs(as.matrix(delta_final[downstream_genes,   , drop = FALSE])))
+
+    result$mean_delta_initial    <- mean_delta_initial
+    result$mean_delta_downstream <- mean_delta_downstream
+
+    # nothing to check if the initial perturbation itself was zero
+    if (mean_delta_initial == 0) {
+        return(invisible(result))
+    }
+
+    if (mean_delta_downstream < min_mean_delta) {
+        if (row_normalize && delta_scale <= 1) {
+            warning(sprintf(
+                paste0(
+                    "Mean absolute delta in downstream genes (%.4f) is below the detectable ",
+                    "threshold (%.1f counts) and will likely be lost to integer rounding. ",
+                    "With row_normalize = TRUE, a delta_scale <= 1 (current: %.2f) guarantees ",
+                    "signal decay over iterations because the row-normalized network can only ",
+                    "redistribute signal, not amplify it. ",
+                    "Consider setting row_normalize = FALSE to preserve propagation signal."
+                ),
+                mean_delta_downstream, min_mean_delta, delta_scale
+            ), call. = FALSE)
+        } else {
+            warning(sprintf(
+                paste0(
+                    "Mean absolute delta in downstream genes (%.4f) is below the detectable ",
+                    "threshold (%.1f counts) and will likely be lost to integer rounding. ",
+                    "Consider increasing delta_scale (current: %.2f) or n_iters (current: %d)."
+                ),
+                mean_delta_downstream, min_mean_delta, delta_scale, n_iters
+            ), call. = FALSE)
+        }
+    }
+
+    invisible(result)
+}

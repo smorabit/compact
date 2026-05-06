@@ -90,6 +90,9 @@ ApplyPropagation <- function(
     delta <- exp_per - exp
     delta <- methods::as(delta, "CsparseMatrix")
 
+    # save before the loop so CheckSignalDecay can compare initial vs final signal
+    delta_initial <- delta
+
     # dDefine the biological ceiling with a dynamic multiplier
     if(apply_ceiling){
         # multiply the max observed by the buffer (e.g., 1.05 for a 5% buffer)
@@ -128,6 +131,15 @@ ApplyPropagation <- function(
     # Floor negative values to 0 and round to maintain integer count structure
     exp_prop[exp_prop < 0] <- 0
     exp_prop <- round(exp_prop)
+
+    # check that the propagated signal reaching downstream genes is detectable
+    CheckSignalDecay(
+        delta_initial = delta_initial,
+        delta_final   = delta,
+        row_normalize = row_normalize,
+        delta_scale   = delta_scale,
+        n_iters       = n_iters
+    )
 
     # check for signal saturation: heavy saturation can cause up- and down-regulation
     # perturbations to produce indistinguishable vector fields
