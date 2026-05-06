@@ -158,3 +158,77 @@ test_that("hub gene count deltas for UP and DOWN are negatively correlated acros
   expect_lt(hub_delta_cor, 0,
     label = "hub gene deltas for UP and DOWN are negatively correlated (cell-specific structure preserved)")
 })
+
+# ---------------------------------------------------------------------------
+# 4. Transition probability matrices for UP and DOWN are weakly correlated
+#    (the softmax normalization in SparseColDeltaCor compresses cell-to-cell
+#    differences, so the TP matrices won't be perfectly anticorrelated, but
+#    with log-space propagation the correlation should be substantially lower
+#    than the ~0.9 seen with count-space propagation)
+# ---------------------------------------------------------------------------
+
+test_that("TP matrices for UP and DOWN have low positive correlation (< 0.5)", {
+  skip_if_no_data()
+
+  tp_up <- Matrix::Matrix(Graphs(seurat_obj, "red_up_tp"))
+  tp_dn <- Matrix::Matrix(Graphs(seurat_obj, "red_dn_tp"))
+
+  cell_graph <- Matrix::Matrix(Graphs(seurat_obj, "RNA_nn"))
+  diag(cell_graph) <- 1
+  edges <- summary(methods::as(cell_graph, "TsparseMatrix"))
+
+  vals_up <- tp_up[cbind(edges$i, edges$j)]
+  vals_dn <- tp_dn[cbind(edges$i, edges$j)]
+  tp_cor  <- cor(vals_up, vals_dn, use = "complete.obs")
+  cat(sprintf("\n  TP correlation (UP vs DOWN): %.4f\n", tp_cor))
+
+  expect_lt(tp_cor, 0.5,
+    label = "TP matrices for UP and DOWN are not highly correlated (log-space propagation reduces similarity)")
+})
+
+# ---------------------------------------------------------------------------
+# 5. Vector field cosine similarity: majority of cells have vectors pointing
+#    in opposite directions between UP and DOWN perturbations
+# ---------------------------------------------------------------------------
+
+test_that("vector fields for UP and DOWN point in opposite directions for most cells", {
+  skip_if_no_data()
+
+  cos_sim_rowwise <- function(a, b) {
+    norm_a <- sqrt(rowSums(a^2))
+    norm_b <- sqrt(rowSums(b^2))
+    ok     <- norm_a > 0 & norm_b > 0
+    result <- rep(NA_real_, nrow(a))
+    result[ok] <- rowSums((a[ok, ] / norm_a[ok]) * (b[ok, ] / norm_b[ok]))
+    result
+  }
+
+  vf_up <- PerturbationVectors(
+    seurat_obj, "red_up",
+    reduction    = "pca",
+    arrow_scale  = 2,
+    max_pct      = 0.5,
+    use_velocyto = FALSE
+  )$arsd
+
+  vf_dn <- PerturbationVectors(
+    seurat_obj, "red_dn",
+    reduction    = "pca",
+    arrow_scale  = 2,
+    max_pct      = 0.5,
+    use_velocyto = FALSE
+  )$arsd
+
+  sim        <- cos_sim_rowwise(as.matrix(vf_up), as.matrix(vf_dn))
+  med_sim    <- median(sim, na.rm = TRUE)
+  pct_neg    <- mean(sim < 0, na.rm = TRUE)
+
+  cat(sprintf("\n  Vector field cosine similarity (UP vs DOWN):\n"))
+  cat(sprintf("    Median: %.4f\n", med_sim))
+  cat(sprintf("    Pct cells with opposite direction: %.1f%%\n", pct_neg * 100))
+
+  expect_lt(med_sim, 0,
+    label = "median vector field cosine similarity is negative (UP and DOWN point in opposite directions)")
+  expect_gt(pct_neg, 0.6,
+    label = "at least 60% of cells have opposite-direction vectors for UP vs DOWN")
+})
