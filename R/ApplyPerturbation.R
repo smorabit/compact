@@ -1,33 +1,67 @@
 
 #' Apply In-Silico Perturbation
 #'
-#' This function applies an in-silico perturbation (knock-out, knock-down, or knock-in) 
+#' This function applies an in-silico perturbation (knock-out, knock-down, or knock-in)
 #' to selected features in a Seurat object.
-#' 
+#'
 #' @param seurat_obj A Seurat object containing the dataset.
 #' @param exp A features-by-cells matrix (typically a sparse matrix) containing the observed expression data.
 #' @param features Character vector. The selected features to apply the perturbation on.
-#' @param perturb_dir Numeric. Determines the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.
+#' @param perturb_dir Numeric. Determines the type and magnitude of the perturbation.
+#'   \itemize{
+#'     \item \strong{ZINB mode} (\code{perturb_mode = "zinb"}): Negative values for knock-down,
+#'       positive for knock-in, and \code{0} for knock-out. The absolute value scales the
+#'       ZINB-sampled counts before they are added to baseline expression.
+#'     \item \strong{Multiplicative mode} (\code{perturb_mode = "multiplicative"}): A positive
+#'       fold-change applied directly to baseline counts (e.g., \code{2.0} = 2×, \code{0.5} =
+#'       half expression). Must be positive and non-zero; use \code{perturb_dir = 0} for knock-out.
+#'   }
+#' @param perturb_mode Character. Perturbation model to use. One of:
+#'   \itemize{
+#'     \item \code{"zinb"} (default) — models baseline expression with a Zero-Inflated Negative
+#'       Binomial distribution and adds/subtracts ZINB-sampled counts. Group-aware; requires
+#'       \code{group.by} and ZINB fitting per feature.
+#'     \item \code{"multiplicative"} — scales each cell's baseline counts by \code{perturb_dir}.
+#'       Cell-specific by construction (delta is proportional to observed expression), so cells
+#'       with zero baseline remain at zero. Bypasses ZINB fitting entirely — \code{group.by}
+#'       and \code{n_workers} are ignored.
+#'   }
 #' @param cells_use Character vector. Specific cells to apply the perturbation to. If \code{NULL}, defaults to handling internally.
 #' @param group.by Character. Column in \code{seurat_obj@meta.data} used to group cells for modeling.
+#'   Only used when \code{perturb_mode = "zinb"}.
 #' @param layer Character. The Seurat v5 layer to extract data from. Default is \code{'counts'}.
 #' @param slot Character. The Seurat v4 slot to extract data from. Default is \code{'counts'}.
 #' @param assay Character. The assay in \code{seurat_obj} containing expression information. Default is \code{'RNA'}.
 #' @param n_workers Integer. Number of parallel workers for fitting and sampling the ZINB model across
 #' features. Uses fork-based parallelism (\code{parallel::mclapply}) so memory usage does not scale with
 #' worker count. Default is \code{1} (serial). Values > 1 disable the progress bar.
+#'   Only used when \code{perturb_mode = "zinb"}.
 #'
 #' @details
-#' The function models the baseline expression of target features using a Zero-Inflated
-#' Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics
-#' typical of single-cell RNA-seq data .
-#' It samples from this distribution, scales the values by \code{perturb_dir}, and updates the
-#' original expression matrix. Any perturbed counts that fall below zero are strictly bounded to zero.
+#' Two perturbation models are available via \code{perturb_mode}:
+#'
+#' \strong{ZINB mode} (\code{"zinb"}): Models the baseline expression of each target feature using a
+#' Zero-Inflated Negative Binomial distribution to capture dropout and overdispersion characteristics
+#' typical of scRNA-seq data. Samples from this distribution, scales by \code{perturb_dir}, and adds
+#' the result to baseline expression. Because samples are drawn from a group-level distribution (IID
+#' within each group), the resulting delta is not cell-specific — cells with zero baseline can receive
+#' positive counts during knock-in.
+#'
+#' \strong{Multiplicative mode} (\code{"multiplicative"}): Scales each cell's baseline counts directly
+#' by \code{perturb_dir} (a fold change). The perturbation delta is therefore proportional to each
+#' cell's observed expression, making it cell-specific. This is the recommended mode for knock-in
+#' perturbations when downstream signal propagation is used, because it preserves the correlation
+#' structure between up- and down-regulation experiments: cells that express a gene highly are
+#' affected most, mirroring the behavior of knock-down.
+#'
+#' In both modes, any perturbed counts that fall below zero are strictly bounded to zero, and the
+#' result is rounded to maintain integer count structure.
 #'
 #' @return A \code{dgCMatrix} object containing the updated expression matrix with the applied perturbations.
 #'
 #' @import Seurat
 #' @importFrom Matrix Matrix
+#' @importFrom methods as
 #' @importFrom parallel mclapply
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @export
@@ -36,6 +70,7 @@ ApplyPerturbation <- function(
     exp,
     features,
     perturb_dir,
+    perturb_mode = "zinb",
     cells_use=NULL,
     group.by = NULL,
     layer = 'counts',
@@ -44,10 +79,39 @@ ApplyPerturbation <- function(
     n_workers = 1
 ){
 
-   # if we are doing a knock-out:
+    # validate perturb_mode
+    perturb_mode <- match.arg(perturb_mode, choices = c("zinb", "multiplicative"))
+
+    # if we are doing a knock-out:
     if(perturb_dir == 0){
         exp[features,] <- 0
         return(exp)
+    }
+
+    # -------------------------------------------------------------------------
+    # Multiplicative mode: scale each cell's baseline counts by perturb_dir.
+    # Delta is proportional to observed expression, so the perturbation is
+    # cell-specific — the ZINB machinery is not needed.
+    # -------------------------------------------------------------------------
+    if(perturb_mode == "multiplicative"){
+        if(perturb_dir <= 0){
+            stop(paste0(
+                "In multiplicative mode, perturb_dir must be a positive fold change ",
+                "(e.g., 2.0 for 2x up-regulation, 0.5 for 0.5x down-regulation). ",
+                "Use perturb_dir = 0 for knock-out."
+            ))
+        }
+        if(perturb_dir == 1){
+            warning("perturb_dir = 1 in multiplicative mode produces no change in expression.")
+        }
+
+        if(is.null(cells_use)) cells_use <- colnames(seurat_obj)
+
+        exp_per <- exp
+        exp_per[features, cells_use] <- round(exp[features, cells_use] * perturb_dir)
+        exp_per[exp_per < 0] <- 0
+        exp_per <- methods::as(exp_per, "CsparseMatrix")
+        return(exp_per[rownames(exp), colnames(seurat_obj)])
     }
 
     # default to all cells if not specified

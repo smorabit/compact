@@ -10,6 +10,8 @@
 #' @param perturb_dir A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.
 #' @param perturbation_name A name for the in-silico perturbation that will be stored in the Seurat object.
 #' @param graph Name of the cell-cell graph in the Graphs(seurat_obj). Default = "RNA_nn".
+#' @param perturb_mode Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+#'   \code{"zinb"} (default) or \code{"multiplicative"}. See \code{\link{ApplyPerturbation}} for details.
 #' @param n_iters The number of times to apply the signal propagation throughout the TF regulatory network. Default = 1.
 #' @param delta_scale A numeric factor scaling the perturbation during propagation. Default = 1.
 #' @param corr_sigma A numeric scaling factor for the correlation matrix. Default = 0.05.
@@ -53,6 +55,7 @@ TFPerturbation <- function(
     graph = 'RNA_nn',
     group.by = NULL,
     group_name = NULL,
+    perturb_mode = "zinb",
     n_iters = 1,
     delta_scale = 1,
     row_normalize = TRUE,
@@ -198,6 +201,7 @@ TFPerturbation <- function(
         exp,
         features = selected_tf,
         perturb_dir = perturb_dir,
+        perturb_mode = perturb_mode,
         cells_use = cells_use,
         group.by = group.by,
         layer = layer,
@@ -301,6 +305,9 @@ TFPerturbation <- function(
 #' @param group_name Optional. A string or vector specifying the group(s) within `group.by` to use for perturbation.
 #' If NULL, perturbation is applied to all cells.
 #' @param n_hubs Number of hub genes to perturb in the selected co-expression module. Default is 5.
+#' @param perturb_mode Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+#'   \code{"zinb"} (default, ZINB-based additive model) or \code{"multiplicative"} (cell-specific
+#'   fold-change scaling). See \code{\link{ApplyPerturbation}} for full details.
 #' @param n_iters Number of iterations for propagating the perturbation signal through the network. Default is 3.
 #' @param delta_scale A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.
 #' @param corr_sigma A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.
@@ -340,6 +347,7 @@ ModulePerturbation <- function(
     group.by = NULL,
     group_name = NULL,
     n_hubs = 5,
+    perturb_mode = "zinb",
     n_iters = 3,
     expand_module = 0,
     delta_scale = 0.2,
@@ -528,6 +536,7 @@ ModulePerturbation <- function(
         exp,
         features = hub_genes,
         perturb_dir = perturb_dir,
+        perturb_mode = perturb_mode,
         cells_use = cells_use,
         group.by = group.by,
        # group_name = group_name,
@@ -647,6 +656,8 @@ ModulePerturbation <- function(
 #' If NULL, perturbation is applied to all cells.
 #' @param n_connections Number of co-expressed neighborhood genes to include alongside the selected features.
 #' If NULL, defaults to the median module size. Ignored when \code{custom_weights} is provided.
+#' @param perturb_mode Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+#'   \code{"zinb"} (default) or \code{"multiplicative"}. See \code{\link{ApplyPerturbation}} for details.
 #' @param random_connections Logical. If TRUE, selects random non-selected genes instead of the most
 #' strongly co-expressed genes.
 #' @param exclude_grey_genes Logical. If TRUE, excludes grey (unassigned) genes from the co-expression network.
@@ -700,6 +711,7 @@ CustomPerturbation <- function(
     group.by = NULL,
     group_name = NULL,
     n_connections = NULL,
+    perturb_mode = "zinb",
     random_connections = FALSE,
     exclude_grey_genes = FALSE,
     n_iters = 3,
@@ -861,6 +873,7 @@ CustomPerturbation <- function(
         exp,
         features = hub_genes,
         perturb_dir = perturb_dir,
+        perturb_mode = perturb_mode,
         cells_use = cells_use,
         group.by = group.by,
         layer = layer,
