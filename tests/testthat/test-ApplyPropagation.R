@@ -152,7 +152,8 @@ test_that("knock-in propagates: non-hub module genes increase in mean expression
 
   result <- ApplyPropagation(
     seurat_obj, exp_red, exp_per_ki, cur_net,
-    perturb_dir = 1, n_iters = 3, delta_scale = 0.2
+    perturb_dir = 1, n_iters = 3, delta_scale = 0.2,
+    apply_ceiling = FALSE, row_normalize = FALSE
   )
 
   non_hub_genes <- setdiff(red_genes, hub_genes)
@@ -245,11 +246,13 @@ test_that("more iterations produce a larger propagation effect than fewer", {
 
   result_1 <- ApplyPropagation(
     seurat_obj, exp_red, exp_per_ki, cur_net,
-    perturb_dir = 1, n_iters = 1, delta_scale = 0.2
+    perturb_dir = 1, n_iters = 1, delta_scale = 0.2,
+    apply_ceiling = FALSE, row_normalize = FALSE
   )
   result_5 <- ApplyPropagation(
     seurat_obj, exp_red, exp_per_ki, cur_net,
-    perturb_dir = 1, n_iters = 5, delta_scale = 0.2
+    perturb_dir = 1, n_iters = 5, delta_scale = 0.2,
+    apply_ceiling = FALSE, row_normalize = FALSE
   )
 
   shift_1 <- mean(as.numeric(result_1[non_hub_genes, ])) - mean_baseline
