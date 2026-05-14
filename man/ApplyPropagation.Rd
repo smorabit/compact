@@ -5,66 +5,52 @@
 \title{Propagate In-Silico Perturbation Signal Through a Gene Network}
 \usage{
 ApplyPropagation(
-  seurat_obj,
-  exp,
-  exp_per,
+  log_obs_mod,
+  delta_log,
   network,
-  perturb_dir,
   n_iters = 3,
   delta_scale = 0.2,
   row_normalize = FALSE,
-  apply_ceiling = FALSE,
-  ceiling_multiplier = 1,
   prune_network = FALSE,
   prune_percentile = 0.95
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object containing the dataset.}
+\item{log_obs_mod}{A genes-by-cells log-normalized expression matrix for the
+module (or network) genes at baseline. Typically a row subset of the full
+log-normalized observed expression matrix.}
 
-\item{exp}{A features-by-cells matrix containing the baseline (unperturbed) observed expression data.}
+\item{delta_log}{A genes-by-cells log-space delta matrix for the same genes.
+Only the directly-perturbed (hub) gene rows are non-zero at input; the
+propagation step fills in downstream gene rows.}
 
-\item{exp_per}{A features-by-cells matrix containing the initial perturbation results (e.g., output from \code{ApplyPerturbation}).}
+\item{network}{A gene-by-gene matrix (e.g., TOM or regulatory adjacency)
+defining how signal routes between genes.}
 
-\item{network}{A gene-by-gene matrix representing the network structure (e.g., a Topological Overlap Matrix or gene regulatory network) used to route the signal.}
+\item{n_iters}{Number of iterative propagation steps. Default is \code{3}.}
 
-\item{perturb_dir}{Numeric. The direction and magnitude of the original perturbation, used to extract the sign for propagation scaling.}
+\item{delta_scale}{Dampening factor applied at each iteration to prevent
+signal explosion. Default is \code{0.2}.}
 
-\item{n_iters}{Numeric/Integer. The number of iterative steps to apply the signal propagation. Default is \code{3}.}
+\item{row_normalize}{Logical. If \code{TRUE}, each row of the network is
+scaled to sum to 1 before propagation (weighted-average diffusion rather
+than summation). Default is \code{FALSE}.}
 
-\item{delta_scale}{Numeric. A penalization/dampening factor applied to the delta matrix at each iteration to prevent biologically unrealistic exponential explosions in expression values. Default is \code{0.2}.}
+\item{prune_network}{Logical. If \code{TRUE}, zero out edges below the
+\code{prune_percentile} threshold before propagation. Default is \code{FALSE}.}
 
-\item{row_normalize}{Logical. If \code{TRUE}, normalizes the network such that each row sums to 1. This converts the matrix multiplication from a cumulative sum into a weighted average, helping to prevent signal explosion in highly connected background genes. Default is \code{FALSE}.}
-
-\item{apply_ceiling}{Logical. If \code{TRUE}, constrains the maximum propagated expression for each gene so it does not exceed its maximum observed value in the baseline data (adjusted by the \code{ceiling_multiplier}). Default is \code{FALSE}.}
-
-\item{ceiling_multiplier}{Numeric. A scaling factor applied to the expression ceiling if \code{apply_ceiling = TRUE}. For example, \code{1.10} allows simulated expression to reach 10\\% higher than the absolute maximum observed baseline value. Default is \code{1.0}.}
-
-\item{prune_network}{Logical. If \code{TRUE}, removes weak background edges from the network prior to propagation based on a calculated percentile threshold. Highly recommended for dense networks like WGCNA TOMs. Default is \code{FALSE}.}
-
-\item{prune_percentile}{Numeric. The percentile threshold (between 0 and 1) used to prune the network if \code{prune_network = TRUE}. For example, \code{0.95} drops the weakest 95\\% of edges and retains only the top 5\\% strongest connections. Default is \code{0.95}.}
+\item{prune_percentile}{Numeric in \eqn{(0,1)}. Percentile threshold for edge
+pruning when \code{prune_network = TRUE}. Default is \code{0.95}.}
 }
 \value{
-A matrix (or \code{dgCMatrix}) containing the fully updated expression
-matrix representing the global cell state after the perturbation signal has
-propagated through the network.
+A genes-by-cells matrix of log-normalized simulated expression for
+the module genes.
 }
 \description{
-This function models the downstream secondary effects of an in-silico perturbation
-by propagating the initial expression changes through a gene-gene co-expression
-or regulatory network.
+Propagates a log-space perturbation delta through a gene-gene co-expression
+or regulatory network without count-space floor constraints, ensuring
+symmetric behavior between up- and down-regulation perturbations.
 }
 \details{
-The function calculates the initial difference (\code{delta}) between the perturbed
-and baseline expression matrices. Over \code{n_iters} iterations, this \code{delta}
-is multiplied by the gene-gene \code{network} matrix via dot product.
-This mathematical diffusion simulates how a change in a hub gene ripples out to its
-connected targets.
 
-To maintain stability and biological realism, the propagated signal is penalized at each step by the
-\code{delta_scale} parameter. Users can further stabilize the diffusion by pruning weak network edges
-(\code{prune_network}), row-normalizing the network (\code{row_normalize}), and enforcing a strict
-biological ceiling (\code{apply_ceiling}) to prevent genes from entering biologically impossible
-high-expression states. Finally, total expression is strictly floored at 0 to
-prevent negative read counts, and the final matrix is rounded to represent valid count data.
 }

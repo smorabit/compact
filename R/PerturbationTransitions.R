@@ -22,7 +22,7 @@ PerturbationTransitions <- function(
     perturbation_name,
     features,
     graph, 
-    use_velocyto = TRUE,
+    use_velocyto = FALSE,
     use_graph_tp = FALSE,
     corr_sigma=0.05,
     n_threads=4,

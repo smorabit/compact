@@ -17,7 +17,16 @@ PlotTransitionVectors(
   point_size = 1,
   arrow_size = 0.25,
   raster_dpi = 300,
-  arrow_alpha = TRUE
+  arrow_alpha = TRUE,
+  use_velocyto = FALSE,
+  plot_mode = c("arrows", "streamlines", "both"),
+  stream_n = 15,
+  stream_L = 2,
+  stream_normalize = TRUE,
+  stream_linewidth = 0.5,
+  stream_alpha = 0.8,
+  stream_color = "black",
+  stream_density_thresh = 0
 )
 }
 \arguments{
@@ -29,7 +38,7 @@ to calculate transition vectors based on the perturbed assay.}
 \item{color.by}{A character string indicating the metadata column to color the scatter plot points by.}
 
 \item{reduction}{A character string specifying the name of the dimensional reduction to use for the
-embedding (default: 'umap').}
+embedding (default: \code{'umap'}).}
 
 \item{n_threads}{An integer specifying the number of threads to use for parallel processing
 (default: 4).}
@@ -49,22 +58,60 @@ easier to interpret (default: 0.90).}
 fully opaque and 0 being fully transparent (default: 0.25).}
 
 \item{point_size}{A numeric value defining the size of the scatter plot points (default: 1).}
+
+\item{arrow_size}{Numeric. Line width of the arrow segments (default: 0.25).}
+
+\item{raster_dpi}{Integer. DPI for rasterising the scatter plot layer (default: 300).}
+
+\item{arrow_alpha}{Logical. If \code{TRUE}, arrow transparency is scaled by vector length so
+shorter arrows are more transparent (default: \code{TRUE}).}
+
+\item{use_velocyto}{Logical. Use the velocyto.R C backend for embedding-arrow calculation
+instead of the built-in \code{SparseEmbArrows} (default: \code{FALSE}).}
+
+\item{plot_mode}{Character. One of \code{"arrows"} (default), \code{"streamlines"}, or
+\code{"both"}. \code{"arrows"} reproduces the classic grid-arrow plot. \code{"streamlines"}
+replaces arrows with continuous streamlines traced through the vector field.
+\code{"both"} overlays streamlines on top of the arrow plot. Streamline rendering
+requires the \pkg{ggvfields} package.}
+
+\item{stream_n}{Integer. Number of streamline seed points along each axis of the
+embedding grid passed to \code{ggvfields::geom_stream_field()} (default: 15).}
+
+\item{stream_L}{Numeric. Target length of each streamline, in embedding coordinate
+units, passed to \code{ggvfields::geom_stream_field()} (default: 2).}
+
+\item{stream_normalize}{Logical. If \code{TRUE} (default), all streamlines are drawn at
+equal length. If \code{FALSE}, length reflects local vector magnitude.}
+
+\item{stream_linewidth}{Numeric. Line width of the streamlines (default: 0.5).}
+
+\item{stream_alpha}{Numeric. Transparency of the streamlines, in \code{[0, 1]}
+(default: 0.8).}
+
+\item{stream_color}{Character. Colour of the streamlines (default: \code{"black"}).}
 }
 \value{
 A ggplot object showing the scatter plot of cells colored by the specified metadata and
-overlaid with transition vectors indicating cell-state shifts.
+overlaid with transition vectors and/or streamlines indicating cell-state shifts.
 }
 \description{
 This function visualizes cell-state transitions in a Seurat object by plotting transition vectors on a
 dimensionality-reduced embedding (e.g., UMAP). It computes transition vectors based on a specified
 perturbation and overlays them on a scatter plot of the cells, allowing insights into cell-state shifts
-following the perturbation.
+following the perturbation. Three visualization modes are available: classic grid arrows
+(\code{"arrows"}), streamlines (\code{"streamlines"}), or both overlaid (\code{"both"}).
 }
 \details{
 This function retrieves the embedding coordinates from the specified dimensional reduction
-in the Seurat object. It then calculates the transition vectors using \code{PerturbationVectors}, which
-returns vector coordinates (\code{ars}) and distances (\code{arsd}). A grid of arrows is created using
-\code{grid_vectors}, allowing for visual simplification of transitions by grouping vectors into a grid
-at the specified resolution. The resulting plot includes the scatter plot of cells with color
-defined by \code{color.by} and arrows showing the direction and relative magnitude of transitions.
+in the Seurat object. It then calculates the transition vectors using \code{PerturbationVectors},
+which returns vector coordinates (\code{ars}) and distances (\code{arsd}). A grid of arrows is
+created using \code{grid_vectors}, allowing for visual simplification of transitions by grouping
+vectors into a grid at the specified resolution.
+
+When \code{plot_mode} includes streamlines, the grid-aggregated vector field is converted into
+an inverse-distance-weighted interpolation function via the internal helper
+\code{build_field_fun()}, which is passed directly to
+\code{ggvfields::geom_stream_field()}. The \pkg{ggvfields} package must be installed for
+streamline rendering.
 }

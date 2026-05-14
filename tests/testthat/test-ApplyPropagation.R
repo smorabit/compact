@@ -7,10 +7,10 @@ library(Matrix)
 # ---------------------------------------------------------------------------
 # Test fixtures — loaded once at file scope
 #
-# ApplyPropagation now works in log-normalized expression space.
+# ApplyPropagation works in log-normalized expression space.
 # Inputs: log_obs_mod (log baseline), delta_log (log delta, hub rows non-zero),
 #         network (gene-gene).
-# Output: log_obs_mod + propagated_delta_log  (continuous, can be negative for DOWN)
+# Output: max(0, log_obs_mod + propagated_delta_log)  — floored at zero.
 # ---------------------------------------------------------------------------
 
 data_path <- "/home/groups/singlecell/smorabito/analysis/COMPACT/data/simulation_branch.rds"
@@ -125,7 +125,8 @@ test_that("knock-in propagates: non-hub genes have positive mean log-delta", {
 
 # ---------------------------------------------------------------------------
 # 5. Knock-down propagates: non-hub log-delta is negative after propagation
-#    (key test — this was NOT possible with count-space propagation)
+#    delta = result - log_obs_mod; the floor clips result to 0 for
+#    zero-expressing cells, so delta can be 0 or negative — mean should be < 0
 # ---------------------------------------------------------------------------
 
 test_that("knock-down propagates: non-hub genes have negative mean log-delta", {
@@ -138,7 +139,7 @@ test_that("knock-down propagates: non-hub genes have negative mean log-delta", {
 
   delta_nonhub <- as.numeric(result[non_hub_genes, ] - log_obs_mod[non_hub_genes, ])
   expect_lt(mean(delta_nonhub), 0,
-    label = "non-hub mean log-delta is negative after knock-down propagation")
+    label = "non-hub mean log-delta (result - baseline) is negative after knock-down")
 })
 
 # ---------------------------------------------------------------------------
@@ -169,11 +170,14 @@ test_that("non-hub log-deltas for UP and DOWN are negatively correlated", {
 })
 
 # ---------------------------------------------------------------------------
-# 7. Non-hub DOWN delta coverage: all gene-cell entries are non-zero
-#    (count-space propagation produced ~18% non-zero; log-space should be ~100%)
+# 7. Non-hub DOWN delta coverage: reaches a meaningful fraction of gene-cell entries
+#    count-space propagation produced ~18% non-zero; log-space with floor ~40%+.
+#    Zero-expressing cells (log_obs=0) whose clipped result stays at 0 contribute
+#    a delta of 0, so 100% coverage is no longer expected, but coverage should
+#    still be well above the count-space baseline.
 # ---------------------------------------------------------------------------
 
-test_that("knock-down propagates non-zero delta to all non-hub gene-cell entries", {
+test_that("knock-down propagates non-zero delta to a meaningful fraction of non-hub entries", {
   skip_if_no_data()
 
   result_kd <- ApplyPropagation(
@@ -181,12 +185,12 @@ test_that("knock-down propagates non-zero delta to all non-hub gene-cell entries
     n_iters = 3, delta_scale = 0.2, row_normalize = FALSE
   )
 
-  delta_dn   <- result_kd[non_hub_genes, ] - log_obs_mod[non_hub_genes, ]
+  delta_dn    <- result_kd[non_hub_genes, ] - log_obs_mod[non_hub_genes, ]
   pct_nonzero <- mean(as.numeric(delta_dn) != 0)
   cat(sprintf("\n  Pct non-zero non-hub DOWN log-delta: %.1f%%\n", pct_nonzero * 100))
 
-  expect_gt(pct_nonzero, 0.9,
-    label = "at least 90% of non-hub DOWN log-delta entries are non-zero")
+  expect_gt(pct_nonzero, 0.25,
+    label = "at least 25% of non-hub DOWN log-delta entries are non-zero (well above count-space ~18%)")
 })
 
 # ---------------------------------------------------------------------------
@@ -242,4 +246,110 @@ test_that("more iterations produce a larger propagation effect than fewer", {
 
   expect_gt(shift_5, shift_1,
     label = "5 iterations propagate signal further than 1 iteration")
+})
+
+# ---------------------------------------------------------------------------
+# 11. Fix 1: output is always >= 0 (no negative simulated log-expression)
+# ---------------------------------------------------------------------------
+
+test_that("ApplyPropagation output is non-negative for all parameters", {
+  skip_if_no_data()
+
+  # knock-down with parameters that trigger amplification (large delta_scale)
+  result_kd <- ApplyPropagation(
+    log_obs_mod, delta_log_kd, cur_net,
+    n_iters = 3, delta_scale = 0.5, row_normalize = FALSE
+  )
+
+  expect_true(min(result_kd) >= 0,
+    label = "no negative simulated log-expression after knock-down with delta_scale=0.5")
+
+  # knock-in should also be non-negative
+  result_ki <- ApplyPropagation(
+    log_obs_mod, delta_log_ki, cur_net,
+    n_iters = 3, delta_scale = 0.5, row_normalize = FALSE
+  )
+
+  expect_true(min(result_ki) >= 0,
+    label = "no negative simulated log-expression after knock-in with delta_scale=0.5")
+})
+
+# ---------------------------------------------------------------------------
+# 12. Fix 5: warning issued when mean non-hub row sum * delta_scale > 1
+#    (hub rows are excluded because they are restored each iteration and
+#    cannot amplify; only the non-hub subgraph determines amplification)
+# ---------------------------------------------------------------------------
+
+test_that("amplification warning fires when mean non-hub row sum x delta_scale > 1", {
+  skip_if_no_data()
+
+  # red module non-hub mean row sum is ~15; delta_scale = 0.5 gives ~7.5 > 1
+  expect_warning(
+    ApplyPropagation(
+      log_obs_mod, delta_log_kd, cur_net,
+      n_iters = 3, delta_scale = 0.5, row_normalize = FALSE
+    ),
+    regexp = "Signal amplification detected",
+    label  = "amplification warning is issued when non-hub effective multiplier > 1"
+  )
+})
+
+test_that("no amplification warning when mean non-hub row sum x delta_scale <= 1", {
+  skip_if_no_data()
+
+  # red module non-hub mean row sum is ~15; delta_scale = 0.05 gives ~0.75 < 1
+  # row_normalize = FALSE so CheckSignalDecay decay-warning also does not fire
+  warnings_seen <- character(0)
+  withCallingHandlers(
+    ApplyPropagation(
+      log_obs_mod, delta_log_kd, cur_net,
+      n_iters = 3, delta_scale = 0.05, row_normalize = FALSE
+    ),
+    warning = function(w) {
+      warnings_seen <<- c(warnings_seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_false(
+    any(grepl("Signal amplification", warnings_seen)),
+    label = "no amplification warning when effective multiplier <= 1"
+  )
+})
+
+# ---------------------------------------------------------------------------
+# 13. Hub preservation: hub gene expression reflects the primary perturbation
+#    exactly, regardless of n_iters or delta_scale. Hub genes are held as a
+#    persistent source and restored to delta_initial after every iteration.
+# ---------------------------------------------------------------------------
+
+test_that("hub gene expression equals baseline + primary perturbation delta (n_iters=3)", {
+  skip_if_no_data()
+
+  result_ki <- ApplyPropagation(
+    log_obs_mod, delta_log_ki, cur_net,
+    n_iters = 3, delta_scale = 0.2, row_normalize = FALSE
+  )
+
+  # for knock-in, hub deltas are positive so the floor does not clip them;
+  # result[hub,] must exactly equal log_obs_mod[hub,] + delta_log_ki[hub,]
+  expected <- as.matrix(log_obs_mod[hub_genes, ] + delta_log_ki[hub_genes, ])
+  actual   <- as.matrix(result_ki[hub_genes, ])
+
+  expect_equal(actual, expected, tolerance = 1e-10,
+    label = "hub gene result equals baseline + primary delta after n_iters=3")
+})
+
+test_that("hub gene expression is invariant to n_iters (persistent source property)", {
+  skip_if_no_data()
+
+  hub_expected <- as.matrix(log_obs_mod[hub_genes, ] + delta_log_ki[hub_genes, ])
+
+  for (ni in c(1L, 3L, 5L)) {
+    result <- ApplyPropagation(
+      log_obs_mod, delta_log_ki, cur_net,
+      n_iters = ni, delta_scale = 0.2, row_normalize = FALSE
+    )
+    expect_equal(as.matrix(result[hub_genes, ]), hub_expected, tolerance = 1e-10,
+      label = paste0("hub result invariant at n_iters=", ni))
+  }
 })

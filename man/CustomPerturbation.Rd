@@ -13,17 +13,25 @@ CustomPerturbation(
   group.by = NULL,
   group_name = NULL,
   n_connections = NULL,
+  perturb_mode = "zinb",
   random_connections = FALSE,
   exclude_grey_genes = FALSE,
+  n_iters = 3,
   delta_scale = 0.2,
+  row_normalize = FALSE,
+  prune_network = FALSE,
+  prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
   use_velocyto = TRUE,
   use_graph_tp = FALSE,
-  use_counts_tp = FALSE,
   layer = "counts",
   slot = "counts",
   assay = "RNA",
+  n_workers = 1,
+  custom_network = NULL,
+  custom_modules = NULL,
+  custom_weights = NULL,
   wgcna_name = NULL
 )
 }
@@ -49,15 +57,26 @@ This will be stored as a new assay in the Seurat object.}
 \item{group_name}{Optional. A string or vector specifying the group(s) within \code{group.by} to use for perturbation.
 If NULL, perturbation is applied to all cells.}
 
-\item{n_connections}{Number of co-expressed genes to include alongside the selected features.
-If NULL, defaults to the median module size.}
+\item{n_connections}{Number of co-expressed neighborhood genes to include alongside the selected features.
+If NULL, defaults to the median module size. Ignored when \code{custom_weights} is provided.}
+
+\item{perturb_mode}{Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+\code{"zinb"} (default) or \code{"multiplicative"}. See \code{\link{ApplyPerturbation}} for details.}
 
 \item{random_connections}{Logical. If TRUE, selects random non-selected genes instead of the most
 strongly co-expressed genes.}
 
 \item{exclude_grey_genes}{Logical. If TRUE, excludes grey (unassigned) genes from the co-expression network.}
 
+\item{n_iters}{Number of iterations for propagating the perturbation signal through the network. Default is 3.}
+
 \item{delta_scale}{A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.}
+
+\item{row_normalize}{Logical. If TRUE, normalizes the network rows before propagation. Default is FALSE.}
+
+\item{prune_network}{Logical. If TRUE, removes weak edges from the network before propagation. Default is FALSE.}
+
+\item{prune_percentile}{Numeric. Percentile threshold for pruning network edges. Default is 0.95.}
 
 \item{corr_sigma}{A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.}
 
@@ -67,13 +86,21 @@ strongly co-expressed genes.}
 
 \item{use_graph_tp}{Logical. If TRUE, transition probabilities are computed using the cell-cell graph specified in \code{graph}. Default is FALSE.}
 
-\item{use_counts_tp}{Logical. If TRUE, transition probabilities are computed using the raw counts layer. Default is FALSE.}
-
 \item{layer}{Layer in the assay used for the perturbation. Default is 'counts'.}
 
 \item{slot}{Slot to extract data for aggregation (e.g., "counts", "data", or "scale.data"). Default is 'counts'.}
 
 \item{assay}{Name of the assay in \code{seurat_obj} containing the expression data. Default is 'RNA'.}
+
+\item{custom_network}{Optional. A pre-computed gene-by-gene network matrix (e.g., a correlation matrix or TOM).
+Must be supplied together with \code{custom_modules}. When provided, bypasses \code{GetTOM}.}
+
+\item{custom_modules}{Optional. A data.frame with at least \code{gene_name} and \code{module} columns,
+analogous to the output of \code{GetModules}. Must be supplied together with \code{custom_network}.}
+
+\item{custom_weights}{Optional. Name of a column in \code{custom_modules} to use for ranking neighborhood
+genes instead of network connectivity (column sums). The top \code{n_connections} genes by this score
+are selected as the propagation neighborhood.}
 
 \item{wgcna_name}{Optional. Name of the hdWGCNA experiment in \code{seurat_obj@misc}. If NULL, defaults to the active WGCNA experiment.}
 }
@@ -87,17 +114,16 @@ genes, propagates the signal throughout their co-expression neighborhood, and co
 cell-cell transition probabilities.
 }
 \details{
-Following co-expression network analysis with hdWGCNA, \code{GenePerturbation} allows us to perform
-in-silico perturbation of any set of user-specified genes. This analysis consists of several key steps:
+\code{CustomPerturbation} allows in-silico perturbation of any user-specified set of genes without
+requiring them to be module hub genes. The analysis consists of three steps:
 \enumerate{
-\item \strong{Apply a primary perturbation} to the selected genes (e.g. knock-in, knock-down, or knock-out).
-\item \strong{Apply a secondary perturbation} to their co-expressed neighbors using a signal propagation
-algorithm. Given the gene-gene co-expression network from hdWGCNA, the perturbation signal
-is propagated iteratively using the network adjacency matrix.
-\item \strong{Compute cell-cell transition probabilities} to quantify how the perturbation shifts
-cellular states in the latent space or graph.
+\item \strong{Primary perturbation}: applies a knock-in, knock-down, or knock-out to \code{selected_features}.
+\item \strong{Signal propagation}: the perturbation signal is propagated to the \code{n_connections} most
+strongly co-expressed neighborhood genes via iterative network diffusion.
+\item \strong{Transition probabilities}: cell-cell transition probabilities are computed from the simulated
+expression state to quantify phenotypic shifts.
 }
 
-The result is stored as a new assay in the Seurat object with normalized simulated expression data
-and computed transition probabilities.
+Either the hdWGCNA TOM (via \code{wgcna_name}) or a user-supplied \code{custom_network} /
+\code{custom_modules} pair can be used as the underlying co-expression network.
 }

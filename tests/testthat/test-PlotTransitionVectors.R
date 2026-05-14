@@ -355,6 +355,240 @@ test_that("PlotTransitionVectors stops on an invalid color.by column", {
 })
 
 # ===========================================================================
+# PlotTransitionVectors — streamline modes
+# ===========================================================================
+
+skip_if_no_ggvfields <- function() {
+  skip_if(!requireNamespace("ggvfields", quietly = TRUE),
+          "ggvfields not installed")
+}
+
+# ---------------------------------------------------------------------------
+# 22. plot_mode = "streamlines" returns a ggplot
+# ---------------------------------------------------------------------------
+
+test_that("PlotTransitionVectors with plot_mode = 'streamlines' returns a ggplot", {
+  skip_if_no_data()
+  skip_if_no_ggvfields()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    color.by          = "branch",
+    reduction         = "umap",
+    use_velocyto      = FALSE,
+    plot_mode         = "streamlines"
+  )
+
+  expect_s3_class(p, "gg")
+})
+
+# ---------------------------------------------------------------------------
+# 23. plot_mode = "both" returns a ggplot
+# ---------------------------------------------------------------------------
+
+test_that("PlotTransitionVectors with plot_mode = 'both' returns a ggplot", {
+  skip_if_no_data()
+  skip_if_no_ggvfields()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    color.by          = "branch",
+    reduction         = "umap",
+    use_velocyto      = FALSE,
+    plot_mode         = "both"
+  )
+
+  expect_s3_class(p, "gg")
+})
+
+# ---------------------------------------------------------------------------
+# 24. "arrows" mode does not contain a GeomStreamField layer
+# ---------------------------------------------------------------------------
+
+test_that("plot_mode = 'arrows' produces no streamline layer", {
+  skip_if_no_data()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    color.by          = "branch",
+    reduction         = "umap",
+    use_velocyto      = FALSE,
+    plot_mode         = "arrows"
+  )
+
+  layer_classes <- vapply(p$layers, function(l) class(l$geom)[1], character(1))
+  expect_false(any(grepl("StreamField|Stream", layer_classes, ignore.case = TRUE)),
+               label = "arrows mode has no streamline layer")
+})
+
+# ---------------------------------------------------------------------------
+# 25. "streamlines" mode contains a GeomStreamField layer
+# ---------------------------------------------------------------------------
+
+test_that("plot_mode = 'streamlines' produces a GeomStreamField layer", {
+  skip_if_no_data()
+  skip_if_no_ggvfields()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    color.by          = "branch",
+    reduction         = "umap",
+    use_velocyto      = FALSE,
+    plot_mode         = "streamlines"
+  )
+
+  layer_classes <- vapply(p$layers, function(l) class(l$geom)[1], character(1))
+  expect_true(any(grepl("StreamField|Stream", layer_classes, ignore.case = TRUE)),
+              label = "streamlines mode includes a streamline layer")
+})
+
+# ---------------------------------------------------------------------------
+# 26. "both" mode contains both a GeomSegment and a GeomStreamField layer
+# ---------------------------------------------------------------------------
+
+test_that("plot_mode = 'both' includes arrow and streamline layers", {
+  skip_if_no_data()
+  skip_if_no_ggvfields()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    color.by          = "branch",
+    reduction         = "umap",
+    use_velocyto      = FALSE,
+    plot_mode         = "both"
+  )
+
+  layer_classes <- vapply(p$layers, function(l) class(l$geom)[1], character(1))
+  expect_true(any(grepl("Segment", layer_classes, ignore.case = TRUE)),
+              label = "both mode includes arrow (segment) layer")
+  expect_true(any(grepl("StreamField|Stream", layer_classes, ignore.case = TRUE)),
+              label = "both mode includes streamline layer")
+})
+
+# ---------------------------------------------------------------------------
+# 27. Invalid plot_mode → error
+# ---------------------------------------------------------------------------
+
+test_that("invalid plot_mode gives an error", {
+  skip_if_no_data()
+
+  expect_error(
+    PlotTransitionVectors(
+      seurat_obj,
+      perturbation_name = "red_up",
+      color.by          = "branch",
+      reduction         = "umap",
+      use_velocyto      = FALSE,
+      plot_mode         = "invalid_mode"
+    ),
+    label = "invalid plot_mode raises an error"
+  )
+})
+
+# ---------------------------------------------------------------------------
+# 28. Streamline mode without ggvfields installed → informative error
+# ---------------------------------------------------------------------------
+
+test_that("streamlines without ggvfields gives an informative error", {
+  skip_if_no_data()
+
+  # mock requireNamespace to simulate ggvfields being absent
+  local_mocked_bindings(
+    requireNamespace = function(pkg, ...) if (pkg == "ggvfields") FALSE else TRUE,
+    .package = "base"
+  )
+
+  expect_error(
+    PlotTransitionVectors(
+      seurat_obj,
+      perturbation_name = "red_up",
+      color.by          = "branch",
+      reduction         = "umap",
+      use_velocyto      = FALSE,
+      plot_mode         = "streamlines"
+    ),
+    regexp = "ggvfields",
+    label  = "missing ggvfields gives informative error"
+  )
+})
+
+# ---------------------------------------------------------------------------
+# 29. build_field_fun returns a callable that produces a length-2 numeric
+# ---------------------------------------------------------------------------
+
+test_that("build_field_fun returns a function giving c(fx, fy) for any point", {
+  skip_if_no_data()
+
+  result  <- PerturbationVectors(seurat_obj, "red_up", use_velocyto = FALSE)
+  arsd    <- result$arsd
+  emb     <- Seurat::Reductions(seurat_obj, "umap")@cell.embeddings[, 1:2]
+  colnames(emb) <- paste0("emb_", 1:2)
+  grid.df <- grid_vectors(emb[rownames(arsd), ], arsd, resolution = 20)
+
+  f <- compact:::build_field_fun(grid.df, emb = emb, density_thresh = 0)
+
+  # evaluate at the centroid of the grid
+  cx  <- mean(grid.df$start.emb_1)
+  cy  <- mean(grid.df$start.emb_2)
+  out <- f(c(cx, cy))
+
+  expect_length(out, 2)
+  expect_type(out, "double")
+  expect_false(any(is.nan(out)), label = "no NaN in interpolated vector")
+})
+
+# ---------------------------------------------------------------------------
+# 30. build_field_fun with density mask returns c(0,0) far outside cell cloud
+# ---------------------------------------------------------------------------
+
+test_that("build_field_fun density mask returns zero vector outside cell cloud", {
+  skip_if_no_data()
+
+  result  <- PerturbationVectors(seurat_obj, "red_up", use_velocyto = FALSE)
+  arsd    <- result$arsd
+  emb     <- Seurat::Reductions(seurat_obj, "umap")@cell.embeddings[, 1:2]
+  colnames(emb) <- paste0("emb_", 1:2)
+  grid.df <- grid_vectors(emb[rownames(arsd), ], arsd, resolution = 20)
+
+  # use a high threshold so even moderately-dense regions are masked
+  f <- compact:::build_field_fun(grid.df, emb = emb, density_thresh = 0.5)
+
+  # query far outside the cell cloud — should return c(0, 0)
+  far_x   <- max(emb[, 1]) + 10
+  far_y   <- max(emb[, 2]) + 10
+  out_far <- f(c(far_x, far_y))
+
+  expect_equal(out_far, c(0, 0),
+               label = "point far outside cloud returns zero vector")
+})
+
+# ---------------------------------------------------------------------------
+# 31. PlotTransitionVectors streamlines mode with density mask returns ggplot
+# ---------------------------------------------------------------------------
+
+test_that("PlotTransitionVectors streamlines with density mask returns a ggplot", {
+  skip_if_no_data()
+  skip_if_no_ggvfields()
+
+  p <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name     = "red_up",
+    color.by              = "branch",
+    reduction             = "umap",
+    use_velocyto          = FALSE,
+    plot_mode             = "streamlines",
+    stream_density_thresh = 0.05
+  )
+
+  expect_s3_class(p, "gg")
+})
+
+# ===========================================================================
 # VectorFieldCoherence
 # ===========================================================================
 

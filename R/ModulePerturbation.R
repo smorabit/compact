@@ -16,7 +16,7 @@
 #' @param delta_scale A numeric factor scaling the perturbation during propagation. Default = 1.
 #' @param corr_sigma A numeric scaling factor for the correlation matrix. Default = 0.05.
 #' @param n_threads Number of threads for the correlation calculation. Default = 4.
-#' @param use_velocyto Logical indicating whether to compute velocity-based transition probabilities. Default = TRUE.
+#' @param use_velocyto Logical indicating whether to compute velocity-based transition probabilities. Default = FALSE.
 #' @param use_graph_tp Logical indicating whether to use the graph topology for transition probabilities. Default = FALSE.
 #' @param depth The depth of the regulatory network to use for target identification. Default = 2.
 #' @param target_type A string specifying the type of targets to include ("upstream", "downstream", or "both"). Default = "both".
@@ -63,7 +63,7 @@ TFPerturbation <- function(
     prune_percentile = 0.95,
     corr_sigma = 0.05,
     n_threads = 4,
-    use_velocyto = TRUE,
+    use_velocyto = FALSE,
     use_graph_tp = FALSE,
     depth = 2,
     target_type = "both",
@@ -305,7 +305,7 @@ TFPerturbation <- function(
 #' @param delta_scale A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.
 #' @param corr_sigma A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.
 #' @param n_threads Number of threads to use for parallel computation during correlation calculations. Default is 4.
-#' @param use_velocyto Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is TRUE.
+#' @param use_velocyto Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is FALSE.
 #' @param use_graph_tp Logical. If TRUE, transition probabilities are computed using the cell-cell graph specified in `graph`. Default is FALSE.
 #' @param layer Layer in the assay used for the perturbation. Default is 'counts'.
 #' @param slot Slot to extract data for aggregation (e.g., "counts", "data", or "scale.data"). Default is 'counts'.
@@ -350,7 +350,7 @@ ModulePerturbation <- function(
     prune_percentile = 0.95,
     corr_sigma = 0.05,
     n_threads = 4,
-    use_velocyto = TRUE,
+    use_velocyto = FALSE,
     use_graph_tp = FALSE,
     layer = 'counts',
     slot = 'counts',
@@ -648,7 +648,7 @@ ModulePerturbation <- function(
 #' @param prune_percentile Numeric. Percentile threshold for pruning network edges. Default is 0.95.
 #' @param corr_sigma A numeric scaling factor for adjusting the correlation matrix during transition probability calculations. Default is 0.05.
 #' @param n_threads Number of threads to use for parallel computation during correlation calculations. Default is 4.
-#' @param use_velocyto Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is TRUE.
+#' @param use_velocyto Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is FALSE.
 #' @param use_graph_tp Logical. If TRUE, transition probabilities are computed using the cell-cell graph specified in `graph`. Default is FALSE.
 #' @param layer Layer in the assay used for the perturbation. Default is 'counts'.
 #' @param slot Slot to extract data for aggregation (e.g., "counts", "data", or "scale.data"). Default is 'counts'.
@@ -698,7 +698,7 @@ CustomPerturbation <- function(
     prune_percentile = 0.95,
     corr_sigma = 0.05,
     n_threads = 4,
-    use_velocyto = TRUE,
+    use_velocyto = FALSE,
     use_graph_tp = FALSE,
     layer = 'counts',
     slot = 'counts',

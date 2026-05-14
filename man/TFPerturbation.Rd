@@ -7,16 +7,15 @@
 TFPerturbation(
   seurat_obj,
   selected_tf,
-  pertub_dir,
+  perturb_dir,
   perturbation_name,
   graph = "RNA_nn",
   group.by = NULL,
   group_name = NULL,
+  perturb_mode = "zinb",
   n_iters = 1,
   delta_scale = 1,
   row_normalize = FALSE,
-  apply_ceiling = FALSE,
-  ceiling_multiplier = 1,
   prune_network = FALSE,
   prune_percentile = 0.95,
   corr_sigma = 0.05,
@@ -29,6 +28,7 @@ TFPerturbation(
   layer = "counts",
   slot = "counts",
   assay = "RNA",
+  n_workers = 1,
   wgcna_name = NULL
 )
 }
@@ -37,9 +37,14 @@ TFPerturbation(
 
 \item{selected_tf}{The name of the transcription factor (TF) to perturb.}
 
+\item{perturb_dir}{A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
+
 \item{perturbation_name}{A name for the in-silico perturbation that will be stored in the Seurat object.}
 
 \item{graph}{Name of the cell-cell graph in the Graphs(seurat_obj). Default = "RNA_nn".}
+
+\item{perturb_mode}{Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+\code{"zinb"} (default) or \code{"multiplicative"}. See \code{\link{ApplyPerturbation}} for details.}
 
 \item{n_iters}{The number of times to apply the signal propagation throughout the TF regulatory network. Default = 1.}
 
@@ -66,8 +71,6 @@ TFPerturbation(
 \item{assay}{Assay in seurat_obj containing expression information. Default = "RNA".}
 
 \item{wgcna_name}{The name of the hdWGCNA experiment in the seurat_obj@misc slot. If NULL, uses the active WGCNA experiment.}
-
-\item{perturb_dir}{A numeric determining the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
 }
 \value{
 A Seurat object containing the in-silico TF perturbation results as a new assay.

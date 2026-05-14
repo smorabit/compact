@@ -1,40 +1,67 @@
 
 #' Plot Transition Vectors on a Reduced Dimensional Embedding
 #'
-#' This function visualizes cell-state transitions in a Seurat object by plotting transition vectors on a 
-#' dimensionality-reduced embedding (e.g., UMAP). It computes transition vectors based on a specified 
+#' This function visualizes cell-state transitions in a Seurat object by plotting transition vectors on a
+#' dimensionality-reduced embedding (e.g., UMAP). It computes transition vectors based on a specified
 #' perturbation and overlays them on a scatter plot of the cells, allowing insights into cell-state shifts
-#' following the perturbation.
+#' following the perturbation. Three visualization modes are available: classic grid arrows
+#' (\code{"arrows"}), streamlines (\code{"streamlines"}), or both overlaid (\code{"both"}).
 #'
 #' @param seurat_obj A Seurat object containing single-cell data, including metadata and embeddings.
-#' @param perturbation_name A character string specifying the name of the perturbation. This is used 
+#' @param perturbation_name A character string specifying the name of the perturbation. This is used
 #'   to calculate transition vectors based on the perturbed assay.
 #' @param color.by A character string indicating the metadata column to color the scatter plot points by.
-#' @param reduction A character string specifying the name of the dimensional reduction to use for the 
-#'   embedding (default: 'umap').
-#' @param n_threads An integer specifying the number of threads to use for parallel processing 
+#' @param reduction A character string specifying the name of the dimensional reduction to use for the
+#'   embedding (default: \code{'umap'}).
+#' @param n_threads An integer specifying the number of threads to use for parallel processing
 #'   (default: 4).
-#' @param arrow_scale A numeric value to scale the transition vectors, adjusting their length on the plot 
+#' @param arrow_scale A numeric value to scale the transition vectors, adjusting their length on the plot
 #'   (default: 1).
-#' @param grid_resolution An integer specifying the resolution of the grid for overlaying transition 
-#'   vectors. A higher resolution yields a finer grid, which can provide more detailed vector placement 
+#' @param grid_resolution An integer specifying the resolution of the grid for overlaying transition
+#'   vectors. A higher resolution yields a finer grid, which can provide more detailed vector placement
 #'   (default: 25).
-#' @param max_pct A numeric value between 0 and 1 indicating the maximum percentile of vector lengths 
-#'   to display. This parameter helps limit the display of outlier vector lengths, making the plot 
+#' @param max_pct A numeric value between 0 and 1 indicating the maximum percentile of vector lengths
+#'   to display. This parameter helps limit the display of outlier vector lengths, making the plot
 #'   easier to interpret (default: 0.90).
-#' @param point_alpha A numeric value controlling the transparency of scatter plot points, with 1 being 
+#' @param point_alpha A numeric value controlling the transparency of scatter plot points, with 1 being
 #'   fully opaque and 0 being fully transparent (default: 0.25).
 #' @param point_size A numeric value defining the size of the scatter plot points (default: 1).
-#' 
-#' @return A ggplot object showing the scatter plot of cells colored by the specified metadata and 
-#'   overlaid with transition vectors indicating cell-state shifts.
-#' 
-#' @details This function retrieves the embedding coordinates from the specified dimensional reduction 
-#'   in the Seurat object. It then calculates the transition vectors using `PerturbationVectors`, which 
-#'   returns vector coordinates (`ars`) and distances (`arsd`). A grid of arrows is created using 
-#'   `grid_vectors`, allowing for visual simplification of transitions by grouping vectors into a grid 
-#'   at the specified resolution. The resulting plot includes the scatter plot of cells with color 
-#'   defined by `color.by` and arrows showing the direction and relative magnitude of transitions.
+#' @param arrow_size Numeric. Line width of the arrow segments (default: 0.25).
+#' @param raster_dpi Integer. DPI for rasterising the scatter plot layer (default: 300).
+#' @param arrow_alpha Logical. If \code{TRUE}, arrow transparency is scaled by vector length so
+#'   shorter arrows are more transparent (default: \code{TRUE}).
+#' @param use_velocyto Logical. Use the velocyto.R C backend for embedding-arrow calculation
+#'   instead of the built-in \code{SparseEmbArrows} (default: \code{FALSE}).
+#' @param plot_mode Character. One of \code{"arrows"} (default), \code{"streamlines"}, or
+#'   \code{"both"}. \code{"arrows"} reproduces the classic grid-arrow plot. \code{"streamlines"}
+#'   replaces arrows with continuous streamlines traced through the vector field.
+#'   \code{"both"} overlays streamlines on top of the arrow plot. Streamline rendering
+#'   requires the \pkg{ggvfields} package.
+#' @param stream_n Integer. Number of streamline seed points along each axis of the
+#'   embedding grid passed to \code{ggvfields::geom_stream_field()} (default: 15).
+#' @param stream_L Numeric. Target length of each streamline, in embedding coordinate
+#'   units, passed to \code{ggvfields::geom_stream_field()} (default: 2).
+#' @param stream_normalize Logical. If \code{TRUE} (default), all streamlines are drawn at
+#'   equal length. If \code{FALSE}, length reflects local vector magnitude.
+#' @param stream_linewidth Numeric. Line width of the streamlines (default: 0.5).
+#' @param stream_alpha Numeric. Transparency of the streamlines, in \code{[0, 1]}
+#'   (default: 0.8).
+#' @param stream_color Character. Colour of the streamlines (default: \code{"black"}).
+#'
+#' @return A ggplot object showing the scatter plot of cells colored by the specified metadata and
+#'   overlaid with transition vectors and/or streamlines indicating cell-state shifts.
+#'
+#' @details This function retrieves the embedding coordinates from the specified dimensional reduction
+#'   in the Seurat object. It then calculates the transition vectors using \code{PerturbationVectors},
+#'   which returns vector coordinates (\code{ars}) and distances (\code{arsd}). A grid of arrows is
+#'   created using \code{grid_vectors}, allowing for visual simplification of transitions by grouping
+#'   vectors into a grid at the specified resolution.
+#'
+#'   When \code{plot_mode} includes streamlines, the grid-aggregated vector field is converted into
+#'   an inverse-distance-weighted interpolation function via the internal helper
+#'   \code{build_field_fun()}, which is passed directly to
+#'   \code{ggvfields::geom_stream_field()}. The \pkg{ggvfields} package must be installed for
+#'   streamline rendering.
 #'
 #' @export
 PlotTransitionVectors <- function(
@@ -51,8 +78,18 @@ PlotTransitionVectors <- function(
     arrow_size = 0.25,
     raster_dpi = 300,
     arrow_alpha = TRUE,
-    use_velocyto = FALSE
+    use_velocyto = FALSE,
+    plot_mode = c("arrows", "streamlines", "both"),
+    stream_n = 15,
+    stream_L = 2,
+    stream_normalize = TRUE,
+    stream_linewidth = 0.5,
+    stream_alpha = 0.8,
+    stream_color = "black",
+    stream_density_thresh = 0
 ){
+
+    plot_mode <- match.arg(plot_mode)
 
     # validate color.by before doing anything expensive
     if (!color.by %in% colnames(seurat_obj@meta.data)) {
@@ -60,6 +97,16 @@ PlotTransitionVectors <- function(
             "color.by column '%s' not found in seurat_obj metadata. Available columns: %s",
             color.by, paste(colnames(seurat_obj@meta.data), collapse = ", ")
         ))
+    }
+
+    # streamline modes require ggvfields
+    if (plot_mode %in% c("streamlines", "both")) {
+        if (!requireNamespace("ggvfields", quietly = TRUE)) {
+            stop(
+                "plot_mode = '", plot_mode, "' requires the 'ggvfields' package. ",
+                "Install it with: install.packages('ggvfields')"
+            )
+        }
     }
 
     # this function gives us the dataframe with vector coordinates
@@ -75,16 +122,18 @@ PlotTransitionVectors <- function(
     ars <- vectors$ars
     arsd <- vectors$arsd
 
-    # get the UMAP embedding from the seurat object
-    # and subset to only keep cells that we have arrows for
+    # get the embedding and subset to cells that have arrows
     emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
     colnames(emb) <- paste0('emb_', 1:ncol(emb))
 
-    # make a grid of arrows 
+    # build the grid-aggregated vector field
     grid.df <- grid_vectors(emb[rownames(ars),], arsd, resolution=grid_resolution)
 
-    # calculate the length of the arrow
-    grid.df$vector.length <- sqrt((grid.df$end.xd - grid.df$start.emb_1)^2 + (grid.df$end.yd - grid.df$start.emb_2)^2)
+    # calculate the length of each grid arrow (used for alpha scaling)
+    grid.df$vector.length <- sqrt(
+        (grid.df$end.xd - grid.df$start.emb_1)^2 +
+        (grid.df$end.yd - grid.df$start.emb_2)^2
+    )
 
     # make a dataframe to plot with ggplot
     plot_df <- as.data.frame(emb)
@@ -93,50 +142,141 @@ PlotTransitionVectors <- function(
     # arrange by value:
     plot_df <- plot_df %>% arrange(value)
 
-    # plot the scatter plot
+    # base scatter plot
     p <- ggplot(plot_df, aes(x=emb_1, y=emb_2, color=value)) +
         ggrastr::rasterise(
             geom_point(alpha=point_alpha, size=point_size),
             dpi = raster_dpi
         )
 
-    if(arrow_alpha){
-        p <- p +
-        geom_segment(
-            data = grid.df,
-            inherit.aes=FALSE,
-            aes(
-                x=start.emb_1, 
-                y=start.emb_2, 
-                xend=end.xd, 
-                yend=end.yd,
-                alpha = vector.length 
-            ),
-            arrow=grid::arrow(length=unit(0.1, "cm")),
-            linewidth=arrow_size
+    # --- arrow layer ---
+    if (plot_mode %in% c("arrows", "both")) {
+        if(arrow_alpha){
+            p <- p +
+            geom_segment(
+                data = grid.df,
+                inherit.aes=FALSE,
+                aes(
+                    x=start.emb_1,
+                    y=start.emb_2,
+                    xend=end.xd,
+                    yend=end.yd,
+                    alpha = vector.length
+                ),
+                arrow=grid::arrow(length=unit(0.1, "cm")),
+                linewidth=arrow_size
+            )
+        } else{
+            p <- p +
+            geom_segment(
+                data = grid.df,
+                inherit.aes=FALSE,
+                aes(
+                    x=start.emb_1,
+                    y=start.emb_2,
+                    xend=end.xd,
+                    yend=end.yd
+                ),
+                arrow=grid::arrow(length=unit(0.1, "cm")),
+                linewidth=arrow_size
+            )
+        }
+    }
+
+    # --- streamline layer ---
+    if (plot_mode %in% c("streamlines", "both")) {
+        # build interpolation function, optionally wrapped with a KDE density mask
+        field_fun <- build_field_fun(
+            grid_df         = grid.df,
+            emb             = emb,
+            density_thresh  = stream_density_thresh
         )
-    } else{
-        p <- p +
-        geom_segment(
-            data = grid.df,
-            inherit.aes=FALSE,
-            aes(
-                x=start.emb_1, 
-                y=start.emb_2, 
-                xend=end.xd, 
-                yend=end.yd
-            ),
-            arrow=grid::arrow(length=unit(0.1, "cm")),
-            linewidth=arrow_size
+
+        # seed streamlines only at cell-occupied grid positions, not across the
+        # full bounding box — this prevents seeds appearing in empty regions
+        seed_grid <- data.frame(
+            x = grid.df$start.emb_1,
+            y = grid.df$start.emb_2
+        )
+
+        p <- p + ggvfields::geom_stream_field(
+            fun       = field_fun,
+            grid      = seed_grid,
+            L         = stream_L,
+            normalize = stream_normalize,
+            color     = stream_color,
+            linewidth = stream_linewidth,
+            alpha     = stream_alpha
         )
     }
 
     # theme elements:
-    p <- p + 
+    p <- p +
         hdWGCNA::umap_theme()
-    
+
     p
 
+}
+
+
+#' Build a Vector Field Interpolation Function from a Grid Data Frame
+#'
+#' Converts the output of \code{grid_vectors} into a callable function
+#' \code{f(c(x, y)) -> c(fx, fy)} suitable for use as the \code{fun} argument
+#' of \code{ggvfields::geom_stream_field()}. Interpolation is performed using
+#' inverse-distance weighting (IDW) over the four nearest grid points.
+#'
+#' When \code{density_thresh > 0}, a 2D kernel density estimate (KDE) of the
+#' cell positions is computed via \code{MASS::kde2d()} and normalised to
+#' \code{[0, 1]}. Any query point whose normalised density falls below
+#' \code{density_thresh} returns a zero vector \code{c(0, 0)}, causing
+#' \code{geom_stream_field()} to terminate the streamline at that point.
+#'
+#' @param grid_df A data frame produced by \code{grid_vectors}, containing
+#'   columns \code{start.emb_1}, \code{start.emb_2} (grid point positions)
+#'   and \code{end.xd}, \code{end.yd} (grid point endpoints).
+#' @param emb A cells-by-2 matrix of embedding coordinates. Required when
+#'   \code{density_thresh > 0} to compute the KDE.
+#' @param density_thresh Numeric in \code{[0, 1]}. Normalised KDE density
+#'   below which the field returns zero velocity. Default \code{0} disables
+#'   the mask.
+#'
+#' @return A function that accepts a numeric vector \code{c(x, y)} and returns
+#'   the IDW-interpolated vector components \code{c(fx, fy)}, or \code{c(0, 0)}
+#'   when the query point falls in a low-density region.
+#'
+#' @keywords internal
+build_field_fun <- function(grid_df, emb = NULL, density_thresh = 0) {
+    gx <- grid_df$start.emb_1
+    gy <- grid_df$start.emb_2
+    fx <- grid_df$end.xd - gx
+    fy <- grid_df$end.yd - gy
+
+    # pre-compute KDE density grid when masking is requested
+    use_mask <- density_thresh > 0 && !is.null(emb)
+    if (use_mask) {
+        dens      <- MASS::kde2d(emb[, 1], emb[, 2], n = 100)
+        dens$z    <- dens$z / max(dens$z)   # normalise to [0, 1]
+    }
+
+    function(xy) {
+        # terminate in low-density / cell-free regions
+        if (use_mask) {
+            xi <- max(1L, findInterval(xy[1], dens$x))
+            yi <- max(1L, findInterval(xy[2], dens$y))
+            xi <- min(xi, length(dens$x) - 1L)
+            yi <- min(yi, length(dens$y) - 1L)
+            if (dens$z[xi, yi] < density_thresh) return(c(0, 0))
+        }
+
+        # IDW interpolation from nearest grid points
+        dists <- sqrt((gx - xy[1])^2 + (gy - xy[2])^2)
+        k     <- min(4L, length(dists))
+        idx   <- order(dists)[seq_len(k)]
+        w     <- 1 / (dists[idx] + 1e-10)
+        w     <- w / sum(w)
+        c(sum(w * fx[idx]), sum(w * fy[idx]))
+    }
 }
 
 

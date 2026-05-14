@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="description" content="Tutorial demonstrating in-silico module perturbation analysis using compact on a simulated dataset with known ground truth." />
+  <title>Module Perturbation on a Simulated Branching Trajectory</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Module Perturbation on a Simulated Branching
+Trajectory</h1>
+</header>
+<p>Compiled: 2026-05-04</p>
+<p>Source: <code>vignettes/simulation_tutorial.Rmd</code></p>
+<h1 id="introduction">Introduction</h1>
+<p>In this tutorial, we demonstrate
+<strong><code>compact</code></strong> using a simulated single-cell
+dataset with a known branching trajectory. Simulation offers several
+advantages:</p>
+<ol type="1">
+<li><strong>Ground truth</strong>: We know exactly which genes drive
+differentiation along each branch, so we can evaluate whether
+perturbation results are biologically sensible.</li>
+<li><strong>Reproducibility</strong>: The data is generated
+deterministically (with a fixed random seed), so results are fully
+reproducible and anyone can regenerate the dataset.</li>
+<li><strong>Accessibility</strong>: No data-sharing restrictions — you
+can easily share the code with collaborators.</li>
+</ol>
+<p>This tutorial builds on <strong>hdWGCNA</strong>, our previous
+package for weighted gene co-expression network analysis in single-cell
+data. If you are unfamiliar with co-expression modules or need to run
+hdWGCNA yourself, we recommend starting with the <a
+href="https://smorabit.github.io/hdWGCNA/articles/basic_tutorial.html">hdWGCNA
+tutorial</a>. The data for this vignette has already been processed with
+Seurat, hdWGCNA, and monocle3; this tutorial focuses exclusively on the
+perturbation step.</p>
+<h2 id="the-simulated-dataset">The Simulated Dataset</h2>
+<p>The dataset contains ~4,800 cells and ~6,000 genes, simulated with
+<strong>splatter</strong> to recapitulate a <strong>branching
+developmental trajectory</strong> with three main branches:</p>
+<ul>
+<li><strong>Branch 1</strong> (orange): Shared root → Tip A, divided
+into four pseudotime groups (B1-1 → B1-4)</li>
+<li><strong>Branch 2</strong> (green): Shared root → Tip B, divided into
+four pseudotime groups (B2-1 → B2-4)</li>
+<li><strong>Branch 3</strong> (purple): Shared root → Tip C, divided
+into four pseudotime groups (B3-1 → B3-4)</li>
+</ul>
+<p>hdWGCNA has identified three co-expression modules:
+<strong>turquoise</strong>, <strong>blue</strong>, and
+<strong>yellow</strong>. Each module has a distinct expression pattern
+across the branches, reflecting the biological drivers of
+differentiation.</p>
+<p>In this tutorial, we perform an in-silico perturbation of the
+<strong>turquoise module</strong> in both directions (knock-down and
+knock-in) and observe how the inferred cell-state transitions change.
+Since we know turquoise is preferentially active along a specific
+branch, we expect: - <strong>Down-regulating</strong> turquoise → cells
+should transition away from the turquoise-enriched branch -
+<strong>Up-regulating</strong> turquoise → cells should transition
+toward the turquoise-enriched branch</p>
+<p>Let’s verify this intuition using compact’s tools.</p>
+<hr />
+<h1 id="section-1-setup-and-data-loading">Section 1: Setup and Data
+Loading</h1>
+<h2 id="loading-data-and-libraries">Loading Data and Libraries</h2>
+<p>Start by loading the required libraries:</p>
+<p>```{r eval=FALSE} library(Seurat) library(tidyverse) library(cowplot)
+library(patchwork) library(hdWGCNA) library(compact)</p>
+<h1 id="plotting-options">plotting options</h1>
+<p>theme_set(theme_cowplot()) set.seed(12345)</p>
+<pre><code>
+Next, download the simulated branching dataset and the co-expression network adjacency matrix (TOM, Topological Overlap Matrix):
+
+- `simulation_branch.rds` (Seurat object, ~50 MB)
+- `sim_TOM.rda` (network file, ~5 MB)
+
+&gt; **Note:** We will provide Google Drive download links here. For now, assume the files are in your working directory.
+
+Load the Seurat object and update the TOM file path to match your local directory:
+
+```{r eval=FALSE}
+seurat_obj &lt;- readRDS(&#39;simulation_branch.rds&#39;)
+
+# Update the path to the co-expression network TOM file if needed
+net &lt;- GetNetworkData(seurat_obj)
+net$TOMFiles &lt;- &#39;sim_TOM.rda&#39;  # use absolute path if the file is elsewhere
+seurat_obj &lt;- SetNetworkData(seurat_obj, net)</code></pre>
+<h2 id="setting-up-the-color-palette">Setting Up the Color Palette</h2>
+<p>The dataset uses a 12-group system to track pseudotime along each
+branch. Define a color palette for consistent visualization throughout
+the tutorial:</p>
+<p>```{r eval=FALSE} library(RColorBrewer)</p>
+<h1 id="color-palette-for-the-12-pseudotime-groups-4-per-branch">color
+palette for the 12 pseudotime groups (4 per branch)</h1>
+<p>cp &lt;- c( rev(brewer.pal(5, “Oranges”)[2:5]), # Branch 1: B1-1,
+B1-2, B1-3, B1-4 brewer.pal(5, “Greens”)[2:5], # Branch 2: B2-1, B2-2,
+B2-3, B2-4 brewer.pal(5, “Purples”)[2:5] # Branch 3: B3-1, B3-2, B3-3,
+B3-4 ) names(cp) &lt;- c( ‘B1-1’, ‘B1-2’, ‘B1-3’, ‘B1-4’, ‘B2-1’,
+‘B2-2’, ‘B2-3’, ‘B2-4’, ‘B3-1’, ‘B3-2’, ‘B3-3’, ‘B3-4’ )</p>
+<pre><code>
+## Exploring the Data Structure
+
+Visualize the branching trajectory by plotting the PCA colored by the pseudotime groups:
+
+```{r eval=FALSE}
+DimPlot(
+    seurat_obj,
+    reduction = &#39;pca&#39;,
+    group.by = &#39;Group&#39;,
+    cols = cp,
+    label = FALSE,
+    pt.size = 1
+) + coord_equal() + NoLegend()</code></pre>
+<p>You should see three distinct branches emanating from a shared root
+region. Next, visualize the three high-level branch assignments:</p>
+<p><code>{r eval=FALSE} DimPlot(     seurat_obj,     reduction = 'pca',     group.by = 'branch',     cols = c('Branch 1' = '#E8A03C', 'Branch 2' = '#6BA84D', 'Branch 3' = '#A54FA0'),     pt.size = 1 ) + coord_equal() + NoLegend()</code></p>
+<p>Finally, plot the module eigengenes (hMEs, harmonized module
+eigengenes) to see which regions of the embedding each module is
+active:</p>
+<p>```{r eval=FALSE} plot_list &lt;- ModuleFeaturePlot( seurat_obj,
+reduction = ‘pca’, features = ‘MEs’, order = TRUE )</p>
+<p>wrap_plots(plot_list, ncol = 3)</p>
+<pre><code>
+This shows which branch(es) each module drives. **Turquoise** (the module we will perturb) should show enrichment in specific branch(es) — note this, as it sets our expectation for the perturbation results.
+
+---
+
+# Section 2: Building the KNN Graph
+
+Before running `ModulePerturbation`, we must construct a nearest-neighbor graph. This graph defines the **local neighborhoods** over which `compact` computes cell-cell transition probabilities. Essentially, transition probabilities are only computed between neighboring cells in the graph.
+
+Run `FindNeighbors` to build the SNN (shared nearest neighbor) graph:
+
+```{r eval=FALSE}
+seurat_obj &lt;- FindNeighbors(
+    seurat_obj,
+    reduction = &#39;pca&#39;,
+    assay = &#39;RNA&#39;,
+    k.param = 20,
+    annoy.metric = &#39;cosine&#39;
+)</code></pre>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>k.param = 20</code>: Each cell connects to its 20 nearest
+neighbors in PCA space. For datasets with 1,000s of cells, values
+between 15 and 50 typically work well; for smaller datasets, lower
+values are appropriate.</li>
+<li><code>annoy.metric = 'cosine'</code>: Use cosine distance (standard
+for high-dimensional gene expression data). Alternative:
+<code>'euclidean'</code>.</li>
+<li><code>reduction = 'pca'</code>: Compute neighbors in PCA space
+rather than the full gene expression matrix (more efficient and
+robust).</li>
+</ul>
+<p>The SNN graph is stored in the Seurat object at
+<code>seurat_obj@graphs[['RNA_snn']]</code>. This is the graph
+<code>ModulePerturbation</code> will use to compute transition
+probabilities in the next section.</p>
+<blockquote>
+<p><strong>Note:</strong> The graph is only computed once, even if you
+perform multiple perturbations. You can run
+<code>ModulePerturbation</code> sequentially for different modules or
+different perturbation directions without re-running
+<code>FindNeighbors</code>.</p>
+</blockquote>
+<hr />
+<p><strong>Next steps:</strong> In Section 3, we will use
+<code>ModulePerturbation</code> to simulate the in-silico knock-down and
+knock-in of the turquoise module, and then visualize the resulting
+cell-state transitions.</p>
+</body>
+</html>

@@ -26,18 +26,23 @@
 #'
 #' @details
 #' This function propagates perturbation signal in log-normalized expression
-#' space. Unlike the previous count-space implementation, there is no floor at
-#' zero and no integer rounding, so down-regulation produces negative
-#' log-deltas in downstream genes for \emph{all} cells — including
-#' zero-expressing cells that would have been clipped to zero in count space.
-#' This symmetry between up- and down-regulation is essential for
-#' \code{PerturbationTransitions} to produce correctly opposite vector fields.
-#'
-#' At each iteration the delta matrix is multiplied by the network and damped:
+#' space. At each iteration the delta matrix is multiplied by the network and
+#' damped:
 #' \deqn{\delta^{(t+1)} = W \cdot \delta^{(t)} \times \texttt{delta\_scale}}
 #' where \eqn{W} is the (optionally row-normalized) network matrix.
-#' The final log-simulated expression for the module genes is
-#' \deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}
+#' The intermediate log-simulated expression for the module genes is
+#' \deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}}
+#' and the result is floored at zero before returning, since log-normalized
+#' expression cannot be negative.
+#'
+#' \strong{Signal amplification warning}: when \code{row_normalize = FALSE}
+#' (default), the per-iteration effective multiplier is
+#' \eqn{\bar{r} \times \texttt{delta\_scale}}, where \eqn{\bar{r}} is the
+#' mean network row sum. If this product exceeds 1 the signal amplifies rather
+#' than dampens across iterations, which can produce very large deltas that are
+#' subsequently clipped by the floor. A warning is issued when this condition
+#' holds so that the user can consider reducing \code{delta\_scale} or enabling
+#' \code{row\_normalize = TRUE}.
 #'
 #' @return A genes-by-cells matrix of log-normalized simulated expression for
 #'   the module genes.
@@ -74,6 +79,26 @@ ApplyPropagation <- function(
     network   <- methods::as(network,   "CsparseMatrix")
     delta_log <- methods::as(delta_log, "CsparseMatrix")
 
+    # warn when the effective per-iteration multiplier exceeds 1 — the signal
+    # will amplify rather than dampen, and the floor may clip large fractions
+    # of the propagated delta. consider reducing delta_scale or enabling
+    # row_normalize = TRUE.
+    if (!row_normalize) {
+        mean_row_sum <- mean(Matrix::rowSums(network))
+        if (mean_row_sum * delta_scale > 1) {
+            warning(sprintf(
+                paste0(
+                    "Signal amplification detected: mean network row sum (%.2f) x ",
+                    "delta_scale (%.2f) = %.2f > 1. The propagated delta will grow ",
+                    "across iterations rather than dampen, and large negative values ",
+                    "will be clipped to zero by the expression floor. Consider ",
+                    "reducing delta_scale or setting row_normalize = TRUE."
+                ),
+                mean_row_sum, delta_scale, mean_row_sum * delta_scale
+            ), call. = FALSE)
+        }
+    }
+
     delta_initial <- delta_log
 
     for(i in seq_len(n_iters)){
@@ -88,5 +113,8 @@ ApplyPropagation <- function(
         n_iters       = n_iters
     )
 
-    log_obs_mod + delta_log
+    # floor at zero: log-normalized expression cannot be negative
+    result <- log_obs_mod + delta_log
+    result[result < 0] <- 0
+    result
 }

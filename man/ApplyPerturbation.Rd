@@ -9,11 +9,13 @@ ApplyPerturbation(
   exp,
   features,
   perturb_dir,
+  perturb_mode = "zinb",
   cells_use = NULL,
   group.by = NULL,
   layer = "counts",
   slot = "counts",
-  assay = "RNA"
+  assay = "RNA",
+  n_workers = 1
 )
 }
 \arguments{
@@ -23,17 +25,42 @@ ApplyPerturbation(
 
 \item{features}{Character vector. The selected features to apply the perturbation on.}
 
-\item{perturb_dir}{Numeric. Determines the type of perturbation to apply. Negative values for knock-down, positive for knock-in, and 0 for knock-out.}
+\item{perturb_dir}{Numeric. Determines the type and magnitude of the perturbation.
+\itemize{
+\item \strong{ZINB mode} (\code{perturb_mode = "zinb"}): Negative values for knock-down,
+positive for knock-in, and \code{0} for knock-out. The absolute value scales the
+ZINB-sampled counts before they are added to baseline expression.
+\item \strong{Multiplicative mode} (\code{perturb_mode = "multiplicative"}): A positive
+fold-change applied directly to baseline counts (e.g., \code{2.0} = 2×, \code{0.5} =
+half expression). Must be positive and non-zero; use \code{perturb_dir = 0} for knock-out.
+}}
+
+\item{perturb_mode}{Character. Perturbation model to use. One of:
+\itemize{
+\item \code{"zinb"} (default) — models baseline expression with a Zero-Inflated Negative
+Binomial distribution and adds/subtracts ZINB-sampled counts. Group-aware; requires
+\code{group.by} and ZINB fitting per feature.
+\item \code{"multiplicative"} — scales each cell's baseline counts by \code{perturb_dir}.
+Cell-specific by construction (delta is proportional to observed expression), so cells
+with zero baseline remain at zero. Bypasses ZINB fitting entirely — \code{group.by}
+and \code{n_workers} are ignored.
+}}
 
 \item{cells_use}{Character vector. Specific cells to apply the perturbation to. If \code{NULL}, defaults to handling internally.}
 
-\item{group.by}{Character. Column in \code{seurat_obj@meta.data} used to group cells for modeling.}
+\item{group.by}{Character. Column in \code{seurat_obj@meta.data} used to group cells for modeling.
+Only used when \code{perturb_mode = "zinb"}.}
 
 \item{layer}{Character. The Seurat v5 layer to extract data from. Default is \code{'counts'}.}
 
 \item{slot}{Character. The Seurat v4 slot to extract data from. Default is \code{'counts'}.}
 
 \item{assay}{Character. The assay in \code{seurat_obj} containing expression information. Default is \code{'RNA'}.}
+
+\item{n_workers}{Integer. Number of parallel workers for fitting and sampling the ZINB model across
+features. Uses fork-based parallelism (\code{parallel::mclapply}) so memory usage does not scale with
+worker count. Default is \code{1} (serial). Values > 1 disable the progress bar.
+Only used when \code{perturb_mode = "zinb"}.}
 }
 \value{
 A \code{dgCMatrix} object containing the updated expression matrix with the applied perturbations.
@@ -43,9 +70,22 @@ This function applies an in-silico perturbation (knock-out, knock-down, or knock
 to selected features in a Seurat object.
 }
 \details{
-The function models the baseline expression of target features using a Zero-Inflated
-Negative Binomial (ZINB) distribution to capture dropout and overdispersion characteristics
-typical of single-cell RNA-seq data .
-It samples from this distribution, scales the values by \code{perturb_dir}, and updates the
-original expression matrix. Any perturbed counts that fall below zero are strictly bounded to zero.
+Two perturbation models are available via \code{perturb_mode}:
+
+\strong{ZINB mode} (\code{"zinb"}): Models the baseline expression of each target feature using a
+Zero-Inflated Negative Binomial distribution to capture dropout and overdispersion characteristics
+typical of scRNA-seq data. Samples from this distribution, scales by \code{perturb_dir}, and adds
+the result to baseline expression. Because samples are drawn from a group-level distribution (IID
+within each group), the resulting delta is not cell-specific — cells with zero baseline can receive
+positive counts during knock-in.
+
+\strong{Multiplicative mode} (\code{"multiplicative"}): Scales each cell's baseline counts directly
+by \code{perturb_dir} (a fold change). The perturbation delta is therefore proportional to each
+cell's observed expression, making it cell-specific. This is the recommended mode for knock-in
+perturbations when downstream signal propagation is used, because it preserves the correlation
+structure between up- and down-regulation experiments: cells that express a gene highly are
+affected most, mirroring the behavior of knock-down.
+
+In both modes, any perturbed counts that fall below zero are strictly bounded to zero, and the
+result is rounded to maintain integer count structure.
 }

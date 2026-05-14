@@ -188,7 +188,11 @@ test_that("TP matrices for UP and DOWN have low positive correlation (< 0.5)", {
 
 # ---------------------------------------------------------------------------
 # 5. Vector field cosine similarity: majority of cells have vectors pointing
-#    in opposite directions between UP and DOWN perturbations
+#    in opposite directions between UP and DOWN perturbations.
+#    Hub preservation keeps hub genes fixed at their primary perturbation
+#    level throughout propagation, which strongly enforces the antisymmetry
+#    between UP and DOWN. The floor (result >= 0) introduces residual
+#    asymmetry for zero-expressing non-hub cells but is secondary.
 # ---------------------------------------------------------------------------
 
 test_that("vector fields for UP and DOWN point in opposite directions for most cells", {

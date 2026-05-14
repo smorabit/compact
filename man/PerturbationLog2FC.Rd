@@ -12,7 +12,8 @@ PerturbationLog2FC(
   n_hubs = 10,
   pseudocount = 1,
   layer_norm = "data",
-  layer_counts = "counts"
+  layer_counts = "counts",
+  wgcna_name = NULL
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ PerturbationLog2FC(
 \item{layer_norm}{Character. The layer/layer containing normalized data. Default is \code{'data'}.}
 
 \item{layer_counts}{Character. The layer/layer containing raw counts. Default is \code{'counts'}.}
+
+\item{wgcna_name}{Character. The name of the hdWGCNA experiment in \code{seurat_obj@misc}. If NULL, uses the active WGCNA experiment.}
 }
 \value{
 A data.frame containing gene names, mean delta (raw counts difference), average baseline expression, Log2FC, and optionally module hub status.
