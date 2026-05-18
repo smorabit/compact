@@ -33,5 +33,5 @@ components:
    articles:
     text: Vignettes
     menu:
-    - text: co-expression module perturbation
-      href: articles/basic_tutorial.Rmd
+    - text: Quick Start
+      href: articles/quickstart.html

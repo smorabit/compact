@@ -41,19 +41,41 @@ ModelZINB <- function(
         cells_use <- colnames(seurat_obj)
     }
 
+    # validate cells_use barcodes
+    invalid_cells <- setdiff(cells_use, colnames(seurat_obj))
+    if(length(invalid_cells) > 0){
+        preview <- paste(head(invalid_cells, 5), collapse = ', ')
+        suffix  <- if(length(invalid_cells) > 5) paste0(" ... (", length(invalid_cells) - 5, " more)") else ""
+        stop(paste0("cells_use contains barcodes not found in colnames(seurat_obj): ", preview, suffix))
+    }
+
     # get original expression matrix
     if(hdWGCNA::CheckSeurat5()){
-        cur_x <- FetchData(seurat_obj, feature , layer=layer, cells=cells_use)[,1]
+        cur_x <- FetchData(seurat_obj, feature, layer=layer, cells=cells_use)[,1]
     } else{
-        cur_x <- FetchData(seurat_obj, feature , slot=slot, cells=cells_use)[,1]
+        cur_x <- FetchData(seurat_obj, feature, slot=slot, cells=cells_use)[,1]
     }
 
     if(add_zero){
         cur_x <- c(cur_x, 0)
     }
 
+    # ZINB cannot be fit to all-zero data; catch this before zeroinfl throws
+    # an opaque convergence error
+    if(sum(cur_x) == 0){
+        stop(paste0("Cannot fit ZINB model: all expression values for '", feature,
+                    "' are zero in the selected cells. ",
+                    "This gene may not be expressed in this cell group."))
+    }
+
     # fit data to zero-inflated negative binomial distribution
-    zinb_model <- pscl::zeroinfl(x ~ . | 1, dist='negbin', data = data.frame(x=cur_x))
+    zinb_model <- tryCatch(
+        pscl::zeroinfl(x ~ . | 1, dist = 'negbin', data = data.frame(x = cur_x)),
+        error = function(e){
+            stop(paste0("ZINB model fitting failed for gene '", feature, "': ",
+                        conditionMessage(e)))
+        }
+    )
 
     # return the model:
     zinb_model
@@ -80,7 +102,12 @@ SampleZINB <- function(
 
     if(is.null(ncells)){
         ncells <- model$n
-    } 
+    }
+
+    # rzinegbin requires munb > 0; return zeros directly for unexpressed genes
+    if(mean(yobs) == 0){
+        return(rep(0L, ncells))
+    }
 
     # get the parameters for simulating data from this model
     theta <- model$theta
@@ -94,7 +121,7 @@ SampleZINB <- function(
         pstr0 = zero_intercept
     )
 
-    # return the simulated data 
+    # return the simulated data
     ysim
 
 }

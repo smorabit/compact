@@ -13,22 +13,21 @@ ModulePerturbation(
   group.by = NULL,
   group_name = NULL,
   n_hubs = 5,
+  perturb_mode = "zinb",
   n_iters = 3,
   expand_module = 0,
   delta_scale = 0.2,
   row_normalize = FALSE,
-  apply_ceiling = FALSE,
-  ceiling_multiplier = 1,
   prune_network = FALSE,
   prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
   use_velocyto = TRUE,
   use_graph_tp = FALSE,
-  use_counts_tp = FALSE,
   layer = "counts",
   slot = "counts",
   assay = "RNA",
+  n_workers = 1,
   custom_network = NULL,
   custom_modules = NULL,
   custom_weights = NULL,
@@ -59,6 +58,10 @@ If NULL, perturbation is applied to all cells.}
 
 \item{n_hubs}{Number of hub genes to perturb in the selected co-expression module. Default is 5.}
 
+\item{perturb_mode}{Character. Perturbation model passed to \code{ApplyPerturbation}. One of
+\code{"zinb"} (default, ZINB-based additive model) or \code{"multiplicative"} (cell-specific
+fold-change scaling). See \code{\link{ApplyPerturbation}} for full details.}
+
 \item{n_iters}{Number of iterations for propagating the perturbation signal through the network. Default is 3.}
 
 \item{delta_scale}{A numeric scaling factor controlling the influence of the propagated perturbation. Default is 0.2.}
@@ -88,18 +91,19 @@ a co-expression network. It applies primary perturbations to hub genes, propagat
 throughout the co-expression network, and computes cell-cell transition probabilities.
 }
 \details{
-Following co-expression network analysis with hdWGCNA, ModulePerturbation allows us to perform
-in-silico gene expression perturbation analysis. This analysis consists of several key steps.
+Following co-expression network analysis with hdWGCNA, ModulePerturbation performs
+in-silico gene expression perturbation analysis in three steps.
 \enumerate{
-\item Apply a primary perturbation to the hub genes of a selected module. In this step,
-we model the observed gene expression of the hub genes using a zero-inflated negative binomial (ZINB),
-or other distributions. We then simulate new exptession data by sampling this distribution.
-The simulated expression matrix is then multiplied by the perturb_dir, and the final perturbation expression
-matrix is computed by adding the observed and simulated expression matrices.
-\item Apply a secondary perturbation to the rest of the co-expression module using a signal propagation
-algorithm. Given the gene-gene co-expression network from hdWGCNA, we can propagate the perturbation signal
-throughout the network by computing the dot product between the network adjacency matrix and the perturbation
-expression matrix. This can be performed over several iterations using n_iters.
-\item Compute the cell-cell transition probabilities.
+\item \strong{Primary perturbation}: A direct perturbation is applied to the hub genes of the
+selected module via \code{ApplyPerturbation}. In ZINB mode, expression is modeled by a
+Zero-Inflated Negative Binomial distribution; in multiplicative mode, each cell's hub gene
+counts are scaled by \code{perturb_dir} as a fold change.
+\item \strong{Log-space signal propagation}: The perturbation delta is propagated through the
+co-expression network in log-normalized expression space via \code{ApplyPropagation}. Working
+in log space avoids the count-space floor asymmetry (where down-regulation deltas collapse to
+zero for non-expressing cells), ensuring that both up- and down-regulation produce correctly
+signed, non-zero deltas in all downstream genes.
+\item \strong{Transition probability computation}: Cell-cell transition probabilities are computed
+from the log-space simulated expression via \code{PerturbationTransitions}.
 }
 }
