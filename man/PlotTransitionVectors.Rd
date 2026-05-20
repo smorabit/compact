@@ -19,7 +19,7 @@ PlotTransitionVectors(
   raster_dpi = 300,
   arrow_alpha = TRUE,
   use_velocyto = FALSE,
-  plot_mode = c("arrows", "streamlines", "both"),
+  plot_mode = c("arrows", "streamlines", "both", "cells"),
   stream_n = 15,
   stream_L = 2,
   stream_normalize = TRUE,
@@ -69,11 +69,15 @@ shorter arrows are more transparent (default: \code{TRUE}).}
 \item{use_velocyto}{Logical. Use the velocyto.R C backend for embedding-arrow calculation
 instead of the built-in \code{SparseEmbArrows} (default: \code{FALSE}).}
 
-\item{plot_mode}{Character. One of \code{"arrows"} (default), \code{"streamlines"}, or
-\code{"both"}. \code{"arrows"} reproduces the classic grid-arrow plot. \code{"streamlines"}
-replaces arrows with continuous streamlines traced through the vector field.
-\code{"both"} overlays streamlines on top of the arrow plot. Streamline rendering
-requires the \pkg{ggvfields} package.}
+\item{plot_mode}{Character. One of \code{"arrows"} (default), \code{"streamlines"},
+\code{"both"}, or \code{"cells"}. \code{"arrows"} reproduces the classic grid-arrow
+plot. \code{"streamlines"} replaces arrows with continuous streamlines traced through
+the vector field. \code{"both"} overlays streamlines on top of the arrow plot.
+\code{"cells"} draws one arrow per cell at its exact embedding position, bypassing
+grid aggregation entirely — the arrows themselves are coloured by \code{color.by} and
+no background scatter plot is drawn. Recommended for small datasets (< ~2,000 cells)
+where grid bins would be too sparse. Streamline rendering requires the \pkg{ggvfields}
+package.}
 
 \item{stream_n}{Integer. Number of streamline seed points along each axis of the
 embedding grid passed to \code{ggvfields::geom_stream_field()} (default: 15).}
@@ -99,8 +103,9 @@ overlaid with transition vectors and/or streamlines indicating cell-state shifts
 This function visualizes cell-state transitions in a Seurat object by plotting transition vectors on a
 dimensionality-reduced embedding (e.g., UMAP). It computes transition vectors based on a specified
 perturbation and overlays them on a scatter plot of the cells, allowing insights into cell-state shifts
-following the perturbation. Three visualization modes are available: classic grid arrows
-(\code{"arrows"}), streamlines (\code{"streamlines"}), or both overlaid (\code{"both"}).
+following the perturbation. Four visualization modes are available: classic grid arrows
+(\code{"arrows"}), streamlines (\code{"streamlines"}), both overlaid (\code{"both"}), or one arrow
+per cell (\code{"cells"}).
 }
 \details{
 This function retrieves the embedding coordinates from the specified dimensional reduction

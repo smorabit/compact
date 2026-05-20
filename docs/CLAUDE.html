@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="index.html">compact</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,11 +16,13 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="articles/quickstart.html">compact Quick Start</a></li>
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-vignettes" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Vignettes</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-vignettes"><li><a class="dropdown-item" href="articles/quickstart.html">Quick Start</a></li>
+    <li><a class="dropdown-item" href="articles/simulation_tutorial.html">Basics — Simulated Branching Trajectory</a></li>
+    <li><a class="dropdown-item" href="articles/advanced_NSCLC.html">Advanced Use Cases — NSCLC CD8+ T Cells</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
-<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">News</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json"></form></li>
       </ul></div>
@@ -74,6 +76,9 @@
 <div class="section level2">
 <h2 id="running-code">Running code<a class="anchor" aria-label="anchor" href="#running-code"></a></h2>
 <ul><li>Code should be run within the compact_fresh conda environment.</li>
+<li>Before running any R code that compiles C++/Rcpp (devtools::document, devtools::check, roxygen2::roxygenise, pkgdown::build_site), first run <code>module load GCC</code> to make the system GCC available. Without this, the Rcpp compilation step fails with “unrecognized command line option ‘-std=c++14’”.</li>
+<li>Correct invocation pattern: <code>module load GCC &amp;&amp; conda run -n compact_fresh Rscript -e "..."</code>
+</li>
 </ul></div>
 
 

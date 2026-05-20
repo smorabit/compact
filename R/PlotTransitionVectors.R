@@ -4,8 +4,9 @@
 #' This function visualizes cell-state transitions in a Seurat object by plotting transition vectors on a
 #' dimensionality-reduced embedding (e.g., UMAP). It computes transition vectors based on a specified
 #' perturbation and overlays them on a scatter plot of the cells, allowing insights into cell-state shifts
-#' following the perturbation. Three visualization modes are available: classic grid arrows
-#' (\code{"arrows"}), streamlines (\code{"streamlines"}), or both overlaid (\code{"both"}).
+#' following the perturbation. Four visualization modes are available: classic grid arrows
+#' (\code{"arrows"}), streamlines (\code{"streamlines"}), both overlaid (\code{"both"}), or one arrow
+#' per cell (\code{"cells"}).
 #'
 #' @param seurat_obj A Seurat object containing single-cell data, including metadata and embeddings.
 #' @param perturbation_name A character string specifying the name of the perturbation. This is used
@@ -32,11 +33,15 @@
 #'   shorter arrows are more transparent (default: \code{TRUE}).
 #' @param use_velocyto Logical. Use the velocyto.R C backend for embedding-arrow calculation
 #'   instead of the built-in \code{SparseEmbArrows} (default: \code{FALSE}).
-#' @param plot_mode Character. One of \code{"arrows"} (default), \code{"streamlines"}, or
-#'   \code{"both"}. \code{"arrows"} reproduces the classic grid-arrow plot. \code{"streamlines"}
-#'   replaces arrows with continuous streamlines traced through the vector field.
-#'   \code{"both"} overlays streamlines on top of the arrow plot. Streamline rendering
-#'   requires the \pkg{ggvfields} package.
+#' @param plot_mode Character. One of \code{"arrows"} (default), \code{"streamlines"},
+#'   \code{"both"}, or \code{"cells"}. \code{"arrows"} reproduces the classic grid-arrow
+#'   plot. \code{"streamlines"} replaces arrows with continuous streamlines traced through
+#'   the vector field. \code{"both"} overlays streamlines on top of the arrow plot.
+#'   \code{"cells"} draws one arrow per cell at its exact embedding position, bypassing
+#'   grid aggregation entirely — the arrows themselves are coloured by \code{color.by} and
+#'   no background scatter plot is drawn. Recommended for small datasets (< ~2,000 cells)
+#'   where grid bins would be too sparse. Streamline rendering requires the \pkg{ggvfields}
+#'   package.
 #' @param stream_n Integer. Number of streamline seed points along each axis of the
 #'   embedding grid passed to \code{ggvfields::geom_stream_field()} (default: 15).
 #' @param stream_L Numeric. Target length of each streamline, in embedding coordinate
@@ -79,7 +84,7 @@ PlotTransitionVectors <- function(
     raster_dpi = 300,
     arrow_alpha = TRUE,
     use_velocyto = FALSE,
-    plot_mode = c("arrows", "streamlines", "both"),
+    plot_mode = c("arrows", "streamlines", "both", "cells"),
     stream_n = 15,
     stream_L = 2,
     stream_normalize = TRUE,
@@ -125,6 +130,59 @@ PlotTransitionVectors <- function(
     # get the embedding and subset to cells that have arrows
     emb <- Reductions(seurat_obj, reduction)@cell.embeddings[,1:2]
     colnames(emb) <- paste0('emb_', 1:ncol(emb))
+
+    # -------------------------------------------------------------------------
+    # cells mode: one arrow per cell, colored by color.by, no scatter layer
+    # -------------------------------------------------------------------------
+    if (plot_mode == "cells") {
+
+        # arsd is already capped at max_pct and normalized to [-1, 1].
+        # Scale back to embedding coordinates using the grid-cell diagonal as
+        # a reference length (same reference grid_vectors uses), then apply
+        # arrow_scale as a final multiplier so the parameter remains meaningful.
+        cell_emb   <- emb[rownames(ars), , drop = FALSE]
+        emb_limits <- apply(cell_emb, 2, range)
+        emb_delta  <- (emb_limits[2, ] - emb_limits[1, ]) / grid_resolution
+        cell_scale <- sqrt(sum(emb_delta^2)) / 2 * arrow_scale
+
+        cell_df <- data.frame(
+            x0    = ars$x0,
+            y0    = ars$y0,
+            x1    = ars$x0 + arsd$xd * cell_scale,
+            y1    = ars$y0 + arsd$yd * cell_scale,
+            value = seurat_obj@meta.data[rownames(ars), color.by],
+            vector.length = sqrt((arsd$xd * cell_scale)^2 + (arsd$yd * cell_scale)^2)
+        )
+
+        if (arrow_alpha) {
+            p <- ggplot(cell_df, aes(x = x0, y = y0)) +
+                geom_segment(
+                    aes(
+                        x    = x0, y    = y0,
+                        xend = x1, yend = y1,
+                        color = value,
+                        alpha = vector.length
+                    ),
+                    arrow     = grid::arrow(length = unit(0.1, "cm")),
+                    linewidth = arrow_size
+                ) +
+                guides(alpha = "none")
+        } else {
+            p <- ggplot(cell_df, aes(x = x0, y = y0)) +
+                geom_segment(
+                    aes(
+                        x    = x0, y    = y0,
+                        xend = x1, yend = y1,
+                        color = value
+                    ),
+                    arrow     = grid::arrow(length = unit(0.1, "cm")),
+                    linewidth = arrow_size
+                )
+        }
+
+        p <- p + hdWGCNA::umap_theme()
+        return(p)
+    }
 
     # build the grid-aggregated vector field
     grid.df <- grid_vectors(emb[rownames(ars),], arsd, resolution=grid_resolution)

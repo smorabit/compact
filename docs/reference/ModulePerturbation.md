@@ -26,7 +26,7 @@ ModulePerturbation(
   prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
-  use_velocyto = TRUE,
+  use_velocyto = FALSE,
   use_graph_tp = FALSE,
   layer = "counts",
   slot = "counts",
@@ -116,7 +116,7 @@ ModulePerturbation(
 - use_velocyto:
 
   Logical. If TRUE, leverages velocyto.R functions for transition
-  probabilities. Default is TRUE.
+  probabilities. Default is FALSE.
 
 - use_graph_tp:
 

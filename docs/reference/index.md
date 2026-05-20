@@ -53,6 +53,9 @@
 - [`LoadAlertSystemPathways()`](https://smorabit.github.io/compact/reference/LoadAlertSystemPathways.md)
   : Load AlertSystem pathway gene sets (local or GitHub)
 
+- [`MacrostateTransitions()`](https://smorabit.github.io/compact/reference/MacrostateTransitions.md)
+  : MacrostateTransitions
+
 - [`ModelZINB()`](https://smorabit.github.io/compact/reference/ModelZINB.md)
   : ModelZINB
 
@@ -67,6 +70,9 @@
 
 - [`PerturbationVectors()`](https://smorabit.github.io/compact/reference/PerturbationVectors.md)
   : Calculate Perturbation Transition Vectors for Cell Embeddings
+
+- [`PlotMacrostateTransitions()`](https://smorabit.github.io/compact/reference/PlotMacrostateTransitions.md)
+  : PlotMacrostateTransitions
 
 - [`PlotTransitionVectors()`](https://smorabit.github.io/compact/reference/PlotTransitionVectors.md)
   : Plot Transition Vectors on a Reduced Dimensional Embedding

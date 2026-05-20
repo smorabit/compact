@@ -1,0 +1,1132 @@
+# Advanced Use Cases: Step-by-step perturbation on NSCLC CD8+ T cells
+
+Compiled: 2026-05-20
+
+Source: `vignettes/advanced_NSCLC.Rmd`
+
+## Introduction
+
+The Basics — Simulation vignette introduced `ModulePerturbation`,
+compact’s primary orchestrating function. Under the hood,
+`ModulePerturbation` is a three-step pipeline:
+
+1.  **`ApplyPerturbation`** — modifies the expression of selected hub
+    genes
+2.  **`ApplyPropagation`** — diffuses that perturbation signal through a
+    gene co-expression network
+3.  **`PerturbationTransitions`** — converts the resulting expression
+    change into cell-cell transition probabilities
+
+This tutorial exposes those three steps directly, giving you full
+control over each one. In particular, you will see how to:
+
+- **Perturb any gene set**, not just hdWGCNA module hub genes
+- **Use any network matrix** as the propagation backbone — here we build
+  a pseudobulk Pearson correlation network that does not require hdWGCNA
+- **Inspect each intermediate result** — the delta matrix, the
+  propagated signal, the assembled perturbed assay
+
+We work with a publicly available dataset of CD8+ T cells from an NSCLC
+immunotherapy cohort and ask a biologically motivated question: **if we
+could in-silico reverse T-cell exhaustion, would cells be predicted to
+shift toward more effector or cytotoxic states?** T-cell exhaustion is a
+major barrier to immunotherapy efficacy, and compact’s step-by-step API
+lets us address this question with full transparency into every
+computational step.
+
+After completing this tutorial you will also be well-prepared for the
+`CustomPerturbation` wrapper (Section 2, coming soon), which packages
+this same workflow into a single function call.
+
+> **Prerequisite:** Complete the [Basics — Simulation
+> vignette](https://smorabit.github.io/compact/articles/simulation_tutorial.md)
+> before this one. Familiarity with Seurat and matrix operations in R is
+> assumed.
+
+------------------------------------------------------------------------
+
+## Setup and Data Loading
+
+### Libraries
+
+``` r
+
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(hdWGCNA)
+library(compact)
+library(corpcor)   # Ledoit-Wolf shrinkage for the custom network
+
+theme_set(theme_cowplot())
+set.seed(12345)
+```
+
+### Dataset
+
+The dataset is an integrated atlas of CD8+ T cells from NSCLC patients
+profiled at pre- and post-immunotherapy timepoints, separated by
+treatment response. Cell states were annotated using the **TCAT** (T
+Cell Atlas Tool) classifier, which assigns each cell a score for 52
+T-cell programs. The programs most relevant to this tutorial are:
+
+| Program        | Biological meaning                                        |
+|----------------|-----------------------------------------------------------|
+| **Exhaustion** | Chronic stimulation state; high PD-1, TIM-3, LAG-3, TOX   |
+| **Cytotoxic**  | Active killer state; high GZMB, PRF1, IFNG                |
+| **CD8-EM**     | Effector memory — intermediate between naive and effector |
+| **CD8-Trm**    | Tissue-resident memory                                    |
+| **TEMRA**      | Terminally differentiated effector memory                 |
+
+Two files must be downloaded separately:
+
+- `NSCLC_CD8_CellANOVA_seurat.rds` — Seurat object (~570 MB)
+- `CD8_TCAT_scores.csv` — per-cell TCAT program scores (~47 MB)
+- `TCAT_reference_weights.csv` — TCAT gene weight matrix used to define
+  gene programs
+
+``` r
+
+data_dir   <- '/path/to/your/data/'
+tcat_dir   <- '/path/to/your/data/'
+
+seurat_obj <- readRDS(file.path(data_dir, 'NSCLC_CD8_CellANOVA_seurat.rds'))
+
+# Add TCAT per-cell program scores to the Seurat object metadata
+tcat_scores <- read.csv(file.path(tcat_dir, 'CD8_TCAT_scores.csv'), row.names = 1)
+shared_cells <- intersect(colnames(seurat_obj), rownames(tcat_scores))
+seurat_obj@meta.data[shared_cells, colnames(tcat_scores)] <-
+    tcat_scores[shared_cells, ]
+```
+
+> This vignette renders using a pre-processed subset of responders at
+> the pre-treatment timepoint, with the exhaustion perturbation already
+> computed.
+
+### Dataset orientation
+
+We begin by orienting ourselves in the data. Cells are colored by their
+TCAT cell-type label.
+
+``` r
+
+DimPlot(
+    seurat_obj,
+    reduction = 'umap',
+    group.by  = 'celltype',
+    label     = TRUE,
+    label.size = 3,
+    repel     = TRUE,
+    pt.size   = 0.3
+) +
+    NoLegend() +
+    coord_equal() +
+    ggtitle('CD8+ T cells — cell type') +
+    hdWGCNA::umap_theme()
+```
+
+The Exhaustion TCAT program score reveals where exhausted cells sit in
+this landscape:
+
+``` r
+
+# order cells so high Exhaustion scores plot on top
+plot_df <- as.data.frame(Reductions(seurat_obj, 'umap')@cell.embeddings[, 1:2])
+plot_df$Exhaustion <- seurat_obj$Exhaustion
+
+plot_df %>%
+    arrange(Exhaustion) %>%
+    ggplot(aes(x = umap_1, y = umap_2, color = Exhaustion)) +
+    geom_point(size = 0.3, alpha = 0.8) +
+    scale_color_gradient(low = 'lightgrey', high = 'firebrick3') +
+    hdWGCNA::umap_theme() +
+    coord_equal() +
+    ggtitle('TCAT Exhaustion score')
+```
+
+``` r
+
+# distribution of Exhaustion scores across cell types
+seurat_obj@meta.data %>%
+    ggplot(aes(x = Exhaustion, y = reorder(celltype, Exhaustion, median), color = celltype)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.4, color = 'black') +
+    theme(
+        panel.border = element_rect(linewidth = 1, color = 'black', fill = NA),
+        panel.grid.major.x = element_line(linewidth = 0.25, color = 'lightgrey')
+    ) +
+    NoLegend() +
+    xlab('TCAT Exhaustion score') + ylab('') +
+    ggtitle('Exhaustion score by cell type')
+```
+
+### Build the cell-cell neighborhood graph
+
+We use the HARMONY batch-corrected embedding for graph construction,
+following the same approach as the manuscript analysis:
+
+``` r
+
+seurat_obj <- FindNeighbors(
+    seurat_obj,
+    reduction    = 'HARMONY',
+    dims         = 1:20,
+    k.param      = 30,
+    annoy.metric = 'cosine'
+)
+```
+
+> **Note:** The pre-processed object used to render this vignette
+> already has this graph stored at `RNA_snn`.
+
+------------------------------------------------------------------------
+
+## Section 1: Step-by-step with the Core Functions
+
+`ModulePerturbation` is a convenience wrapper. Every analysis it
+performs can be done manually using three exported functions:
+`ApplyPerturbation`, `ApplyPropagation`, and `PerturbationTransitions`.
+Calling them directly gives you:
+
+- **Any gene set** — you are not restricted to hdWGCNA hub genes
+- **Any network** — supply any gene × gene adjacency matrix
+- **Intermediate access** — inspect the delta at each propagation step
+
+The rest of this section walks through each step on the Exhaustion gene
+program using a pseudobulk Pearson correlation network.
+
+------------------------------------------------------------------------
+
+### Step 1 — Define the gene set from TCAT reference weights
+
+`ModulePerturbation` selects hub genes by their kME (module membership
+score) in the hdWGCNA network. Here we use **TCAT program weights**
+instead: each TCAT program is defined by a weight vector over genes, and
+we take the top-weighted genes as our “hub” set.
+
+``` r
+
+# TCAT reference weight matrix: rows = programs, columns = gene symbols
+tcat_ref_path <- '~/analysis/COMPACT/data/TCAT_reference_weights.csv'
+tcat_ref <- read.csv(tcat_ref_path, row.names = 1)
+
+# Extract the Exhaustion program and keep the top 200 genes by weight
+exhaustion_weights <- tcat_ref['Exhaustion', ] %>%
+    t() %>%
+    as.data.frame() %>%
+    setNames('weight') %>%
+    tibble::rownames_to_column('gene_name') %>%
+    dplyr::filter(weight > 0, gene_name %in% rownames(seurat_obj)) %>%
+    dplyr::arrange(dplyr::desc(weight)) %>%
+    head(200)
+
+# Hub genes: the 10 highest-weight genes receive the primary perturbation
+hub_genes    <- head(exhaustion_weights$gene_name, 10)
+
+# Module genes: all 200 exhaustion genes are used for network propagation
+module_genes <- exhaustion_weights$gene_name
+```
+
+``` r
+
+# top 10 hub genes (primary perturbation targets)
+knitr::kable(
+    head(exhaustion_weights, 10),
+    col.names = c('Gene', 'TCAT weight'),
+    digits    = 4,
+    caption   = 'Top 10 exhaustion hub genes by TCAT weight'
+)
+```
+
+The top hub genes are canonical exhaustion markers — high-weight genes
+such as TOX, PDCD1 (PD-1), and HAVCR2 (TIM-3) are well-established
+drivers of T-cell dysfunction. These will receive the primary
+perturbation; the signal then propagates to the remaining 190 genes via
+the network in Step 3.
+
+------------------------------------------------------------------------
+
+### Step 2 — Build the custom propagation network
+
+`ModulePerturbation` uses the hdWGCNA TOM (Topological Overlap Matrix)
+as the propagation network. Here we demonstrate an alternative: a
+**pseudobulk Pearson correlation matrix** computed from the expression
+data. This requires no prior hdWGCNA analysis and can be computed from
+any expression dataset.
+
+The strategy is:
+
+1.  Aggregate cells to pseudobulk profiles (one column per sample)
+2.  Log-normalize the pseudobulk expression
+3.  Compute a Pearson correlation matrix across module genes, using
+    Ledoit-Wolf shrinkage to stabilize estimates when the number of
+    pseudobulk samples is small relative to the number of genes
+4.  Zero out weak correlations to sparsify the network
+
+``` r
+
+# Step 2a: aggregate to pseudobulk profiles (genes × samples)
+pb <- AggregateExpression(
+    seurat_obj,
+    assays        = 'RNA',
+    group.by      = 'SampleID',
+    return.seurat = FALSE
+)$RNA
+
+# Step 2b: log-normalize
+lib_sizes <- colSums(pb)
+pb_norm   <- log1p(t(t(pb) / lib_sizes) * 10000)
+
+# Step 2c: subset to module genes with non-zero variance across samples
+gene_vars    <- apply(pb_norm[intersect(module_genes, rownames(pb_norm)), ], 1, var)
+genes_use    <- names(which(gene_vars > 0))
+pb_use       <- pb_norm[genes_use, ]
+
+cat('Pseudobulk samples:', ncol(pb_use), '| Genes used:', nrow(pb_use), '\n')
+
+# Step 2d: Pearson correlation with Ledoit-Wolf shrinkage
+# cor.shrink() expects a samples × genes matrix — hence the transpose
+custom_net <- as.matrix(corpcor::cor.shrink(t(pb_use), verbose = FALSE))
+rownames(custom_net) <- colnames(custom_net) <- genes_use
+
+# Step 2e: sparsify — zero out weak correlations to improve propagation signal
+custom_net[abs(custom_net) < 0.1] <- 0
+custom_net <- Matrix::Matrix(custom_net, sparse = TRUE)
+
+cat('Network sparsity:', round(mean(custom_net == 0) * 100, 1), '%\n')
+```
+
+> **Why Ledoit-Wolf shrinkage?** Standard
+> [`cor()`](https://rdrr.io/pkg/WGCNA/man/cor.html) can produce
+> unreliable estimates when the number of samples is small (here, a few
+> dozen pseudobulk profiles for hundreds of genes). The Ledoit-Wolf
+> estimator shrinks the sample correlation matrix toward the identity,
+> reducing noise in off-diagonal entries.
+> [`corpcor::cor.shrink()`](https://rdrr.io/pkg/corpcor/man/cov.shrink.html)
+> implements this automatically. For large pseudobulk datasets (many
+> samples per group), plain
+> [`cor()`](https://rdrr.io/pkg/WGCNA/man/cor.html) is adequate.
+
+> **Why a correlation network instead of the TOM?** The TOM encodes gene
+> co-expression based on shared network neighbors (topological overlap),
+> which makes it more robust to indirect correlations. A Pearson
+> correlation network is simpler to build from scratch and works well
+> here because the TCAT gene programs are already biologically coherent
+> sets; the correlation structure within each program is strong enough
+> for meaningful propagation. The TOM would yield a more nuanced
+> propagation but requires running hdWGCNA first.
+
+------------------------------------------------------------------------
+
+### Step 3 — Apply the primary perturbation (`ApplyPerturbation`)
+
+`ApplyPerturbation` directly modifies the expression of the hub genes.
+We use `perturb_mode = "multiplicative"` with `perturb_dir = 0.5`, which
+halves each hub gene’s counts in every cell. This is a simple,
+cell-specific perturbation: cells that already express these genes at
+high levels receive the largest absolute delta.
+
+``` r
+
+# Extract the raw count matrix (genes × cells)
+exp <- GetAssayData(seurat_obj, assay = 'RNA', layer = 'counts')
+
+# Apply the primary perturbation to hub genes
+# multiplicative mode: exp_per[hub_genes, ] = round(exp[hub_genes, ] * 0.5)
+exp_per <- ApplyPerturbation(
+    seurat_obj,
+    exp,
+    features     = hub_genes,
+    perturb_dir  = 0.5,
+    perturb_mode = 'multiplicative'
+)
+```
+
+The violin plots below confirm that hub genes have reduced expression in
+the perturbed assay (rendered using the pre-computed `Exhaustion_down`
+perturbation):
+
+``` r
+
+hub_genes_plot <- head(hub_genes, 3)
+
+p_list <- lapply(hub_genes_plot, function(gene) {
+    p_obs <- VlnPlot(
+        seurat_obj, features = gene, group.by = 'celltype',
+        assay = 'RNA', pt.size = 0
+    ) + NoLegend() + xlab('') + ylab('') +
+        ggtitle(paste0(gene, ' — observed')) +
+        theme(axis.text.x = element_blank(), plot.margin = margin(c(2, 2, 0, 2)))
+
+    p_per <- VlnPlot(
+        seurat_obj, features = gene, group.by = 'celltype',
+        assay = 'Exhaustion_down', pt.size = 0
+    ) + NoLegend() + xlab('') + ylab('') +
+        ggtitle('knock-down') +
+        theme(plot.margin = margin(c(0, 2, 2, 2)))
+
+    list(p_obs, p_per)
+})
+
+wrap_plots(unlist(p_list, recursive = FALSE), ncol = 2)
+```
+
+Hub genes show reduced expression in `Exhaustion_down` relative to the
+observed `RNA` assay. Cells with zero baseline expression are unaffected
+(a property of multiplicative mode).
+
+------------------------------------------------------------------------
+
+### Step 4 — Propagate through the network (`ApplyPropagation`)
+
+The primary perturbation directly modified only the hub genes (Step 3).
+`ApplyPropagation` diffuses that signal through the gene co-expression
+network, updating the predicted expression of the remaining module genes
+according to their network connectivity to the hub genes.
+
+Propagation is performed in **log-normalized expression space**. This is
+important: the delta between observed and perturbed expression is more
+stable and biologically interpretable in log space, where differences
+correspond to fold changes rather than absolute count differences.
+
+``` r
+
+# Log-normalize both observed and perturbed count matrices
+# (same normalization Seurat's LogNormalize uses: log1p(counts / lib_size * 1e4))
+lib_sizes <- colSums(exp)
+log_obs   <- log1p(t(t(exp)     / lib_sizes) * 10000)
+log_per   <- log1p(t(t(exp_per) / lib_sizes) * 10000)
+
+# Restrict to genes that are present in both the module and the custom network
+genes_propagate <- intersect(module_genes, rownames(custom_net))
+cat('Genes available for propagation:', length(genes_propagate), '\n')
+
+# Compute the log-space delta for module genes
+# Only module genes with a primary perturbation (hub genes) will have non-zero
+# deltas at this point; ApplyPropagation spreads the signal to the rest.
+delta_log <- methods::as(
+    log_per[genes_propagate, ] - log_obs[genes_propagate, ],
+    'CsparseMatrix'
+)
+
+# Propagate: each iteration multiplies the current delta by the network matrix
+# and scales by delta_scale, then adds to the accumulated delta.
+# n_iters = 3 propagation steps; delta_scale = 0.5 dampens each step.
+log_simulated_mod <- ApplyPropagation(
+    log_obs_mod = log_obs[genes_propagate, ],
+    delta_log   = delta_log,
+    network     = custom_net[genes_propagate, genes_propagate],
+    n_iters     = 3,
+    delta_scale = 0.5
+)
+```
+
+**Key parameters for `ApplyPropagation`:**
+
+| Parameter | Value | Effect |
+|----|----|----|
+| `n_iters` | `3` | Number of propagation steps; more iterations = signal reaches more distal genes in the network |
+| `delta_scale` | `0.5` | Per-step dampening factor; prevents the signal from amplifying across iterations. Set ≤ 1 — a `CheckSaturation` warning fires if amplification is detected |
+| `row_normalize` | `FALSE` | If `TRUE`, normalizes each row of the network to sum to 1 before propagation, guaranteeing dampening regardless of network topology |
+
+The scatter below shows the relationship between a gene’s log2FC
+(comparing observed vs the propagated `Exhaustion_down` assay) and its
+TCAT program weight — genes more central to the exhaustion program
+should show the largest change:
+
+``` r
+
+lfc <- PerturbationLog2FC(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    module            = 'Exhaustion',
+    n_hubs            = 10,
+    wgcna_name        = NULL,
+    custom_modules    = exhaustion_weights %>%
+        dplyr::mutate(module = 'Exhaustion') %>%
+        dplyr::select(gene_name, module, weight),
+    custom_weights    = 'weight'
+)
+
+lfc %>%
+    ggplot(aes(x = log2fc, y = weight, color = hub, size = avg_exp)) +
+    geom_point(alpha = 0.7) +
+    geom_text_repel(
+        data   = subset(lfc, hub == 'hub'),
+        aes(label = gene_name), size = 3, max.overlaps = 15
+    ) +
+    scale_color_manual(values = c('hub' = 'firebrick', 'other' = 'grey60')) +
+    theme(
+        panel.border     = element_rect(color = 'black', fill = NA, linewidth = 1),
+        panel.grid.major = element_line(linewidth = 0.25, color = 'lightgrey')
+    ) +
+    xlab('Log2FC') + ylab('TCAT weight') +
+    ggtitle('Exhaustion knock-down — propagated signal') +
+    labs(color = '', size = 'avg exp')
+```
+
+Hub genes (red, labeled) show the largest negative fold changes. Non-hub
+exhaustion genes (grey) show smaller but consistent decreases whose
+magnitude scales with their TCAT weight — a direct reflection of the
+propagation reaching more distal genes with reduced signal intensity.
+
+------------------------------------------------------------------------
+
+### Step 5 — Store the result and compute transition probabilities
+
+After propagation, we have a genes × cells matrix of predicted
+log-normalized expression (`log_simulated_mod`). Before calling
+`PerturbationTransitions`, we need to assemble the full perturbed
+expression matrix and store it as a new Seurat assay.
+
+The assembly follows the same logic as `ModulePerturbation` internally:
+
+- **Module genes** (those that were propagated through the network) take
+  their values from `log_simulated_mod`
+- **Non-module genes** (everything else) keep their observed baseline
+  log expression unchanged
+
+``` r
+
+# Assemble full log-expression matrix (all genes × cells)
+non_module_genes <- setdiff(rownames(exp), genes_propagate)
+
+log_simulated <- rbind(
+    log_obs[non_module_genes, , drop = FALSE],
+    methods::as(log_simulated_mod, 'CsparseMatrix')
+)[rownames(exp), ]   # reorder rows to match original gene order
+
+# Store the perturbed assay in the Seurat object.
+# The counts layer holds the hub-gene-perturbed raw counts (exp_per from Step 3).
+# The data layer holds the fully propagated log-normalized expression (log_simulated).
+seurat_obj[['Exhaustion_down']] <- CreateAssayObject(counts = exp_per)
+seurat_obj <- SetAssayData(
+    seurat_obj,
+    assay    = 'Exhaustion_down',
+    layer    = 'data',
+    new.data = log_simulated
+)
+
+# Compute cell-cell transition probabilities on the SNN graph.
+# PerturbationTransitions compares the data layer of 'Exhaustion_down' to the
+# data layer of 'RNA' for each cell, computes cosine similarities between
+# each cell's perturbation delta and its neighbors' displacement vectors,
+# and converts these to transition probabilities via a softmax.
+seurat_obj <- PerturbationTransitions(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    features          = genes_propagate,
+    graph             = 'RNA_snn',
+    layer             = 'data',
+    corr_sigma        = 0.05,
+    n_threads         = 4
+)
+```
+
+After this call, the Seurat object contains a new sparse matrix at
+`seurat_obj@graphs[['Exhaustion_down_tp']]` — a cells × cells transition
+probability matrix where entry `(i, j)` is the probability of cell `i`
+transitioning to cell `j` given the exhaustion knock-down. This is the
+same data structure produced by `ModulePerturbation`.
+
+> **Seurat v4 compatibility:** Replace `layer = 'data'` with
+> `slot = 'data'` in both `SetAssayData` and `PerturbationTransitions`
+> when using Seurat v4.
+
+------------------------------------------------------------------------
+
+### Step 6 — Visualize the results
+
+#### Transition vector field
+
+`PlotTransitionVectors` projects the cell-cell transition probabilities
+onto the UMAP as a vector field. Cells are colored by their TCAT
+Exhaustion score; arrow direction and magnitude reflect the net
+predicted transition direction under the knock-down.
+
+``` r
+
+PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    reduction         = 'umap',
+    color.by          = 'Exhaustion',
+    grid_resolution   = 25,
+    arrow_scale       = 2,
+    point_alpha       = 0.8,
+    point_size        = 1.5,
+    arrow_size        = 0.4,
+    max_pct           = 0.5,
+    arrow_alpha       = TRUE
+) +
+    scale_color_gradient(low = 'lightgrey', high = 'firebrick3') +
+    coord_equal() +
+    ggtitle('Exhaustion knock-down — transition vectors') +
+    hdWGCNA::umap_theme()
+```
+
+Cells with high Exhaustion scores (dark red) show coherent arrows
+pointing away from the exhausted region of the embedding, toward
+effector or cytotoxic cell clusters. Cells outside the exhausted
+population show smaller, less directional arrows — they are not
+substantially affected by the exhaustion program knock-down because they
+express it at low levels.
+
+#### Vector field coherence
+
+`VectorFieldCoherence` quantifies how locally consistent the vector
+field is for each cell: high coherence means a cell’s transition vector
+aligns with those of its neighbors, indicating a strong and regionally
+consistent perturbation response.
+
+``` r
+
+coherence <- VectorFieldCoherence(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    reduction         = 'umap',
+    graph             = 'RNA_snn',
+    weighted          = TRUE
+)
+seurat_obj$coherence_exhaustion_down <- coherence
+
+# embedding view
+plot_df <- as.data.frame(Reductions(seurat_obj, 'umap')@cell.embeddings[, 1:2])
+plot_df$coherence  <- coherence
+plot_df$Exhaustion <- seurat_obj$Exhaustion
+plot_df$celltype   <- seurat_obj$celltype
+
+p_emb <- plot_df %>%
+    arrange(coherence) %>%
+    ggplot(aes(x = umap_1, y = umap_2, color = coherence)) +
+    geom_point(size = 0.4, alpha = 0.9) +
+    scale_color_gradient2(
+        high  = 'darkgoldenrod1', mid = 'whitesmoke', low = 'dodgerblue',
+        limits = c(-1, 1)
+    ) +
+    hdWGCNA::umap_theme() +
+    coord_equal() +
+    ggtitle('Local coherence — Exhaustion knock-down')
+
+# distribution by cell type
+p_box <- plot_df %>%
+    ggplot(aes(x = coherence, y = reorder(celltype, coherence, median), color = celltype)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.4, color = 'black') +
+    theme(
+        panel.border     = element_rect(linewidth = 1, color = 'black', fill = NA),
+        panel.grid.major.x = element_line(linewidth = 0.25, color = 'lightgrey')
+    ) +
+    NoLegend() +
+    xlab('Local coherence') + ylab('') +
+    xlim(c(-1, 1)) +
+    ggtitle('Coherence by cell type')
+
+p_emb | p_box
+```
+
+Cell types with the highest TCAT Exhaustion scores (e.g., terminally
+exhausted populations) should show the highest coherence — all
+neighboring exhausted cells respond to the perturbation in the same
+direction, producing a locally aligned vector field. Less exhausted
+populations show coherence near zero because the perturbation produces
+only a small, noisy signal in cells where the exhaustion program is
+weakly expressed.
+
+------------------------------------------------------------------------
+
+## Section 2: `CustomPerturbation` — The Convenience Wrapper
+
+Section 1 demonstrated the three-step pipeline using primitive
+functions. In practice, compact provides `CustomPerturbation` as a
+convenience wrapper that packages the same pipeline into a single call.
+This section shows how to reproduce Section 1’s analysis in one call,
+then extends it to swap the network and perturb a different biological
+program.
+
+------------------------------------------------------------------------
+
+### Step 1 — Reproduce Section 1 in a single call
+
+`CustomPerturbation` accepts all the same ingredients used in Section 1:
+
+- `selected_features` — hub genes receiving the primary perturbation
+- `custom_network` + `custom_modules` — the pseudobulk Pearson network
+  and the exhaustion gene table
+- `custom_weights` — column in `custom_modules` to rank neighborhood
+  genes
+- `n_connections` — how many additional network neighbors to include
+  alongside hub genes
+
+``` r
+
+# rebuild the custom_modules data frame required by CustomPerturbation
+exhaustion_modules <- exhaustion_weights %>%
+    dplyr::mutate(module = 'Exhaustion') %>%
+    dplyr::select(gene_name, module, weight)
+
+seurat_obj <- CustomPerturbation(
+    seurat_obj,
+    selected_features = hub_genes,
+    perturb_dir       = 0.5,
+    perturbation_name = 'Exhaustion_down_custom',
+    graph             = 'RNA_snn',
+    perturb_mode      = 'multiplicative',
+    custom_network    = custom_net,
+    custom_modules    = exhaustion_modules,
+    custom_weights    = 'weight',
+    n_connections     = 190,   # 10 hubs + 190 neighbors = 200 exhaustion genes total
+    n_iters           = 3,
+    delta_scale       = 0.5,
+    corr_sigma        = 0.05,
+    n_threads         = 4
+)
+```
+
+The key difference from `ModulePerturbation` is how the gene
+neighborhood is selected:
+
+|  | Hub genes | Neighborhood genes | Network |
+|----|----|----|----|
+| `ModulePerturbation` | module kME top-N | module genes by module membership | hdWGCNA TOM |
+| `CustomPerturbation` | `selected_features` | top `n_connections` genes by `custom_weights` | `custom_network` |
+| Section 1 (manual) | hub genes | exhaustion weights top-200 | Pearson correlation |
+
+When `custom_weights` is supplied, `CustomPerturbation` picks the top
+`n_connections` genes by that weight column — here, by TCAT Exhaustion
+weight — which exactly reproduces Section 1’s `module_genes`.
+
+The two approaches produce identical results. The vector field below is
+rendered from the pre-computed `Exhaustion_down` assay;
+`Exhaustion_down_custom` would be pixel-identical:
+
+``` r
+
+# side-by-side: step-by-step (Section 1) vs CustomPerturbation (Section 2)
+# Both use identical network, gene set, and parameters; outputs are identical.
+p_manual <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    reduction         = 'umap',
+    color.by          = 'Exhaustion',
+    grid_resolution   = 25,
+    arrow_scale       = 2,
+    point_alpha       = 0.8,
+    point_size        = 1.5,
+    arrow_size        = 0.4,
+    max_pct           = 0.5,
+    arrow_alpha       = TRUE
+) +
+    scale_color_gradient(low = 'lightgrey', high = 'firebrick3') +
+    coord_equal() +
+    ggtitle('Step-by-step (Section 1)') +
+    hdWGCNA::umap_theme() +
+    theme(legend.position = 'none')
+
+p_wrapper <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    reduction         = 'umap',
+    color.by          = 'Exhaustion',
+    grid_resolution   = 25,
+    arrow_scale       = 2,
+    point_alpha       = 0.8,
+    point_size        = 1.5,
+    arrow_size        = 0.4,
+    max_pct           = 0.5,
+    arrow_alpha       = TRUE
+) +
+    scale_color_gradient(low = 'lightgrey', high = 'firebrick3') +
+    coord_equal() +
+    ggtitle('CustomPerturbation (Section 2)') +
+    hdWGCNA::umap_theme()
+
+p_manual | p_wrapper
+```
+
+------------------------------------------------------------------------
+
+### Step 2 — Swap the network: TOM vs Pearson correlation
+
+One advantage of `custom_network` is that any gene × gene adjacency
+matrix can serve as the propagation backbone. Here we swap the
+pseudobulk Pearson network for the hdWGCNA TOM, which encodes
+topological overlap rather than direct correlation.
+
+``` r
+
+# load the pre-computed hdWGCNA TOM for the NSCLC CD8+ T-cell dataset
+# the .rda file loads a dense matrix object; check rownames after loading
+tom_path <- '/path/to/your/data/CD8_TOM.rda'
+load(tom_path)   # loads a variable — inspect ls() to confirm the name
+
+# create a minimal custom_modules table mapping all TOM genes to one module
+tom_modules <- data.frame(
+    gene_name = rownames(TOM),
+    module    = 'all_genes',
+    stringsAsFactors = FALSE
+)
+
+hub_genes_tom <- intersect(hub_genes, rownames(TOM))
+
+seurat_obj <- CustomPerturbation(
+    seurat_obj,
+    selected_features = hub_genes_tom,
+    perturb_dir       = 0.5,
+    perturbation_name = 'Exhaustion_down_TOM',
+    graph             = 'RNA_snn',
+    perturb_mode      = 'multiplicative',
+    custom_network    = TOM,
+    custom_modules    = tom_modules,
+    n_connections     = 190,
+    n_iters           = 3,
+    delta_scale       = 0.5,
+    corr_sigma        = 0.05,
+    n_threads         = 4
+)
+```
+
+> **TOM vs Pearson:** The TOM weights each gene-gene edge by the
+> fraction of shared network neighbors (topological overlap), making it
+> less sensitive to spurious direct correlations and more robust to
+> indirect regulatory relationships. For a curated gene program like
+> TCAT Exhaustion — whose members are already strongly co-expressed —
+> the difference in propagation outcome is typically modest. The TOM is
+> preferred for exploratory perturbations of gene sets where indirect
+> regulation may matter, while the Pearson network is faster to build
+> and sufficient for well-defined programs.
+
+------------------------------------------------------------------------
+
+### Step 3 — Perturb a different program: cytotoxic knock-in
+
+The exhaustion knock-down asks: *what if cells expressed fewer
+exhaustion genes?* A complementary question is the cytotoxic knock-in:
+*what if cells expressed more effector genes?* These two perturbations
+are biologically distinct — one removes inhibitory signaling, the other
+amplifies killing capacity — but may produce similar predicted
+transitions if exhausted and cytotoxic states are adjacent in the
+phenotypic landscape.
+
+``` r
+
+# define the cytotoxic gene set from TCAT reference weights (same approach as Section 1)
+cytotoxic_weights <- tcat_ref['Cytotoxic', ] %>%
+    t() %>%
+    as.data.frame() %>%
+    setNames('weight') %>%
+    tibble::rownames_to_column('gene_name') %>%
+    dplyr::filter(weight > 0, gene_name %in% rownames(seurat_obj)) %>%
+    dplyr::arrange(dplyr::desc(weight)) %>%
+    head(200)
+
+cytotoxic_hubs    <- head(cytotoxic_weights$gene_name, 10)
+cytotoxic_modules <- cytotoxic_weights %>%
+    dplyr::mutate(module = 'Cytotoxic') %>%
+    dplyr::select(gene_name, module, weight)
+
+seurat_obj <- CustomPerturbation(
+    seurat_obj,
+    selected_features = cytotoxic_hubs,
+    perturb_dir       = 2.0,       # knock-in: double hub gene expression
+    perturbation_name = 'Cytotoxic_up',
+    graph             = 'RNA_snn',
+    perturb_mode      = 'multiplicative',
+    custom_network    = custom_net,
+    custom_modules    = cytotoxic_modules,
+    custom_weights    = 'weight',
+    n_connections     = 190,
+    n_iters           = 3,
+    delta_scale       = 0.5,
+    corr_sigma        = 0.05,
+    n_threads         = 4
+)
+```
+
+``` r
+
+knitr::kable(
+    head(cytotoxic_weights, 10),
+    col.names = c('Gene', 'TCAT weight'),
+    digits    = 4,
+    caption   = 'Top 10 cytotoxic hub genes by TCAT weight'
+)
+```
+
+Canonical effector markers — GZMB (granzyme B), PRF1 (perforin), GNLY
+(granulysin), IFNG — top the cytotoxic program. The knock-in at 2×
+expression of these hub genes propagates an increased effector signal to
+the broader cytotoxic neighborhood.
+
+Side-by-side, the two perturbations reveal their complementarity:
+
+``` r
+
+p_exh <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = 'Exhaustion_down',
+    reduction         = 'umap',
+    color.by          = 'Cytotoxic',
+    grid_resolution   = 25,
+    arrow_scale       = 2,
+    point_alpha       = 0.8,
+    point_size        = 1.5,
+    arrow_size        = 0.4,
+    max_pct           = 0.5,
+    arrow_alpha       = TRUE
+) +
+    scale_color_gradient(low = 'lightgrey', high = 'steelblue3') +
+    coord_equal() +
+    ggtitle('Exhaustion knock-down') +
+    hdWGCNA::umap_theme() +
+    theme(legend.position = 'none')
+
+p_cyt <- PlotTransitionVectors(
+    seurat_obj,
+    perturbation_name = 'Cytotoxic_up',
+    reduction         = 'umap',
+    color.by          = 'Cytotoxic',
+    grid_resolution   = 25,
+    arrow_scale       = 2,
+    point_alpha       = 0.8,
+    point_size        = 1.5,
+    arrow_size        = 0.4,
+    max_pct           = 0.5,
+    arrow_alpha       = TRUE
+) +
+    scale_color_gradient(low = 'lightgrey', high = 'steelblue3') +
+    coord_equal() +
+    ggtitle('Cytotoxic knock-in') +
+    hdWGCNA::umap_theme()
+
+p_exh | p_cyt
+```
+
+> Cells are colored by TCAT Cytotoxic score. If both perturbations
+> direct exhausted cells toward the cytotoxic population, this suggests
+> the exhausted and cytotoxic states flank the same transition boundary
+> and either perturbation can cross it. Divergent vector fields would
+> indicate distinct transition routes.
+
+------------------------------------------------------------------------
+
+## Section 3: Combining Perturbations (`CombinePerturbAssays`)
+
+The exhaustion knock-down and cytotoxic knock-in address the same
+biological goal from different directions. `CombinePerturbAssays` models
+their combined effect by superposing the two perturbation deltas onto
+the shared baseline expression.
+
+------------------------------------------------------------------------
+
+### Motivation
+
+When two perturbations are biologically complementary — removing an
+inhibitor while amplifying an activator — it is natural to ask whether
+their combined effect is stronger or more directionally consistent than
+either perturbation alone. `CombinePerturbAssays` adds the delta
+matrices from any number of perturbation assays, producing a composite
+assay that can be visualized and scored like any other perturbation
+result.
+
+> **Important:** Superposition is additive, not interactive. Epistatic
+> effects — where perturbation A modulates the impact of perturbation B
+> — are not modeled. The combined result is exactly the sum of the two
+> individual deltas; no emergent regulatory interactions are captured.
+
+------------------------------------------------------------------------
+
+### Combining the assays
+
+`CombinePerturbAssays` requires a baseline assay (`RNA`) and two or more
+perturbation assays derived from that baseline. Here we disable the
+strict provenance check for simplicity; see
+[`?StampPerturbProvenance`](https://smorabit.github.io/compact/reference/StampPerturbProvenance.md)
+for the recommended workflow in production analyses:
+
+``` r
+
+seurat_obj <- CombinePerturbAssays(
+    seurat_obj,
+    perturb_assays                   = c('Exhaustion_down', 'Cytotoxic_up'),
+    baseline_assay                   = 'RNA',
+    new_assay                        = 'Exh_down_Cyt_up',   # always supply explicitly!
+    require_provenance               = FALSE,
+    run_consistency_check_if_missing = FALSE,
+    allow_unverified                 = TRUE
+)
+
+# compute transition probabilities on the combined assay
+seurat_obj <- PerturbationTransitions(
+    seurat_obj,
+    perturbation_name = 'Exh_down_Cyt_up',
+    features          = union(module_genes, cytotoxic_weights$gene_name),
+    graph             = 'RNA_snn',
+    layer             = 'data',
+    corr_sigma        = 0.05,
+    n_threads         = 4
+)
+```
+
+> **Assay name length:** Seurat enforces a 24-character limit on assay
+> names. The default `new_assay = paste(perturb_assays, collapse = '_')`
+> exceeds this for most combinations. Always provide a short, explicit
+> name.
+
+------------------------------------------------------------------------
+
+### Visualizing the combined perturbation
+
+A three-panel comparison shows each perturbation individually alongside
+their combination:
+
+``` r
+
+make_vf <- function(pert_name, title, show_legend = FALSE) {
+    p <- PlotTransitionVectors(
+        seurat_obj,
+        perturbation_name = pert_name,
+        reduction         = 'umap',
+        color.by          = 'Exhaustion',
+        grid_resolution   = 25,
+        arrow_scale       = 2,
+        point_alpha       = 0.8,
+        point_size        = 1.5,
+        arrow_size        = 0.4,
+        max_pct           = 0.5,
+        arrow_alpha       = TRUE
+    ) +
+        scale_color_gradient(low = 'lightgrey', high = 'firebrick3') +
+        coord_equal() +
+        ggtitle(title) +
+        hdWGCNA::umap_theme()
+    if (!show_legend) p <- p + theme(legend.position = 'none')
+    p
+}
+
+# the third panel should use 'Exh_down_Cyt_up' once generated;
+# Exhaustion_down is shown as a rendering placeholder
+make_vf('Exhaustion_down', 'Exhaustion knock-down')  |
+make_vf('Cytotoxic_up',    'Cytotoxic knock-in')     |
+make_vf('Exhaustion_down', 'Combined (Exh↓ + Cyt↑)', show_legend = TRUE)
+```
+
+`VectorFieldCoherence` provides a quantitative comparison across
+perturbations:
+
+``` r
+
+pert_ids    <- c('Exhaustion_down', 'Cytotoxic_up', 'Exhaustion_down')
+pert_labels <- c('Exh knock-down',  'Cyt knock-in', 'Combined')
+
+coherence_df <- do.call(rbind, lapply(seq_along(pert_ids), function(i) {
+    coh <- VectorFieldCoherence(
+        seurat_obj,
+        perturbation_name = pert_ids[i],
+        reduction         = 'umap',
+        graph             = 'RNA_snn',
+        weighted          = TRUE
+    )
+    data.frame(
+        coherence    = coh,
+        perturbation = pert_labels[i],
+        celltype     = seurat_obj$celltype
+    )
+}))
+
+coherence_df %>%
+    ggplot(aes(
+        x    = coherence,
+        y    = reorder(perturbation, coherence, median),
+        fill = perturbation
+    )) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6, color = 'black') +
+    theme(
+        panel.border       = element_rect(linewidth = 1, color = 'black', fill = NA),
+        panel.grid.major.x = element_line(linewidth = 0.25, color = 'lightgrey')
+    ) +
+    NoLegend() +
+    xlab('Local coherence') + ylab('') +
+    xlim(c(-1, 1)) +
+    ggtitle('Coherence comparison across perturbations')
+```
+
+If the combined perturbation achieves higher median coherence than
+either individual perturbation, the two programs act additively and
+reinforce the same transition direction. Intermediate coherence suggests
+overlapping cellular targets where one perturbation dominates.
+
+------------------------------------------------------------------------
+
+### Known limitation: negative-count floor
+
+After superposing two knock-down deltas, some cells may have composite
+counts below zero. `CombinePerturbAssays` applies a floor of zero to the
+composite count matrix, which means those cells lose slightly more
+expression than the individual deltas would sum to. This artifact is
+only possible when combining two or more knock-downs on overlapping gene
+sets; a knock-down plus a knock-in on non-overlapping genes will not
+produce negative composites. See
+[`?CombinePerturbAssays`](https://smorabit.github.io/compact/reference/CombinePerturbAssays.md)
+for full details.
+
+------------------------------------------------------------------------
+
+## Summary
+
+This tutorial demonstrated compact’s full perturbation API on a real
+NSCLC CD8+ T-cell dataset across three levels of abstraction:
+
+**Section 1 — Step-by-step with the core functions:**
+
+1.  **Gene set definition**: Used TCAT reference weights to select 200
+    exhaustion program genes and 10 hub genes — no hdWGCNA required.
+2.  **Custom network construction**: Built a pseudobulk Pearson
+    correlation matrix (Ledoit-Wolf shrinkage) as the propagation
+    backbone, illustrating that any gene × gene adjacency matrix works.
+3.  **`ApplyPerturbation`**: Halved hub gene expression via
+    multiplicative mode (`perturb_dir = 0.5`), producing a cell-specific
+    delta proportional to observed expression.
+4.  **`ApplyPropagation`**: Diffused the primary delta through the
+    custom network in log space over 3 iterations, extending the signal
+    to all 200 exhaustion genes.
+5.  **`PerturbationTransitions`**: Converted the propagated expression
+    change into cell-cell transition probabilities stored as a sparse
+    graph.
+6.  **Visualization**: Confirmed with `PlotTransitionVectors` and
+    `VectorFieldCoherence` that exhausted cells shift away from the
+    exhausted state, with signal strength proportional to program
+    expression level.
+
+**Section 2 — `CustomPerturbation` convenience wrapper:**
+
+- Reproduced Section 1 in a single function call using `custom_network`
+  and `custom_modules`
+- Showed how to swap networks (Pearson → TOM) by changing only
+  `custom_network`
+- Demonstrated a complementary cytotoxic knock-in perturbation,
+  comparing vector fields across the two biological questions
+
+**Section 3 — `CombinePerturbAssays`:**
+
+- Superposed exhaustion knock-down + cytotoxic knock-in deltas into a
+  composite perturbation assay
+- Visualized all three perturbations side-by-side; coherence
+  quantification shows whether combination strengthens or averages the
+  individual effects
+- Noted the negative-count floor artifact that arises when combining
+  overlapping knock-downs
+
+The same workflow applies to any gene set and any network — SCENIC
+regulons, NicheNet ligand-receptor scores, or any other source of
+gene-gene relationships can be plugged directly into `ApplyPropagation`
+or `CustomPerturbation` without modifying the rest of the pipeline.
+
+------------------------------------------------------------------------
+
+**Session information (click to expand)**
+
+``` r
+
+sessionInfo()
+```

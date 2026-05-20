@@ -26,12 +26,27 @@ navbar:
   structure:
     left: [articles, reference, news]
     right: [search, github]
-components:
-   news:
-     text: News
-     href: news/index.html
-   articles:
-    text: Vignettes
-    menu:
-    - text: Quick Start
-      href: articles/quickstart.html
+  components:
+    news:
+      text: News
+      href: news/index.html
+    articles:
+      text: Vignettes
+      menu:
+      - text: Quick Start
+        href: articles/quickstart.html
+      - text: Basics — Simulated Branching Trajectory
+        href: articles/simulation_tutorial.html
+      - text: Advanced Use Cases — NSCLC CD8+ T Cells
+        href: articles/advanced_NSCLC.html
+
+articles:
+- title: Getting Started
+  desc: Introductory tutorials covering the core compact workflow.
+  contents:
+  - quickstart
+  - simulation_tutorial
+- title: Advanced Use Cases
+  desc: Advanced workflows using custom gene sets, custom networks, and multi-perturbation analyses.
+  contents:
+  - advanced_NSCLC

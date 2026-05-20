@@ -1,0 +1,15 @@
+CLAUDE.md
+
+# macOS resource forks and metadata
+.DS_Store
+._.DS_Store
+._*
+
+# vignette build artifacts (rendered HTMLs in vignettes/ dir)
+vignettes/*.html
+
+# Claude Code internal directory
+.claude/
+
+# scratch / legacy
+old/

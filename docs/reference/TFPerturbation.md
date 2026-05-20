@@ -23,7 +23,7 @@ TFPerturbation(
   prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
-  use_velocyto = TRUE,
+  use_velocyto = FALSE,
   use_graph_tp = FALSE,
   depth = 2,
   target_type = "both",
@@ -89,7 +89,7 @@ TFPerturbation(
 - use_velocyto:
 
   Logical indicating whether to compute velocity-based transition
-  probabilities. Default = TRUE.
+  probabilities. Default = FALSE.
 
 - use_graph_tp:
 

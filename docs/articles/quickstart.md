@@ -1,30 +1,42 @@
-# compact Quick Start
+# Quick start
+
+Compiled: 2026-05-20
+
+Source: `vignettes/quickstart.Rmd`
 
 ## Introduction
 
 **`compact`** (**co**-expression **m**odule **p**erturbation
 **a**nalysis for **c**ellular **t**ranscriptomes) is an R package for
 in-silico gene perturbation analysis in single-cell RNA-seq data. Given
-a co-expression module, compact silences or activates the module’s hub
-genes, propagates the signal through the gene co-expression network, and
+a gene co-expression module, compact inhibits or activates the module’s
+hub genes, propagates the signal via the gene co-expression network, and
 computes cell-cell transition probabilities allowing you to ask: *if
-this module were knocked down, which cell states would cells move
-toward?*
+this module were knocked down, knocked out, or knocked in, which cell
+states would cells move toward?*
 
-This quickstart walks through the minimal workflow: load a dataset,
-build a neighborhood graph, run one perturbation, and plot the resulting
-vector field. All key parameters are annotated; everything else is left
-at its default. For algorithmic depth, multiple modules, and downstream
-Markov-chain analyses, see the **Basics Simulation** vignette.
+This quickstart vignette covers a minimal compact workflow where we
+perform a knock-down of one module and visualize the result as a vector
+field plot. We describe several of the key parameters, but for
+algorithmic depth, multiple modules, and downstream Markov-chain
+analyses, see the **Basics Simulation** vignette.
 
 > **Prerequisite:** The dataset used here already has co-expression
 > modules computed with `hdWGCNA`. If you need to run hdWGCNA on your
 > own data first, start with the [hdWGCNA
 > tutorial](https://smorabit.github.io/hdWGCNA/articles/basic_tutorial.html).
+> Optionally you can view the code below to see how the dataset was
+> generated and processed.
 
-------------------------------------------------------------------------
+**Dataset generation: simulation and preprocessing steps (click to
+expand)**
 
-## Section 1: Load Libraries and Data
+The dataset was generated from scratch using **splatter** to simulate a
+linear single-cell trajectory, then processed through Seurat and
+hdWGCNA. These steps are provided here for full reproducibility; they do
+not need to be re-run if you are loading the pre-processed object below.
+
+**Simulate a linear trajectory scRNA-seq dataset with splatter**
 
 ``` r
 
@@ -37,19 +49,6 @@ library(compact)
 
 theme_set(theme_cowplot())
 set.seed(12345)
-```
-
-**Dataset generation: simulation and preprocessing steps (click to
-expand)**
-
-The dataset was generated from scratch using **splatter** to simulate a
-linear single-cell trajectory, then processed through Seurat and
-hdWGCNA. These steps are provided here for full reproducibility; they do
-not need to be re-run if you are loading the pre-processed object below.
-
-**Step 1: Simulate a linear trajectory with splatter**
-
-``` r
 
 library(splatter)
 library(scater)
@@ -81,7 +80,7 @@ seurat_obj <- CreateSeuratObject(
 )
 ```
 
-**Step 2: Standard Seurat preprocessing**
+**Process the data with Seurat**
 
 ``` r
 
@@ -93,12 +92,9 @@ seurat_obj <- FindNeighbors(seurat_obj, reduction = 'pca', annoy.metric = 'cosin
 seurat_obj <- RunUMAP(seurat_obj, dims = 1:10)
 ```
 
-**Step 3: Co-expression network analysis with hdWGCNA**
+**Co-expression network analysis with hdWGCNA**
 
 ``` r
-
-library(hdWGCNA)
-enableWGCNAThreads(nThreads = 8)
 
 # set up hdWGCNA using all genes
 seurat_obj <- SetupForWGCNA(
@@ -137,6 +133,23 @@ seurat_obj <- ModuleConnectivity(seurat_obj)
 saveRDS(seurat_obj, file = 'data/simulation_linear.rds')
 ```
 
+------------------------------------------------------------------------
+
+## Load Libraries and Data
+
+``` r
+
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+library(patchwork)
+library(hdWGCNA)
+library(compact)
+
+theme_set(theme_cowplot())
+set.seed(12345)
+```
+
 Load the simulated linear-trajectory dataset. This object has been
 processed through Seurat (normalization, PCA, UMAP) and hdWGCNA
 (co-expression network, module identification). The co-expression
@@ -154,9 +167,10 @@ net$TOMFiles <- '/home/groups/singlecell/smorabito/analysis/COMPACT/TOM/sim_line
 seurat_obj <- SetNetworkData(seurat_obj, net)
 ```
 
-Visualize the dataset on the PCA embedding, colored by pseudotime group.
-The five groups (Group1–Group5) represent ordered positions along a
-single linear differentiation path simulated with **splatter**.
+To better understand the dataset, we first visualize the different cell
+clusters on the PCA embedding. In principle, we used **splatter** to
+generate five clusters ordered along a single linear “differentiation”
+trajectory.
 
 ``` r
 
@@ -172,7 +186,8 @@ DimPlot(
 ![](quickstart_files/figure-html/dimplot-1.png)
 
 To see which region of the embedding each co-expression module is active
-in, plot the module eigengenes (hMEs):
+in, we plot the module eigengenes (MEs, the summary expression level of
+each module) in the same embedding:
 
 ``` r
 
@@ -190,17 +205,19 @@ wrap_plots(plot_list, ncol = 3)
 
 ![](quickstart_files/figure-html/module-featureplot-1.png)
 
-Note which module shows the strongest gradient from Group1 to Group5
-that is the module we will perturb.
+Here we see two modules which represent the extreme ends of the linear
+trajectory, with the turquoise module expressed in the “Path1” group,
+the blue module expressed in the “Path5” group, and the brown module
+expressed in the middle of the trajectory.
 
 ------------------------------------------------------------------------
 
-## Section 2: Build the KNN Graph
+## Build the cell-cell neighborhood graph
 
-compact needs a cell-cell neighborhood graph to compute transition
-probabilities: transition probabilities are only evaluated between
-neighboring cells. Run `FindNeighbors` once; all subsequent
-`ModulePerturbation` calls reuse the same graph.
+compact requires a cell-cell neighborhood graph to compute transition
+probabilities: critically, transition probabilities are only evaluated
+between neighboring cells. `FindNeighbors` only needs to be called once,
+and all subsequent `ModulePerturbation` calls reuse the same graph.
 
 ``` r
 
@@ -224,33 +241,32 @@ and `RNA_snn` (shared nearest neighbors). We use the SNN graph
 
 ------------------------------------------------------------------------
 
-## Section 3: Run the Perturbation
+## Run the Perturbation
 
 `ModulePerturbation` is the core function of compact. Internally it:
 
 1.  **`ApplyPerturbation`** modifies expression of the module’s top hub
     genes in the direction specified by `perturb_dir`
 2.  **`ApplyPropagation`** diffuses that signal through the gene
-    co-expression network in log-normalized space
+    co-expression network
 3.  **`PerturbationTransitions`** computes cell-cell transition
-    probabilities on the KNN graph
+    probabilities on the cell-cell neighborhood graph
 
-Here we knock down the **blue** module (the module with the highest
-pseudotime gradient) using `perturb_dir = -1`. The result is stored as a
-new assay and a new transition probability graph inside the Seurat
-object.
+Here we knock down the **blue** module using `perturb_dir = -1`. The
+result is stored as a new assay and a new transition probability graph
+inside the Seurat object.
 
 ``` r
 
 seurat_obj <- ModulePerturbation(
   seurat_obj,
-  mod              = 'blue',   # co-expression module to perturb
-  perturb_dir      = -1,            # negative = knock-down (ZINB mode)
+  mod = 'blue',   
+  perturb_dir = -1,  
   perturbation_name = 'blue_down',
-  graph            = 'RNA_snn',     # neighborhood graph for transition probabilities
-  n_hubs           = 10,            # top 10 hub genes receive the primary perturbation
-  delta_scale      = 0.2,           # propagation dampening  keep ≤ 0.2 to avoid saturation
-  n_iters          = 3              # number of propagation iterations
+  graph  = 'RNA_snn', 
+  n_hubs = 10, 
+  delta_scale = 0.2, 
+  n_iters = 3     
 ) 
 #> [1] "Applying primary in-silico perturbation to hub genes..."
 #>   |                                                          |                                                  |   0%  |                                                          |=====                                             |  10%  |                                                          |==========                                        |  20%  |                                                          |===============                                   |  30%  |                                                          |====================                              |  40%  |                                                          |=========================                         |  50%  |                                                          |==============================                    |  60%  |                                                          |===================================               |  70%  |                                                          |========================================          |  80%  |                                                          |=============================================     |  90%  |                                                          |==================================================| 100%
@@ -276,34 +292,34 @@ seurat_obj <- ModulePerturbation(
 
 ------------------------------------------------------------------------
 
-## Section 4: Visualize the Vector Field
+## Visualize the Vector Field
 
 `PlotTransitionVectors` projects the cell-cell transition probabilities
 onto the 2D embedding as a vector field analogous to an RNA velocity
-plot. Each arrow summarizes the weighted average direction of
-transitions within that grid region.
+plot. Here we plot one arrow per cell, showing the local direction of
+transitions induced by the in-silico knockdown of the blue module.
 
 ``` r
 
 PlotTransitionVectors(
   seurat_obj,
   perturbation_name = 'blue_down',
-  reduction         = 'pca',
-  color.by          = 'Group',        # color cells by pseudotime group
+  reduction = 'pca',
+  color.by = 'Group',   
   plot_mode = 'cells',
-  arrow_scale       = 1.5,
+  arrow_scale = 1.5,
   arrow_size = 0.5           
 ) + ggtitle('blue knock-down') + coord_equal() 
 ```
 
 ![](quickstart_files/figure-html/plot-vectors-1.png)
 
-**What to look for:** In a linear trajectory, knocking down the module
-with the highest pseudotime gradient should produce arrows that point
-*against* the differentiation direction that is, toward earlier groups
-(Group1 and Group2) rather than later ones (Group4 and Group5). This
-confirms that the module drives late-stage differentiation, and removing
-it would redirect cells toward an earlier state.
+**What to look for:** Previously, we saw the expression of the blue
+module on the left side of the trajectory. Therefore, we expect that an
+in-silico downregulation of this module would cause cells to transition
+from the left side towards the right side of the trajectory. Indeed, in
+this case we do that see many of the transition arrows follow this
+expected directionality.
 
 > **Tip:** `arrow_scale` controls only the visual arrow length it does
 > not affect the underlying transition probabilities. Adjust it freely
@@ -312,10 +328,11 @@ it would redirect cells toward an earlier state.
 
 ------------------------------------------------------------------------
 
-## Section 5: Next Steps
+## Next steps
 
-This quickstart covered the minimal compact workflow. The following
-vignettes build on it:
+This quickstart covers the absolute minimal compact workflow. We
+encourage you to explore the other vignettes to unlock the full
+capabilities of compact.
 
 - **Basics Simulation** (`simulation_tutorial.Rmd`): full pipeline on a
   branching trajectory both perturbation directions, all modules, vector
@@ -358,7 +375,7 @@ sessionInfo()
 #> [8] base     
 #> 
 #> other attached packages:
-#>  [1] future_1.70.0               compact_0.0.3              
+#>  [1] future_1.70.0               compact_0.1.0              
 #>  [3] hdWGCNA_0.4.11              enrichR_3.4                
 #>  [5] SummarizedExperiment_1.40.0 Biobase_2.70.0             
 #>  [7] MatrixGenerics_1.22.0       matrixStats_1.5.0          

@@ -1,11 +1,10 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>https://smorabit.github.io/compact/404.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/CLAUDE.html</loc></url>
-<url><loc>https://smorabit.github.io/compact/articles/MPA_basics_microglia.html</loc></url>
-<url><loc>https://smorabit.github.io/compact/articles/TF_tutorial.html</loc></url>
-<url><loc>https://smorabit.github.io/compact/articles/basic_tutorial.html</loc></url>
+<url><loc>https://smorabit.github.io/compact/articles/advanced_NSCLC.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/articles/index.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/articles/quickstart.html</loc></url>
+<url><loc>https://smorabit.github.io/compact/articles/simulation_tutorial.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/authors.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/index.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/news/index.html</loc></url>
@@ -26,11 +25,13 @@
 <url><loc>https://smorabit.github.io/compact/reference/HeatmapDistance.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/LoadAlertSystem.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/LoadAlertSystemPathways.html</loc></url>
+<url><loc>https://smorabit.github.io/compact/reference/MacrostateTransitions.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/ModelZINB.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/ModulePerturbation.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PerturbationLog2FC.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PerturbationTransitions.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PerturbationVectors.html</loc></url>
+<url><loc>https://smorabit.github.io/compact/reference/PlotMacrostateTransitions.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PlotTransitionVectors.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PredictAttractors.html</loc></url>
 <url><loc>https://smorabit.github.io/compact/reference/PredictCommitment.html</loc></url>

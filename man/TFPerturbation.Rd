@@ -20,7 +20,7 @@ TFPerturbation(
   prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
-  use_velocyto = TRUE,
+  use_velocyto = FALSE,
   use_graph_tp = FALSE,
   depth = 2,
   target_type = "both",
@@ -54,7 +54,7 @@ TFPerturbation(
 
 \item{n_threads}{Number of threads for the correlation calculation. Default = 4.}
 
-\item{use_velocyto}{Logical indicating whether to compute velocity-based transition probabilities. Default = TRUE.}
+\item{use_velocyto}{Logical indicating whether to compute velocity-based transition probabilities. Default = FALSE.}
 
 \item{use_graph_tp}{Logical indicating whether to use the graph topology for transition probabilities. Default = FALSE.}
 

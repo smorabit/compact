@@ -4,9 +4,10 @@ This function visualizes cell-state transitions in a Seurat object by
 plotting transition vectors on a dimensionality-reduced embedding (e.g.,
 UMAP). It computes transition vectors based on a specified perturbation
 and overlays them on a scatter plot of the cells, allowing insights into
-cell-state shifts following the perturbation. Three visualization modes
+cell-state shifts following the perturbation. Four visualization modes
 are available: classic grid arrows (`"arrows"`), streamlines
-(`"streamlines"`), or both overlaid (`"both"`).
+(`"streamlines"`), both overlaid (`"both"`), or one arrow per cell
+(`"cells"`).
 
 ## Usage
 
@@ -26,7 +27,7 @@ PlotTransitionVectors(
   raster_dpi = 300,
   arrow_alpha = TRUE,
   use_velocyto = FALSE,
-  plot_mode = c("arrows", "streamlines", "both"),
+  plot_mode = c("arrows", "streamlines", "both", "cells"),
   stream_n = 15,
   stream_L = 2,
   stream_normalize = TRUE,
@@ -113,11 +114,15 @@ PlotTransitionVectors(
 
 - plot_mode:
 
-  Character. One of `"arrows"` (default), `"streamlines"`, or `"both"`.
-  `"arrows"` reproduces the classic grid-arrow plot. `"streamlines"`
-  replaces arrows with continuous streamlines traced through the vector
-  field. `"both"` overlays streamlines on top of the arrow plot.
-  Streamline rendering requires the ggvfields package.
+  Character. One of `"arrows"` (default), `"streamlines"`, `"both"`, or
+  `"cells"`. `"arrows"` reproduces the classic grid-arrow plot.
+  `"streamlines"` replaces arrows with continuous streamlines traced
+  through the vector field. `"both"` overlays streamlines on top of the
+  arrow plot. `"cells"` draws one arrow per cell at its exact embedding
+  position, bypassing grid aggregation entirely — the arrows themselves
+  are coloured by `color.by` and no background scatter plot is drawn.
+  Recommended for small datasets (\< ~2,000 cells) where grid bins would
+  be too sparse. Streamline rendering requires the ggvfields package.
 
 - stream_n:
 

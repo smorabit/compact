@@ -22,7 +22,7 @@ ModulePerturbation(
   prune_percentile = 0.95,
   corr_sigma = 0.05,
   n_threads = 4,
-  use_velocyto = TRUE,
+  use_velocyto = FALSE,
   use_graph_tp = FALSE,
   layer = "counts",
   slot = "counts",
@@ -70,7 +70,7 @@ fold-change scaling). See \code{\link{ApplyPerturbation}} for full details.}
 
 \item{n_threads}{Number of threads to use for parallel computation during correlation calculations. Default is 4.}
 
-\item{use_velocyto}{Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is TRUE.}
+\item{use_velocyto}{Logical. If TRUE, leverages velocyto.R functions for transition probabilities. Default is FALSE.}
 
 \item{use_graph_tp}{Logical. If TRUE, transition probabilities are computed using the cell-cell graph specified in \code{graph}. Default is FALSE.}
 
