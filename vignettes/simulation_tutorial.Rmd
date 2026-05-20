@@ -691,9 +691,7 @@ p_down + p_up
 - `max_pct = 0.5`: Trims the top 50% of arrow magnitudes before scaling, preventing a few extreme arrows from dominating the visualization.
 - `arrow_alpha = TRUE`: Fades arrows with smaller magnitudes so that stronger transitions stand out visually.
 
----
-
-# Vector Field Coherence
+## Vector Field Coherence
 
 `VectorFieldCoherence` quantifies how **locally consistent** the perturbation signal is across the embedding. For each cell, it computes the cosine similarity between that cell's perturbation vector and those of its neighbors in the KNN graph. Coherence ranges from −1 (perfectly anti-aligned with neighbors) to +1 (perfectly aligned), with values near 0 indicating random or mixed directions.
 
@@ -719,30 +717,15 @@ coherence_up <- VectorFieldCoherence(
 seurat_obj$coherence_up <- coherence_up
 ```
 
-Visualize coherence on the embedding:
+Visualize coherence by group and branch:
 
 ```{r eval=TRUE}
+
 plot_df <- as.data.frame(Reductions(seurat_obj, 'pca')@cell.embeddings[, 1:2])
 plot_df$coherence <- coherence_down
 plot_df$Group <- seurat_obj$Group
 plot_df$branch <- seurat_obj$branch
 
-# embedding colored by coherence
-p_emb <- plot_df %>% arrange(coherence) %>%
-    ggplot(aes(x = PC_1, y = PC_2, color = coherence)) +
-    geom_point(alpha = 1, size = 1) +
-    scale_color_gradient2(high = 'darkgoldenrod1', mid = 'whitesmoke',
-                          low = 'dodgerblue', limits = c(-1, 1)) +
-    hdWGCNA::umap_theme() +
-    coord_equal() +
-    ggtitle('Coherence — knock-down')
-
-print(p_emb)
-```
-
-Visualize coherence by group and branch:
-
-```{r eval=TRUE}
 # rank groups by median coherence for display
 group_order <- plot_df %>%
     group_by(Group) %>%
@@ -751,20 +734,30 @@ group_order <- plot_df %>%
     pull(Group)
 plot_df$Group <- factor(plot_df$Group, levels = group_order)
 
-p_vln <- plot_df %>%
-    ggplot(aes(x = coherence, y = Group, color = Group)) +
-    geom_boxplot(outlier.shape = NA, alpha = 0.3, color = 'black') +
-    scale_color_manual(values = cp) +
+p <- plot_df %>%
+    ggplot(aes(x=coherence, y=Group, color=Group)) +
+    ggrastr::rasterise(ggbeeswarm::geom_quasirandom(
+        method = "pseudorandom",
+        size=0.25
+    ), dpi=300) +
+    geom_boxplot(outlier.shape=NA, alpha=0.3, color='black') +
+    scale_color_manual(values=cp) +
     theme(
-        panel.border = element_rect(linewidth = 1, color = 'black', fill = NA),
-        strip.text = element_text(size = 10)
+            axis.line.x = element_blank(),
+            axis.line.y = element_blank(),
+            axis.ticks.x = element_line(linewidth=0.5),
+            axis.ticks.y = element_line(linewidth=0.5),
+            panel.border = element_rect(linewidth=1,color='black', fill=NA),
+            strip.text = element_blank(),
+            plot.title = element_text(hjust=0.5) 
     ) +
-    NoLegend() +
-    xlab('Local coherence') + ylab('') +
-    xlim(c(-1, 1)) +
-    facet_wrap(vars(branch), ncol = 1, scales = 'free_y')
+    NoLegend() + 
+    xlab('Local coherence') + ylab("") + 
+    ggtitle('turquoise knock-down') +
+    xlim(c(-1,1))
 
-print(p_vln)
+p + facet_wrap(vars(branch), ncol=1, scales='free_y')
+
 ```
 
 **Expected result:** Cells in the branch where turquoise is most highly expressed should show higher coherence — their perturbation vectors agree with their neighbors because they all respond similarly to the turquoise module's suppression. Cells on other branches, where turquoise expression is low, may show lower or near-zero coherence.
