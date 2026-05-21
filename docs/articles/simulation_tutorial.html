@@ -69,7 +69,7 @@
 
     
     
-<p>Compiled: 2026-05-20</p>
+<p>Compiled: 2026-05-21</p>
 <p>Source: <code>vignettes/simulation_tutorial.Rmd</code></p>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
@@ -296,11 +296,11 @@ groups as a PCA dimensional reduction plot.</p>
 <span>    cols <span class="op">=</span> <span class="va">cp</span>,</span>
 <span>    label <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    pt.size <span class="op">=</span> <span class="fl">1</span></span>
-<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> </span></code></pre></div>
 <p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-8-1.png" class="r-plt" alt="" width="672"></p>
 </div>
 <div class="section level3">
-<h3 id="plot-module-eigengenes">Plot Module Eigengenes<a class="anchor" aria-label="anchor" href="#plot-module-eigengenes"></a>
+<h3 id="plot-module-eigengenes">Plot module eigengenes<a class="anchor" aria-label="anchor" href="#plot-module-eigengenes"></a>
 </h3>
 <p>We next inspect the expression level of each gene co-expression
 module identified by hdWGCNA.</p>
@@ -468,22 +468,26 @@ analysis on a single connected component of the graph.</p>
 <div class="section level2">
 <h2 id="running-moduleperturbation">Running <code>ModulePerturbation</code><a class="anchor" aria-label="anchor" href="#running-moduleperturbation"></a>
 </h2>
-<p><code>ModulePerturbation</code> is the core function of
-<code>compact</code>. It performs three sequential steps internally:</p>
+<p>Here we run <code>ModulePerturbation</code>, the core function of
+<code>compact</code>, to perform an in-silico down-regulation and
+up-regulation of the turquoise module. This function performs three
+sequential steps internally:</p>
 <ol style="list-style-type: decimal">
 <li>
 <strong><code>ApplyPerturbation</code></strong>: Directly modifies
-the expression of the top hub genes in the target module in the
-direction specified by <code>perturb_dir</code>.</li>
+the gene expression counts of the top hub genes in the target
+co-expression module in the direction specified by
+<code>perturb_dir</code>.</li>
 <li>
 <strong><code>ApplyPropagation</code></strong>: Propagates that
-initial perturbation signal through the co-expression network, updating
-the expression of all genes connected to the hub genes.</li>
+initial perturbation signal on the hub genes through the rest of the
+co-expression network, updating the expression of all genes connected to
+the hub genes.</li>
 <li>
 <strong><code>PerturbationTransitions</code></strong>: Computes
-cell-cell transition probabilities on the KNN graph using the perturbed
-expression matrix, yielding a transition probability matrix analogous to
-those from RNA velocity.</li>
+cell-cell transition probabilities on a cell-cell nearest neighbors
+graph using the perturbed expression matrix, yielding a transition
+probability matrix analogous to those from RNA velocity.</li>
 </ol>
 <p>The results are stored back into the Seurat object as a new assay
 (the perturbed expression) and a new graph (the transition probability
@@ -509,16 +513,22 @@ expression to zero), set <code>perturb_dir = 0</code>.</p>
 <span>    group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>    delta_scale <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>    delta_scale <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>    row_normalize <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    n_workers <span class="op">=</span> <span class="fl">1</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Applying primary in-silico perturbation to hub genes..."</span></span>
+<span><span class="co">#&gt;   |                                                          |                                                  |   0%  |                                                          |=====                                             |  10%  |                                                          |==========                                        |  20%  |                                                          |===============                                   |  30%  |                                                          |====================                              |  40%  |                                                          |=========================                         |  50%  |                                                          |==============================                    |  60%  |                                                          |===================================               |  70%  |                                                          |========================================          |  80%  |                                                          |=============================================     |  90%  |                                                          |==================================================| 100%</span></span>
+<span><span class="co">#&gt; [1] "Applying log-space signal propagation throughout co-expression network..."</span></span>
+<span><span class="co">#&gt; [1] "Computing cell-cell transition probabilities based on the perturbation..."</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="up-regulation-knock-in">Up-regulation (knock-in)<a class="anchor" aria-label="anchor" href="#up-regulation-knock-in"></a>
 </h3>
-<p>Set <code>perturb_dir = 1</code> to simulate forced
-over-expression:</p>
+<p>We set <code>perturb_dir = 1</code> to simulate over-expression of
+the module, holding all other parameters the same as the down-regulation
+case.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
@@ -528,71 +538,62 @@ over-expression:</p>
 <span>    group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>    delta_scale <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>    delta_scale <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>    row_normalize <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>    n_workers <span class="op">=</span> <span class="fl">1</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span>    n_workers <span class="op">=</span> <span class="fl">1</span>, </span>
+<span>    n_iters <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Applying primary in-silico perturbation to hub genes..."</span></span>
+<span><span class="co">#&gt;   |                                                          |                                                  |   0%  |                                                          |=====                                             |  10%  |                                                          |==========                                        |  20%  |                                                          |===============                                   |  30%  |                                                          |====================                              |  40%  |                                                          |=========================                         |  50%  |                                                          |==============================                    |  60%  |                                                          |===================================               |  70%  |                                                          |========================================          |  80%  |                                                          |=============================================     |  90%  |                                                          |==================================================| 100%</span></span>
+<span><span class="co">#&gt; [1] "Applying log-space signal propagation throughout co-expression network..."</span></span>
+<span><span class="co">#&gt; [1] "Computing cell-cell transition probabilities based on the perturbation..."</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="multiplicative-mode">Multiplicative mode<a class="anchor" aria-label="anchor" href="#multiplicative-mode"></a>
+<h3 id="looping-over-all-modules">Looping over all modules<a class="anchor" aria-label="anchor" href="#looping-over-all-modules"></a>
 </h3>
-<p>An alternative to the default ZINB model is
-<code>perturb_mode = "multiplicative"</code>, which scales each cell’s
-observed counts directly by a user-specified fold change, bypassing
-distribution fitting entirely. In this mode <code>perturb_dir</code> is
-interpreted as a <strong>positive fold-change multiplier</strong> rather
-than a directional sign:</p>
-<ul>
-<li>Values <strong>between 0 and 1</strong> reduce expression (e.g.,
-<code>0.5</code> halves counts — knock-down equivalent)</li>
-<li>Values <strong>greater than 1</strong> amplify expression (e.g.,
-<code>2.0</code> doubles counts — knock-in equivalent)</li>
-<li>
-<code>perturb_dir = 0</code> produces a knock-out in either
-mode</li>
-</ul>
+<p>To systematically perform perturbations over all modules, we can
+simply run a for loop across all the modules.</p>
+<details><summary><strong>Running perturbations for all modules (click to expand)</strong>
+</summary><p>To loop over all non-grey modules:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># multiplicative knock-down: reduce hub gene expression to 50%</span></span>
-<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    mod               <span class="op">=</span> <span class="va">cur_mod</span>,</span>
-<span>    perturb_dir       <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>    perturb_mode      <span class="op">=</span> <span class="st">'multiplicative'</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_down_mult'</span>,</span>
-<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span>,</span>
-<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
-<span>    n_hubs            <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>    delta_scale       <span class="op">=</span> <span class="fl">0.2</span>,</span>
-<span>    use_velocyto      <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">modules</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
+<span><span class="va">mods</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">modules</span><span class="op">$</span><span class="va">module</span><span class="op">)</span></span>
+<span><span class="va">mods</span> <span class="op">&lt;-</span> <span class="va">mods</span><span class="op">[</span><span class="va">mods</span> <span class="op">!=</span> <span class="st">'grey'</span><span class="op">]</span></span>
 <span></span>
-<span><span class="co"># multiplicative knock-in: double hub gene expression</span></span>
-<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    mod               <span class="op">=</span> <span class="va">cur_mod</span>,</span>
-<span>    perturb_dir       <span class="op">=</span> <span class="fl">2.0</span>,</span>
-<span>    perturb_mode      <span class="op">=</span> <span class="st">'multiplicative'</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up_mult'</span>,</span>
-<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span>,</span>
-<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
-<span>    n_hubs            <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>    delta_scale       <span class="op">=</span> <span class="fl">0.2</span>,</span>
-<span>    use_velocyto      <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>Multiplicative mode differs from ZINB mode in two important ways.</p>
-<p><strong>Speed.</strong> No per-gene distribution fitting is
-performed, so <code>group.by</code> and <code>n_workers</code> are both
-ignored and the computation is substantially faster — particularly
-useful when sweeping over many modules or working with large
-datasets.</p>
-<p><strong>Cell-specificity.</strong> Because the delta is proportional
-to each cell’s observed counts, <strong>cells with zero baseline
-expression are not affected</strong>. In ZINB mode, non-expressing cells
-can receive positive counts during knock-in because the sampled delta is
-drawn from a group-level distribution independent of that cell’s actual
-value. Multiplicative mode therefore better preserves the mathematical
-symmetry between knock-downs and knock-ins.</p>
-<p><strong>Key parameters:</strong></p>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">cur_mod</span> <span class="kw">in</span> <span class="va">mods</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
+<span>        <span class="va">seurat_obj</span>,</span>
+<span>        mod <span class="op">=</span> <span class="va">cur_mod</span>,</span>
+<span>        perturb_dir <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>,</span>
+<span>        perturbation_name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">cur_mod</span>, <span class="st">'_down'</span><span class="op">)</span>,</span>
+<span>        group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>        graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>        n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>        delta_scale <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>        row_normalize <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>        use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>        n_workers <span class="op">=</span> <span class="fl">1</span></span>
+<span>    <span class="op">)</span></span>
+<span>    <span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
+<span>        <span class="va">seurat_obj</span>,</span>
+<span>        mod <span class="op">=</span> <span class="va">cur_mod</span>,</span>
+<span>        perturb_dir <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>        perturbation_name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">cur_mod</span>, <span class="st">'_up'</span><span class="op">)</span>,</span>
+<span>        group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>        graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>        n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>        delta_scale <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>        row_normalize <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>        use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>        n_workers <span class="op">=</span> <span class="fl">1</span></span>
+<span>    <span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+</details>
+</div>
+<div class="section level3">
+<h3 id="key-parameters">Key parameters<a class="anchor" aria-label="anchor" href="#key-parameters"></a>
+</h3>
 <ul>
 <li>
 <code>perturb_dir</code>: <code>-1</code> for knock-down,
@@ -602,11 +603,21 @@ symmetry between knock-downs and knock-ins.</p>
 membership score) receive the primary perturbation; the signal diffuses
 to the rest of the network through <code>ApplyPropagation</code>.</li>
 <li>
-<code>delta_scale = 0.2</code>: Dampening factor for network
-propagation. Keeping this ≤ 0.2 avoids signal saturation, where up- and
-down-regulation produce indistinguishable vector fields. If you see a
-warning from <code>CheckSaturation</code>, reduce this value. See
-<code><a href="../reference/ApplyPropagation.html">?ApplyPropagation</a></code> for details.</li>
+<code>delta_scale = 1.0</code>: Scaling factor for network
+propagation. The effective propagation magnitude depends on the density
+of the TOM (sum of edge weights per gene). When
+<code>row_normalize = TRUE</code> (see below), each propagation step is
+guaranteed to dampen the signal regardless of TOM density, so
+<code>delta_scale = 1.0</code> is a safe default. Without row
+normalization, a smaller value (e.g. 0.01–0.05) may be needed to avoid
+saturation on dense networks. See <code><a href="../reference/ApplyPropagation.html">?ApplyPropagation</a></code> for
+details.</li>
+<li>
+<code>row_normalize = TRUE</code>: Normalizes each row of the TOM to
+sum to 1 before propagation. This is recommended when working with dense
+networks (e.g. those built from simulated data or datasets with many
+co-expressed genes), where large row sums would otherwise cause signal
+amplification and floor-clipping across iterations.</li>
 <li>
 <code>n_workers = 1</code>: Number of parallel workers for fitting
 the ZINB model across hub genes. Set to a higher value (e.g.,
@@ -624,40 +635,7 @@ directions without re-running <code>FindNeighbors</code>.</p>
 assays (<code>turquoise_down</code>, <code>turquoise_up</code>) and two
 new transition probability graphs (<code>turquoise_down_tp</code>,
 <code>turquoise_up_tp</code>).</p>
-<details><summary><strong>Running perturbations for all modules (click to expand)</strong>
-</summary><p>To loop over all non-grey modules:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">modules</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
-<span><span class="va">mods</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">modules</span><span class="op">$</span><span class="va">module</span><span class="op">)</span></span>
-<span><span class="va">mods</span> <span class="op">&lt;-</span> <span class="va">mods</span><span class="op">[</span><span class="va">mods</span> <span class="op">!=</span> <span class="st">'grey'</span><span class="op">]</span></span>
-<span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">cur_mod</span> <span class="kw">in</span> <span class="va">mods</span><span class="op">)</span> <span class="op">{</span></span>
-<span>    <span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
-<span>        <span class="va">seurat_obj</span>,</span>
-<span>        mod <span class="op">=</span> <span class="va">cur_mod</span>,</span>
-<span>        perturb_dir <span class="op">=</span> <span class="op">-</span><span class="fl">1</span>,</span>
-<span>        perturbation_name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">cur_mod</span>, <span class="st">'_down'</span><span class="op">)</span>,</span>
-<span>        group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
-<span>        graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
-<span>        n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>        delta_scale <span class="op">=</span> <span class="fl">0.2</span>,</span>
-<span>        use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>        n_workers <span class="op">=</span> <span class="fl">1</span></span>
-<span>    <span class="op">)</span></span>
-<span>    <span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
-<span>        <span class="va">seurat_obj</span>,</span>
-<span>        mod <span class="op">=</span> <span class="va">cur_mod</span>,</span>
-<span>        perturb_dir <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>        perturbation_name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">cur_mod</span>, <span class="st">'_up'</span><span class="op">)</span>,</span>
-<span>        group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
-<span>        graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
-<span>        n_hubs <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>        delta_scale <span class="op">=</span> <span class="fl">0.2</span>,</span>
-<span>        use_velocyto <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>        n_workers <span class="op">=</span> <span class="fl">1</span></span>
-<span>    <span class="op">)</span></span>
-<span><span class="op">}</span></span></code></pre></div>
-</details><blockquote>
+<blockquote>
 <p><strong><code>use_velocyto</code>:</strong> This flag controls which
 implementation computes the cosine correlations inside
 <code>PerturbationTransitions</code>. The default
@@ -677,11 +655,74 @@ cell-cell transitions for every pair of cells in the dataset, while
 <code>compact</code> focuses only on cell-cell transitions for pairs of
 cells connected in the user-specified KNN or SNN graph.</p>
 </blockquote>
+</div>
+<div class="section level3">
+<h3 id="multiplicative-mode">Multiplicative mode<a class="anchor" aria-label="anchor" href="#multiplicative-mode"></a>
+</h3>
+<p>An alternative to the default ZINB model is
+<code>perturb_mode = "multiplicative"</code>, which scales each cell’s
+observed counts directly by a user-specified fold change, bypassing
+distribution fitting entirely. In this mode <code>perturb_dir</code> is
+interpreted as a <strong>positive fold-change multiplier</strong> rather
+than a directional sign:</p>
+<ul>
+<li>Values <strong>between 0 and 1</strong> reduce expression (e.g.,
+<code>0.5</code> halves counts — knock-down equivalent)</li>
+<li>Values <strong>greater than 1</strong> amplify expression (e.g.,
+<code>2.0</code> doubles counts — knock-in equivalent)</li>
+<li>
+<code>perturb_dir = 0</code> produces a knock-out in either
+mode</li>
+</ul>
+<details><summary><strong>Code example for multiplicative mode (click to expand)</strong>
+</summary><div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># multiplicative knock-down: reduce hub gene expression to 50%</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    mod               <span class="op">=</span> <span class="va">cur_mod</span>,</span>
+<span>    perturb_dir       <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>    perturb_mode      <span class="op">=</span> <span class="st">'multiplicative'</span>,</span>
+<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_down_mult'</span>,</span>
+<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>    n_hubs            <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>    delta_scale       <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>    row_normalize     <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>    use_velocyto      <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># multiplicative knock-in: double hub gene expression</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ModulePerturbation.html">ModulePerturbation</a></span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    mod               <span class="op">=</span> <span class="va">cur_mod</span>,</span>
+<span>    perturb_dir       <span class="op">=</span> <span class="fl">2.0</span>,</span>
+<span>    perturb_mode      <span class="op">=</span> <span class="st">'multiplicative'</span>,</span>
+<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up_mult'</span>,</span>
+<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>    n_hubs            <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>    delta_scale       <span class="op">=</span> <span class="fl">1.0</span>,</span>
+<span>    row_normalize     <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>    use_velocyto      <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</details><p>Multiplicative mode differs from ZINB mode in two important ways.</p>
+<p><strong>Speed.</strong> No per-gene distribution fitting is
+performed, so <code>group.by</code> and <code>n_workers</code> are both
+ignored and the computation is substantially faster — particularly
+useful when sweeping over many modules or working with large
+datasets.</p>
+<p><strong>Cell-specificity.</strong> Because the delta is proportional
+to each cell’s observed counts, <strong>cells with zero baseline
+expression are not affected</strong>. In ZINB mode, non-expressing cells
+can receive positive counts during knock-in because the sampled delta is
+drawn from a group-level distribution independent of that cell’s actual
+value. Multiplicative mode therefore better preserves the mathematical
+symmetry between knock-downs and knock-ins.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
-<h2 id="inspecting-expression-changes">Inspecting Expression Changes<a class="anchor" aria-label="anchor" href="#inspecting-expression-changes"></a>
+<h2 id="inspecting-expression-changes">Inspecting expression changes<a class="anchor" aria-label="anchor" href="#inspecting-expression-changes"></a>
 </h2>
 <p>Before examining cell-state transitions, it is good practice to
 verify that the perturbation changed gene expression in the expected
@@ -690,62 +731,97 @@ direction. This section shows two complementary views.</p>
 <h3 id="violin-plots-of-individual-genes">Violin plots of individual genes<a class="anchor" aria-label="anchor" href="#violin-plots-of-individual-genes"></a>
 </h3>
 <p>We compare a top hub gene and a secondary module gene across the
-three assays (observed, knock-down, knock-in), grouped by branch:</p>
+three conditions (observed, knock-down, knock-in), faceted by branch.
+Each column is a gene; each row is a branch. Significance brackets from
+a Wilcoxon test show whether knock-down and knock-in differ from the
+observed baseline within each branch.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># get the top hub gene and a secondary gene</span></span>
-<span><span class="va">hub_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetHubGenes.html" class="external-link">GetHubGenes</a></span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
-<span><span class="va">module_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span>, <span class="va">module</span> <span class="op">==</span> <span class="va">cur_mod</span><span class="op">)</span><span class="op">$</span><span class="va">gene_name</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rpkgs.datanovia.com/ggpubr/" class="external-link">ggpubr</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">hub_gene</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">hub_genes</span>, <span class="va">module</span> <span class="op">==</span> <span class="va">cur_mod</span><span class="op">)</span><span class="op">$</span><span class="va">gene_name</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
+<span><span class="co"># get the top hub gene and a secondary gene</span></span>
+<span><span class="va">hub_genes</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetHubGenes.html" class="external-link">GetHubGenes</a></span><span class="op">(</span><span class="va">seurat_obj</span>, n_hubs <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span><span class="va">module_genes</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span>, <span class="va">module</span> <span class="op">==</span> <span class="va">cur_mod</span><span class="op">)</span><span class="op">$</span><span class="va">gene_name</span></span>
+<span><span class="va">hub_gene</span>      <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">hub_genes</span>, <span class="va">module</span> <span class="op">==</span> <span class="va">cur_mod</span><span class="op">)</span><span class="op">$</span><span class="va">gene_name</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
 <span><span class="va">secondary_gene</span> <span class="op">&lt;-</span> <span class="va">module_genes</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
+<span><span class="va">genes_plot</span>    <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">hub_gene</span>, <span class="va">secondary_gene</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># hub gene: observed vs. perturbed</span></span>
-<span><span class="va">p1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">hub_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'RNA'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">hub_gene</span>, <span class="st">' — observed'</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>, plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># pull normalized expression from each assay and combine into a long data frame</span></span>
+<span><span class="va">get_expr_df</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">assay_name</span>, <span class="va">condition_label</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/AssayData.html" class="external-link">GetAssayData</a></span><span class="op">(</span><span class="va">seurat_obj</span>, assay <span class="op">=</span> <span class="va">assay_name</span>, layer <span class="op">=</span> <span class="st">'data'</span><span class="op">)</span></span>
+<span>    <span class="va">df</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">mat</span><span class="op">[</span><span class="va">genes_plot</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="va">df</span><span class="op">$</span><span class="va">condition</span> <span class="op">&lt;-</span> <span class="va">condition_label</span></span>
+<span>    <span class="va">df</span><span class="op">$</span><span class="va">branch</span>    <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">branch</span></span>
+<span>    <span class="va">df</span></span>
+<span><span class="op">}</span></span>
 <span></span>
-<span><span class="va">p2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">hub_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'turquoise_down'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'knock-down'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span></span>
+<span>    <span class="fu">get_expr_df</span><span class="op">(</span><span class="st">'RNA'</span>,            <span class="st">'Observed'</span><span class="op">)</span>,</span>
+<span>    <span class="fu">get_expr_df</span><span class="op">(</span><span class="st">'turquoise_down'</span>, <span class="st">'Knock-down'</span><span class="op">)</span>,</span>
+<span>    <span class="fu">get_expr_df</span><span class="op">(</span><span class="st">'turquoise_up'</span>,   <span class="st">'Knock-in'</span><span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>    <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span></span>
+<span>        cols      <span class="op">=</span> <span class="fu"><a href="https://tidyselect.r-lib.org/reference/all_of.html" class="external-link">all_of</a></span><span class="op">(</span><span class="va">genes_plot</span><span class="op">)</span>,</span>
+<span>        names_to  <span class="op">=</span> <span class="st">'gene'</span>,</span>
+<span>        values_to <span class="op">=</span> <span class="st">'expression'</span></span>
+<span>    <span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>        condition <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">condition</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'Observed'</span>, <span class="st">'Knock-down'</span>, <span class="st">'Knock-in'</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>        gene      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">gene</span>, levels <span class="op">=</span> <span class="va">genes_plot</span><span class="op">)</span></span>
+<span>    <span class="op">)</span></span>
 <span></span>
-<span><span class="va">p3</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">hub_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'turquoise_up'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'knock-in'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># significance brackets comparing each perturbation to observed</span></span>
+<span><span class="va">comparisons</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'Observed'</span>, <span class="st">'Knock-down'</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'Observed'</span>, <span class="st">'Knock-in'</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># secondary gene: observed vs. perturbed</span></span>
-<span><span class="va">p4</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">secondary_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'RNA'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">secondary_gene</span>, <span class="st">' — observed'</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>, plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">cond_colors</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">'Observed'</span>   <span class="op">=</span> <span class="st">'grey50'</span>,</span>
+<span>    <span class="st">'Knock-down'</span> <span class="op">=</span> <span class="st">'steelblue3'</span>,</span>
+<span>    <span class="st">'Knock-in'</span>   <span class="op">=</span> <span class="st">'firebrick3'</span></span>
+<span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">p5</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">secondary_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'turquoise_down'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'knock-down'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">p6</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.org/seurat/reference/VlnPlot.html" class="external-link">VlnPlot</a></span><span class="op">(</span><span class="va">seurat_obj</span>, features <span class="op">=</span> <span class="va">secondary_gene</span>, group.by <span class="op">=</span> <span class="st">'branch'</span>,</span>
-<span>              assay <span class="op">=</span> <span class="st">'turquoise_up'</span>, pt.size <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'knock-in'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>plot.margin <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">margin</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="op">(</span><span class="va">p1</span> <span class="op">/</span> <span class="va">p2</span> <span class="op">/</span> <span class="va">p3</span><span class="op">)</span> <span class="op">|</span> <span class="op">(</span><span class="va">p4</span> <span class="op">/</span> <span class="va">p5</span> <span class="op">/</span> <span class="va">p6</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-18-1.png" class="r-plt" alt="" width="576"></p>
-<p>Hub genes should show the largest changes (they are the primary
-perturbation targets); secondary genes should show smaller but
-consistent changes that reflect the propagated signal through the
-network.</p>
-</div>
-<div class="section level3">
-<h3 id="log2fc-scatter-plot">Log2FC scatter plot<a class="anchor" aria-label="anchor" href="#log2fc-scatter-plot"></a>
-</h3>
-<p><code>PerturbationLog2FC</code> computes the log2 fold change for all
-genes in a module, comparing the perturbed assay to the baseline.
-Plotting Log2FC against kME (module membership score) reveals the
-network-scaling property: genes more central to the module (higher kME)
-should show larger |Log2FC|.</p>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">plot_df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">condition</span>, y <span class="op">=</span> <span class="va">expression</span>, color <span class="op">=</span> <span class="va">condition</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">ggrastr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/ggrastr/man/rasterise.html" class="external-link">rasterise</a></span><span class="op">(</span><span class="fu">ggbeeswarm</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/ggbeeswarm/man/geom_quasirandom.html" class="external-link">geom_quasirandom</a></span><span class="op">(</span></span>
+<span>        method <span class="op">=</span> <span class="st">'pseudorandom'</span>,</span>
+<span>        size   <span class="op">=</span> <span class="fl">0.2</span>,</span>
+<span>        alpha  <span class="op">=</span> <span class="fl">0.5</span></span>
+<span>    <span class="op">)</span>, dpi <span class="op">=</span> <span class="fl">300</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html" class="external-link">geom_boxplot</a></span><span class="op">(</span></span>
+<span>        outlier.shape <span class="op">=</span> <span class="cn">NA</span>,</span>
+<span>        alpha  <span class="op">=</span> <span class="fl">0.3</span>,</span>
+<span>        color  <span class="op">=</span> <span class="st">'black'</span>,</span>
+<span>        width  <span class="op">=</span> <span class="fl">0.5</span></span>
+<span>    <span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://rpkgs.datanovia.com/ggpubr/reference/stat_compare_means.html" class="external-link">stat_compare_means</a></span><span class="op">(</span></span>
+<span>        comparisons <span class="op">=</span> <span class="va">comparisons</span>,</span>
+<span>        method      <span class="op">=</span> <span class="st">'wilcox.test'</span>,</span>
+<span>        label       <span class="op">=</span> <span class="st">'p.signif'</span>,</span>
+<span>        size        <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>        tip.length  <span class="op">=</span> <span class="fl">0.01</span></span>
+<span>    <span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="va">cond_colors</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">branch</span> <span class="op">~</span> <span class="va">gene</span>, scales <span class="op">=</span> <span class="st">'free_y'</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>        axis.text.x        <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">45</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>        panel.border       <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span>, color <span class="op">=</span> <span class="st">'black'</span>, fill <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span>,</span>
+<span>        panel.grid.major.y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">0.25</span>, color <span class="op">=</span> <span class="st">'lightgrey'</span><span class="op">)</span>,</span>
+<span>        strip.text         <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">9</span><span class="op">)</span></span>
+<span>    <span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'Normalized expression'</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-18-1.png" class="r-plt" alt="" width="768"></p>
+<p>Hub genes (left column) should show the largest effect sizes — they
+are the primary targets of the perturbation. Secondary module genes
+(right column) show smaller but consistent changes, reflecting signal
+propagated through the co-expression network. The turquoise module is
+most highly expressed on Branch 1, so that row is expected to show the
+strongest and most significant differences.</p>
+<details><summary><strong>Perturbed vs. observed log2FC (click to expand)</strong>
+</summary><p><code>PerturbationLog2FC</code> computes the log2 fold change for all
+genes in a module, comparing the perturbed assay to the baseline. Here
+we simply show how to access this information using the
+<code>compact</code> function <code>PerturbationLog2FC</code>.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggrepel.slowkow.com/" class="external-link">ggrepel</a></span><span class="op">)</span></span>
 <span></span>
@@ -756,65 +832,138 @@ should show larger |Log2FC|.</p>
 <span>    n_hubs <span class="op">=</span> <span class="fl">10</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">lfc_up</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PerturbationLog2FC.html">PerturbationLog2FC</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up'</span>,</span>
-<span>    module <span class="op">=</span> <span class="va">cur_mod</span>,</span>
-<span>    n_hubs <span class="op">=</span> <span class="fl">10</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># plot for knock-down</span></span>
-<span><span class="va">p_down</span> <span class="op">&lt;-</span> <span class="va">lfc_down</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">log2fc</span>, y <span class="op">=</span> <span class="va">kME</span>, color <span class="op">=</span> <span class="va">hub</span>, size <span class="op">=</span> <span class="va">avg_exp</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggrepel.slowkow.com/reference/geom_text_repel.html" class="external-link">geom_text_repel</a></span><span class="op">(</span></span>
-<span>        data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">lfc_down</span>, <span class="va">hub</span> <span class="op">==</span> <span class="st">'hub'</span><span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>label <span class="op">=</span> <span class="va">gene_name</span><span class="op">)</span>, size <span class="op">=</span> <span class="fl">3</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'hub'</span> <span class="op">=</span> <span class="st">'firebrick'</span>, <span class="st">'other'</span> <span class="op">=</span> <span class="st">'grey60'</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
-<span>        panel.border <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span>color <span class="op">=</span> <span class="st">'black'</span>, fill <span class="op">=</span> <span class="cn">NA</span>, linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>        panel.grid.major <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">0.25</span>, color <span class="op">=</span> <span class="st">'lightgrey'</span><span class="op">)</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">'Log2FC'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'kME'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise — knock-down'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>color <span class="op">=</span> <span class="st">''</span>, size <span class="op">=</span> <span class="st">'avg exp'</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># plot for knock-in</span></span>
-<span><span class="va">p_up</span> <span class="op">&lt;-</span> <span class="va">lfc_up</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">log2fc</span>, y <span class="op">=</span> <span class="va">kME</span>, color <span class="op">=</span> <span class="va">hub</span>, size <span class="op">=</span> <span class="va">avg_exp</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggrepel.slowkow.com/reference/geom_text_repel.html" class="external-link">geom_text_repel</a></span><span class="op">(</span></span>
-<span>        data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">lfc_up</span>, <span class="va">hub</span> <span class="op">==</span> <span class="st">'hub'</span><span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>label <span class="op">=</span> <span class="va">gene_name</span><span class="op">)</span>, size <span class="op">=</span> <span class="fl">3</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'hub'</span> <span class="op">=</span> <span class="st">'firebrick'</span>, <span class="st">'other'</span> <span class="op">=</span> <span class="st">'grey60'</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
-<span>        panel.border <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span>color <span class="op">=</span> <span class="st">'black'</span>, fill <span class="op">=</span> <span class="cn">NA</span>, linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>        panel.grid.major <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">0.25</span>, color <span class="op">=</span> <span class="st">'lightgrey'</span><span class="op">)</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">'Log2FC'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'kME'</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise — knock-in'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>color <span class="op">=</span> <span class="st">''</span>, size <span class="op">=</span> <span class="st">'avg exp'</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">p_down</span> <span class="op">|</span> <span class="va">p_up</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-19-1.png" class="r-plt" alt="" width="768"></p>
-<p>The down-regulation should show negative Log2FC values (expression
-decreased), and the up-regulation should show positive values. Hub genes
-(labeled) should cluster at the extremes of the Log2FC axis, while
-secondary genes scale continuously with their kME.</p>
-<hr>
+<span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">lfc_down</span>, <span class="fl">10</span><span class="op">)</span>,</span>
+<span>    digits    <span class="op">=</span> <span class="fl">4</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<thead><tr class="header">
+<th align="left">gene_name</th>
+<th align="right">mean_delta</th>
+<th align="right">avg_exp</th>
+<th align="right">log2fc</th>
+<th align="left">module</th>
+<th align="right">kME</th>
+<th align="left">hub</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">Gene598</td>
+<td align="right">-26.9231</td>
+<td align="right">4.2385</td>
+<td align="right">-2.3891</td>
+<td align="left">turquoise</td>
+<td align="right">0.7392</td>
+<td align="left">hub</td>
+</tr>
+<tr class="even">
+<td align="left">Gene2479</td>
+<td align="right">-8.2340</td>
+<td align="right">3.2091</td>
+<td align="right">-2.0735</td>
+<td align="left">turquoise</td>
+<td align="right">0.6734</td>
+<td align="left">hub</td>
+</tr>
+<tr class="odd">
+<td align="left">Gene90</td>
+<td align="right">-10.6802</td>
+<td align="right">3.5795</td>
+<td align="right">-2.1952</td>
+<td align="left">turquoise</td>
+<td align="right">0.6647</td>
+<td align="left">hub</td>
+</tr>
+<tr class="even">
+<td align="left">Gene4743</td>
+<td align="right">-2.1229</td>
+<td align="right">1.7936</td>
+<td align="right">-1.4821</td>
+<td align="left">turquoise</td>
+<td align="right">0.6070</td>
+<td align="left">hub</td>
+</tr>
+<tr class="odd">
+<td align="left">Gene2261</td>
+<td align="right">-2.9592</td>
+<td align="right">2.3361</td>
+<td align="right">-1.7382</td>
+<td align="left">turquoise</td>
+<td align="right">0.6012</td>
+<td align="left">hub</td>
+</tr>
+<tr class="even">
+<td align="left">Gene4541</td>
+<td align="right">-9.2560</td>
+<td align="right">3.5568</td>
+<td align="right">-2.1880</td>
+<td align="left">turquoise</td>
+<td align="right">0.5957</td>
+<td align="left">hub</td>
+</tr>
+<tr class="odd">
+<td align="left">Gene320</td>
+<td align="right">-12.5417</td>
+<td align="right">3.8910</td>
+<td align="right">-2.2901</td>
+<td align="left">turquoise</td>
+<td align="right">0.5801</td>
+<td align="left">hub</td>
+</tr>
+<tr class="even">
+<td align="left">Gene3914</td>
+<td align="right">-4.9246</td>
+<td align="right">2.8562</td>
+<td align="right">-1.9472</td>
+<td align="left">turquoise</td>
+<td align="right">0.5721</td>
+<td align="left">hub</td>
+</tr>
+<tr class="odd">
+<td align="left">Gene4351</td>
+<td align="right">-19.6294</td>
+<td align="right">4.3462</td>
+<td align="right">-2.4185</td>
+<td align="left">turquoise</td>
+<td align="right">0.5672</td>
+<td align="left">hub</td>
+</tr>
+<tr class="even">
+<td align="left">Gene4010</td>
+<td align="right">-18.2354</td>
+<td align="right">4.2127</td>
+<td align="right">-2.3820</td>
+<td align="left">turquoise</td>
+<td align="right">0.5648</td>
+<td align="left">hub</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Note:</strong> In the case of this simulated dataset, the
+log2FCs of non-hub genes are very low in the current parameter regime.
+This is partially due to the abnormally dense nature of the
+co-expression matrix itself in a simulated dataset. We show more
+biologically realistic log2FC values in the tutorial on non-simulated
+data.</p>
+</blockquote>
+</details><hr>
 </div>
 </div>
 <div class="section level2">
-<h2 id="transition-vector-fields">Transition Vector Fields<a class="anchor" aria-label="anchor" href="#transition-vector-fields"></a>
+<h2 id="transition-vector-fields">Transition vector fields<a class="anchor" aria-label="anchor" href="#transition-vector-fields"></a>
 </h2>
 <p><code>PlotTransitionVectors</code> projects the cell-cell transition
-probabilities onto the two-dimensional embedding as a vector field —
-directly analogous to an RNA velocity plot. Each arrow on the grid
-represents the weighted average direction of transitions in that region
-of the embedding.</p>
+probabilities onto the two-dimensional embedding as a vector field.
+While this visualization resembles an RNA velocity plot, the vector
+field in this context summarizes the local directional change of a cell
+under a specific in-silico perturbation, while RNA velocity aims to show
+a cell’s “natural” trajectory based on ratios of spliced to unspliced
+transcripts. Each arrow on the grid represents the weighted average
+direction of transitions in that region of the embedding.</p>
 <p>The points are colored by the turquoise module eigengene, so you can
-see where turquoise is expressed relative to where the arrows are
-pointing.</p>
+see where turquoise module is expressed at baseline relative to where
+the arrows are pointing.</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># extract the module color for turquoise</span></span>
 <span><span class="va">modules</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span></span>
@@ -838,7 +987,7 @@ pointing.</p>
 <span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradient2</a></span><span class="op">(</span>high <span class="op">=</span> <span class="va">cur_mod_color</span>, low <span class="op">=</span> <span class="st">'whitesmoke'</span>, mid <span class="op">=</span> <span class="st">'whitesmoke'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise — knock-down'</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise, knock-down'</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># knock-in vector field</span></span>
@@ -857,7 +1006,7 @@ pointing.</p>
 <span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://satijalab.org/seurat/reference/SeuratTheme.html" class="external-link">NoLegend</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradient2</a></span><span class="op">(</span>high <span class="op">=</span> <span class="va">cur_mod_color</span>, low <span class="op">=</span> <span class="st">'whitesmoke'</span>, mid <span class="op">=</span> <span class="st">'whitesmoke'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise — knock-in'</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'turquoise, knock-in'</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">p_down</span> <span class="op">+</span> <span class="va">p_up</span></span></code></pre></div>
@@ -866,9 +1015,9 @@ pointing.</p>
 roughly opposite. In the region where turquoise expression is highest
 (bright-colored cells), knock-down arrows should point
 <strong>away</strong> from that region, and knock-in arrows should point
-<strong>toward</strong> it. This is the key biological validation: the
-perturbation shifts cell-state transitions in the direction consistent
-with the module’s role in differentiation.</p>
+<strong>toward</strong> it. The perturbation shifts cell-state
+transitions in the direction consistent with the module’s role in
+defining the underlying trajectory.</p>
 <p><strong>Key parameters:</strong></p>
 <ul>
 <li>
@@ -888,42 +1037,44 @@ visualization.</li>
 magnitudes so that stronger transitions stand out visually.</li>
 </ul>
 <div class="section level3">
-<h3 id="vector-field-coherence">Vector Field Coherence<a class="anchor" aria-label="anchor" href="#vector-field-coherence"></a>
+<h3 id="vector-field-coherence">Vector field coherence<a class="anchor" aria-label="anchor" href="#vector-field-coherence"></a>
 </h3>
-<p><code>VectorFieldCoherence</code> quantifies how <strong>locally
+<p>Two-dimensional embeddings like UMAP invariably introduce global
+distortions in the underlying dataset, and therefore we must avoid
+over-interpretation of the results in a two-dimensional setting.
+<code>VectorFieldCoherence</code> quantifies how <strong>locally
 consistent</strong> the perturbation signal is across the embedding. For
 each cell, it computes the cosine similarity between that cell’s
-perturbation vector and those of its neighbors in the KNN graph.
-Coherence ranges from −1 (perfectly anti-aligned with neighbors) to +1
-(perfectly aligned), with values near 0 indicating random or mixed
-directions.</p>
+perturbation vector and those of its neighbors in the cell-cell
+neighborhod graph. Coherence ranges from −1 (perfectly anti-aligned with
+neighbors) to +1 (perfectly aligned), with values near 0 indicating
+random or mixed directions.</p>
 <p>High coherence in a region means the perturbation consistently pushes
 cells in the same direction there. Low coherence may indicate cells with
 low module expression or cells in a transition zone between two cell
 states.</p>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">coherence_down</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/VectorFieldCoherence.html">VectorFieldCoherence</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">coherence_down</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/VectorFieldCoherence.html">VectorFieldCoherence</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_down'</span>,</span>
 <span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    weighted <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">coherence_down</span> <span class="op">&lt;-</span> <span class="va">coherence_down</span></span>
 <span></span>
-<span><span class="va">coherence_up</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/VectorFieldCoherence.html">VectorFieldCoherence</a></span><span class="op">(</span></span>
+<span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">coherence_up</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/VectorFieldCoherence.html">VectorFieldCoherence</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up'</span>,</span>
 <span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    weighted <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">coherence_up</span> <span class="op">&lt;-</span> <span class="va">coherence_up</span></span></code></pre></div>
-<p>Visualize coherence by group and branch:</p>
+<span><span class="op">)</span></span></code></pre></div>
+<p>We can visualize coherence directly on the embedding, but here we
+plot the distributions of these values by group and branch:</p>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">plot_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/ObjectAccess.html" class="external-link">Reductions</a></span><span class="op">(</span><span class="va">seurat_obj</span>, <span class="st">'pca'</span><span class="op">)</span><span class="op">@</span><span class="va">cell.embeddings</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="va">plot_df</span><span class="op">$</span><span class="va">coherence</span> <span class="op">&lt;-</span> <span class="va">coherence_down</span></span>
+<span><span class="va">plot_df</span><span class="op">$</span><span class="va">coherence</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">coherence_down</span></span>
 <span><span class="va">plot_df</span><span class="op">$</span><span class="va">Group</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span></span>
 <span><span class="va">plot_df</span><span class="op">$</span><span class="va">branch</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">$</span><span class="va">branch</span></span>
 <span></span>
@@ -959,26 +1110,26 @@ states.</p>
 <span></span>
 <span><span class="va">p</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/vars.html" class="external-link">vars</a></span><span class="op">(</span><span class="va">branch</span><span class="op">)</span>, ncol<span class="op">=</span><span class="fl">1</span>, scales<span class="op">=</span><span class="st">'free_y'</span><span class="op">)</span></span></code></pre></div>
 <p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-22-1.png" class="r-plt" alt="" width="672"></p>
-<p><strong>Expected result:</strong> Cells in the branch where turquoise
-is most highly expressed should show higher coherence — their
-perturbation vectors agree with their neighbors because they all respond
-similarly to the turquoise module’s suppression. Cells on other
-branches, where turquoise expression is low, may show lower or near-zero
-coherence.</p>
+<p>This analysis shows generally high local coherence of the
+perturbation vectors across all branches and individual groups, meaning
+that transcriptomically similar cells (ie, connected in the cell-cell
+neighborhood graph) overall respond similarly to the perturbation.
+Ultimately each cell and each cluster is unique, so there remains
+dynamic range of coherence values across groups.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
-<h2 id="macrostate-transition-matrix-macrostatetransitions">Macrostate Transition Matrix
-(<code>MacrostateTransitions</code>)<a class="anchor" aria-label="anchor" href="#macrostate-transition-matrix-macrostatetransitions"></a>
+<h2 id="macrostate-transitions">Macrostate transitions<a class="anchor" aria-label="anchor" href="#macrostate-transitions"></a>
 </h2>
 <p><code>PlotTransitionVectors</code> shows per-cell transition
 directions projected onto the UMAP — informative but inherently limited
 by embedding distortions. <code>MacrostateTransitions</code> provides a
 complementary <strong>embedding-independent</strong> view: it
 coarse-grains the full-dimensional transition probability matrix into a
-K × K group-level summary, answering the question “on average, when a
-cell in group A transitions, where does it go?”</p>
+K × K group-level summary, answering the question <em>“on average, when
+a cell in group A transitions, where does it go?”</em> Here the
+“macrostates” are simply the previously defined cell clusters.</p>
 <p>The result is a matrix <strong>Q</strong> where each entry Q[source,
 destination] is the mean transition probability from any cell in the
 source group to any cell in the destination group. The
@@ -988,12 +1139,20 @@ group. A stability close to 1 signals an attractor-like state that
 resists the perturbation; low stability marks a transient source
 population whose cells are being redirected elsewhere.</p>
 <div class="section level3">
-<h3 id="knock-down">Knock-down<a class="anchor" aria-label="anchor" href="#knock-down"></a>
+<h3 id="run-macrostatetransitions">Run <code>MacrostateTransitions</code><a class="anchor" aria-label="anchor" href="#run-macrostatetransitions"></a>
 </h3>
 <div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/MacrostateTransitions.html">MacrostateTransitions</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="co"># down-regulation</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/MacrostateTransitions.html">MacrostateTransitions</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_down'</span>,</span>
+<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/MacrostateTransitions.html">MacrostateTransitions</a></span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up'</span>,</span>
 <span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    group.by          <span class="op">=</span> <span class="st">'Group'</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -1012,125 +1171,231 @@ population whose cells are being redirected elsewhere.</p>
 <span>    title             <span class="op">=</span> <span class="st">'Turquoise knock-down — macrostate transitions'</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-24-1.png" class="r-plt" alt="" width="672"></p>
-<p>Read the heatmap row by row: each row is a source group; the tile
-intensities tell you where its cells are predicted to transition.
-<strong>Strong diagonal tiles</strong> (high self-transition
-probability) indicate stable groups that the perturbation does not
-displace. <strong>Strong off-diagonal tiles</strong> in a row indicate
-groups from which cells are being redirected to a different
-destination.</p>
-<p><strong>Expected result:</strong> Terminal tip groups — particularly
-those enriched for the turquoise module — should show a reduced
-stability index under the knock-down, as their characteristic expression
-is directly disrupted. Cells currently occupying those groups are
-predicted to scatter toward neighboring branches rather than remain in
-place.</p>
-</div>
-<div class="section level3">
-<h3 id="knock-in-vs-knock-down-comparison">Knock-in vs knock-down comparison<a class="anchor" aria-label="anchor" href="#knock-in-vs-knock-down-comparison"></a>
-</h3>
-<p>Running <code>MacrostateTransitions</code> on both perturbations and
-plotting them side-by-side makes the directional contrast explicit.
-Groups that are stable under one perturbation but unstable under the
-other are the most informative about the turquoise module’s role in
-maintaining those states.</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/MacrostateTransitions.html">MacrostateTransitions</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up'</span>,</span>
-<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
-<span>    group.by          <span class="op">=</span> <span class="st">'Group'</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">p_down</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotMacrostateTransitions.html">PlotMacrostateTransitions</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_down'</span>,</span>
-<span>    group_order       <span class="op">=</span> <span class="va">group_order</span>,</span>
-<span>    title             <span class="op">=</span> <span class="st">'Knock-down'</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">p_up</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotMacrostateTransitions.html">PlotMacrostateTransitions</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="st">'turquoise_up'</span>,</span>
-<span>    group_order       <span class="op">=</span> <span class="va">group_order</span>,</span>
-<span>    title             <span class="op">=</span> <span class="st">'Knock-in'</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">p_down</span> <span class="op">|</span> <span class="va">p_up</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-26-1.png" class="r-plt" alt="" width="1344"></p>
-<p>Under the knock-in, the turquoise-enriched terminal groups should
-show <em>higher</em> stability than under baseline (the module is
-reinforced), while early progenitor groups may show increased
-off-diagonal outflow toward the turquoise branch tip. The two heatmaps
-together form a mirror image: the groups that destabilize under
-knock-down are stabilized under knock-in, and vice versa.</p>
-</div>
-<div class="section level3">
-<h3 id="stability-bar-chart">Stability bar chart<a class="anchor" aria-label="anchor" href="#stability-bar-chart"></a>
-</h3>
-<p>The stability index — the diagonal of Q — can be extracted and
-plotted directly to compare group-level resistance to the
-perturbation:</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">stab_down</span> <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">@</span><span class="va">misc</span><span class="op">$</span><span class="va">MacrostateTransitions</span><span class="op">[[</span><span class="st">'turquoise_down'</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">stability</span></span>
-<span><span class="va">stab_up</span>   <span class="op">&lt;-</span> <span class="va">seurat_obj</span><span class="op">@</span><span class="va">misc</span><span class="op">$</span><span class="va">MacrostateTransitions</span><span class="op">[[</span><span class="st">'turquoise_up'</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">stability</span></span>
-<span></span>
-<span><span class="va">stab_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    group       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">stab_down</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span>,</span>
-<span>    stability   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">stab_down</span>, <span class="va">stab_up</span><span class="op">)</span>,</span>
-<span>    perturbation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'knock-down'</span>, <span class="st">'knock-in'</span><span class="op">)</span>, each <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">stab_down</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">stab_df</span><span class="op">$</span><span class="va">group</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">stab_df</span><span class="op">$</span><span class="va">group</span>, levels <span class="op">=</span> <span class="va">group_order</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">stab_df</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">group</span>, y <span class="op">=</span> <span class="va">stability</span>, fill <span class="op">=</span> <span class="va">perturbation</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html" class="external-link">geom_col</a></span><span class="op">(</span>position <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/position_dodge.html" class="external-link">position_dodge</a></span><span class="op">(</span>width <span class="op">=</span> <span class="fl">0.7</span><span class="op">)</span>, width <span class="op">=</span> <span class="fl">0.65</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_fill_manual</a></span><span class="op">(</span>values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'knock-down'</span> <span class="op">=</span> <span class="st">'steelblue3'</span>, <span class="st">'knock-in'</span> <span class="op">=</span> <span class="st">'firebrick3'</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
-<span>        axis.text.x      <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">45</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
-<span>        panel.border     <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span>, color <span class="op">=</span> <span class="st">'black'</span>, fill <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span>,</span>
-<span>        panel.grid.major.y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">0.25</span>, color <span class="op">=</span> <span class="st">'lightgrey'</span><span class="op">)</span></span>
-<span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">xlab</a></span><span class="op">(</span><span class="st">''</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ylab</a></span><span class="op">(</span><span class="st">'Stability index'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/lims.html" class="external-link">ylim</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Group stability index — knock-down vs knock-in'</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-27-1.png" class="r-plt" alt="" width="768"></p>
-<p>Groups where the two bars are roughly equal are insensitive to the
-turquoise module in either direction. Groups with a large knock-down vs
-knock-in gap are the most directly regulated by turquoise: they
-destabilize when turquoise is suppressed and become more “sticky” when
-it is amplified.</p>
+<p>To interpret this plot, we can read the heatmap row by row. Each row
+corresponds to a “source” group; the tile intensities tell you where the
+cells are predicted to transition. For example, for the top row (group
+B1-1) aside from remaining within the same group, under this
+perturbation the cells are likely to transition to group B2-2, but to no
+other groups. This makes intuitive sense when we consider the PCA
+DimPlot from earlier, the only “neighboring” cluster to B1-1 is in fact
+B1-2.</p>
+<p>In general, we observe <strong>strong diagonal tiles</strong> in the
+heatmap, showing self-transition probability. This is expected since
+cells within the same group have the densest connections within the
+cell-cell network. The <strong>strong off-diagonal tiles</strong> are
+more interesting in this case as they show the predicted shifts from one
+group to another under this perturbation.</p>
+<!-- 
+## Knock-in vs knock-down comparison
+
+By visualizing the macrostate transition matrices side-by-side, we can b makes the directional contrast explicit. Groups that are stable under one perturbation but unstable under the other are the most informative about the turquoise module's role in maintaining those states.
+
+> **Note:** compact does not do this right now, but in principle it would be cool to plot the delta between knock-in and knock-outs.
+
+
+```` r
+p_down <- PlotMacrostateTransitions(
+    seurat_obj,
+    perturbation_name = 'turquoise_down',
+    group_order       = group_order,
+    title             = 'Knock-down'
+)
+
+p_up <- PlotMacrostateTransitions(
+    seurat_obj,
+    perturbation_name = 'turquoise_up',
+    group_order       = group_order,
+    title             = 'Knock-in'
+)
+
+p_down | p_up
+``` -->
+<!-- 
+## Stability bar chart
+
+The stability index — the diagonal of Q — can be extracted and plotted directly to compare group-level resistance to the perturbation:
+
+````
+
+``` r
+stab_down <- seurat_obj@misc$MacrostateTransitions[['turquoise_down']]$stability
+stab_up   <- seurat_obj@misc$MacrostateTransitions[['turquoise_up']]$stability
+
+stab_df <- data.frame(
+    group       = rep(names(stab_down), 2),
+    stability   = c(stab_down, stab_up),
+    perturbation = rep(c('knock-down', 'knock-in'), each = length(stab_down))
+)
+stab_df$group <- factor(stab_df$group, levels = group_order)
+
+ggplot(stab_df, aes(x = group, y = stability, fill = perturbation)) +
+    geom_col(position = position_dodge(width = 0.7), width = 0.65) +
+    scale_fill_manual(values = c('knock-down' = 'steelblue3', 'knock-in' = 'firebrick3')) +
+    theme(
+        axis.text.x      = element_text(angle = 45, hjust = 1),
+        panel.border     = element_rect(linewidth = 1, color = 'black', fill = NA),
+        panel.grid.major.y = element_line(linewidth = 0.25, color = 'lightgrey')
+    ) +
+    xlab('') + ylab('Stability index') +
+    ylim(c(0, 1)) +
+    ggtitle('Group stability index — knock-down vs knock-in')
+```
+
+Groups where the two bars are roughly equal are insensitive to the turquoise module in either direction. Groups with a large knock-down vs knock-in gap are the most directly regulated by turquoise: they destabilize when turquoise is suppressed and become more "sticky" when it is amplified. -->
 <hr>
 </div>
 </div>
 <div class="section level2">
-<h2 id="cell-fate-markov-chain-analyses">Cell Fate Markov Chain Analyses<a class="anchor" aria-label="anchor" href="#cell-fate-markov-chain-analyses"></a>
+<h2 id="perturbation-cell-fate-analysis">Perturbation cell fate analysis<a class="anchor" aria-label="anchor" href="#perturbation-cell-fate-analysis"></a>
 </h2>
-<p><code>compact</code> provides four functions that treat the
-transition probability matrix as a Markov chain and extract different
-types of cell-fate information. All four are illustrated here using the
+<p><code>compact</code> provides several functions that together aim to
+interrogate the downstream consequences of in-silico perturbations on
+cell fates. In particular, we treat the transition probability matrix as
+a Markov chain and extract different types of cell-fate information. We
+demonstrate each of these functions using the
 <strong>knock-down</strong> perturbation of the turquoise module.</p>
+<ul>
+<li>
+<code>PredictAttractors</code> identifies natural sink states from
+the stationary distribution</li>
+<li>
+<code>PredictPerturbationTime</code> computes an absorbing-chain
+hitting time (perturbation pseudotime)</li>
+<li>
+<code>PredictFates</code> calculates forward-diffusion fate
+probabilities toward a target population</li>
+<li>
+<code>PredictCommitment</code> computes the committor probability
+between two competing cell states.</li>
+</ul>
+<p>In general, these functions provide cell-level outputs which we can
+then visualize using different approaches. <code>compact</code> provides
+a built-in visualization solution, <code>PlotMarkovEmbedding</code>,
+which you can consider as a specialized form of the Seurat
+<code>FeaturePlot</code> function with some additional functionality for
+this analysis in particular. For instance, source and sink populations
+can be explicitly marked with a single centroid diamond per group
+(labeled automatically with ggrepel), making their positions clear
+without cluttering the plot; and unconverged cells (those that hit
+<code>max_iter</code> in iterative solvers) are drawn in grey below the
+color scale rather than receiving a misleading color value.</p>
 <div class="section level3">
 <h3 id="shared-setup-defining-sink-cells">Shared setup: defining sink cells<a class="anchor" aria-label="anchor" href="#shared-setup-defining-sink-cells"></a>
 </h3>
 <p>For several of the analyses below, we must specify <strong>sink
-cells</strong> — a set of cells that serve as absorbing states in the
+cells</strong>, a set of cells that serve as absorbing states in the
 Markov chain. We define them simply as all cells in the earliest
 pseudotime group, <code>B1-1</code>, which sits at the shared root
 region of the trajectory:</p>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">perturb_name</span> <span class="op">&lt;-</span> <span class="st">'turquoise_down'</span></span>
 <span></span>
 <span><span class="co"># define sink cells by group membership (root of the trajectory)</span></span>
-<span><span class="va">sink_cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span> <span class="op">==</span> <span class="st">'B1-1'</span><span class="op">]</span></span></code></pre></div>
+<span><span class="va">sink_cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span> <span class="op">==</span> <span class="st">'B1-4'</span><span class="op">]</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="perturbation-pseudotime-predictperturbationtime">Perturbation Pseudotime (<code>PredictPerturbationTime</code>)<a class="anchor" aria-label="anchor" href="#perturbation-pseudotime-predictperturbationtime"></a>
+<h3 id="identifying-attractor-states">Identifying attractor states<a class="anchor" aria-label="anchor" href="#identifying-attractor-states"></a>
+</h3>
+<p><code>PredictAttractors</code> computes the <strong>stationary
+distribution</strong> of the transition probability Markov chain, which
+represents the probability of finding the Markov random walk at each
+cell. Cells with high stationary probability act as attractors, or
+natural “sinks,” in the perturbation dynamics.</p>
+<p>Setting <code>return_seurat = FALSE</code> returns a list with both
+the continuous stationary-distribution scores and the binary sink-cell
+membership. We then compute the ECDF transformation manually so we can
+store both the raw and the rank-normalized scores for comparison.</p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># return_seurat=FALSE gives us both the raw scores and the identified sink cells</span></span>
+<span><span class="va">attr_result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PredictAttractors.html">PredictAttractors</a></span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
+<span>    graph             <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
+<span>    rank_transform    <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>    return_seurat     <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># store raw stationary-distribution scores</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/AddMetaData.html" class="external-link">AddMetaData</a></span><span class="op">(</span><span class="va">seurat_obj</span>,</span>
+<span>    metadata <span class="op">=</span> <span class="va">attr_result</span><span class="op">$</span><span class="va">attractor_score</span>,</span>
+<span>    col.name <span class="op">=</span> <span class="st">'attractor_score_raw'</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># compute ECDF-normalized scores ([0,1] percentile ranks) and store separately</span></span>
+<span><span class="va">ecdf_scores</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/ecdf.html" class="external-link">ecdf</a></span><span class="op">(</span><span class="va">attr_result</span><span class="op">$</span><span class="va">attractor_score</span><span class="op">)</span><span class="op">(</span><span class="va">attr_result</span><span class="op">$</span><span class="va">attractor_score</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">ecdf_scores</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">attr_result</span><span class="op">$</span><span class="va">attractor_score</span><span class="op">)</span></span>
+<span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://satijalab.github.io/seurat-object/reference/AddMetaData.html" class="external-link">AddMetaData</a></span><span class="op">(</span><span class="va">seurat_obj</span>,</span>
+<span>    metadata <span class="op">=</span> <span class="va">ecdf_scores</span>,</span>
+<span>    col.name <span class="op">=</span> <span class="st">'attractor_score'</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># add binary attractor state (top 2% by default quantile_threshold = 0.98);</span></span>
+<span><span class="co"># factor levels are set so 'Other' is drawn first and 'Attractor' on top</span></span>
+<span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">attractor_state</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">attr_result</span><span class="op">$</span><span class="va">sink_cells</span>, <span class="st">'Attractor'</span>, <span class="st">'Other'</span><span class="op">)</span>,</span>
+<span>    levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'Other'</span>, <span class="st">'Attractor'</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Plotting the raw score alongside the ECDF-normalized version makes
+the benefit of the rank transformation visible: the raw stationary
+distribution has a heavy right tail concentrated on a handful of cells,
+while ECDF spreading stretches the color scale across the full
+manifold.</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">p_raw</span> <span class="op">&lt;-</span> <span class="fu">PlotMarkovEmbedding</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    feature      <span class="op">=</span> <span class="st">'attractor_score_raw'</span>,</span>
+<span>    reduction    <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    sink_cells   <span class="op">=</span> <span class="va">attr_result</span><span class="op">$</span><span class="va">sink_cells</span>,</span>
+<span>    sink_label   <span class="op">=</span> <span class="st">'Attractor cells'</span>,</span>
+<span>    color_scale  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'whitesmoke'</span>, <span class="st">'darkorchid3'</span><span class="op">)</span>,</span>
+<span>    pt_size      <span class="op">=</span> <span class="fl">1.5</span>,</span>
+<span>    legend_title <span class="op">=</span> <span class="st">'Attractor score\n(raw)'</span>,</span>
+<span>    title        <span class="op">=</span> <span class="st">'Raw stationary distribution'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">p_attractors</span> <span class="op">&lt;-</span> <span class="fu">PlotMarkovEmbedding</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    feature      <span class="op">=</span> <span class="st">'attractor_score'</span>,</span>
+<span>    reduction    <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    sink_cells   <span class="op">=</span> <span class="va">attr_result</span><span class="op">$</span><span class="va">sink_cells</span>,</span>
+<span>    sink_label   <span class="op">=</span> <span class="st">'Attractor cells'</span>,</span>
+<span>    color_scale  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'whitesmoke'</span>, <span class="st">'darkorchid3'</span><span class="op">)</span>,</span>
+<span>    pt_size      <span class="op">=</span> <span class="fl">1.5</span>,</span>
+<span>    legend_title <span class="op">=</span> <span class="st">'Attractor score\n(ECDF)'</span>,</span>
+<span>    title        <span class="op">=</span> <span class="st">'ECDF-normalized'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://patchwork.data-imaginist.com/reference/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span><span class="va">p_raw</span>, <span class="va">p_attractors</span>, ncol <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-29-1.png" class="r-plt" alt="" width="1152"></p>
+<p>The same cells can be shown as a binary classification — the top 2%
+of the stationary distribution, flagged as predicted attractor
+cells:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://satijalab.org/seurat/reference/DimPlot.html" class="external-link">DimPlot</a></span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    group.by  <span class="op">=</span> <span class="st">'attractor_state'</span>,</span>
+<span>    cols      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'Other'</span> <span class="op">=</span> <span class="st">'lightgrey'</span>, <span class="st">'Attractor'</span> <span class="op">=</span> <span class="st">'darkorchid3'</span><span class="op">)</span>,</span>
+<span>    pt.size   <span class="op">=</span> <span class="fl">1.5</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Predicted attractor cells — turquoise, knock-down'</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-30-1.png" class="r-plt" alt="" width="576"></p>
+<p>Terminal states on the branches that the perturbation drives cells
+toward should show the highest attractor scores. After turquoise
+knock-down, we expect the attractor mass to concentrate at the branch
+tip that the knock-down promotes, and to shift away from the
+turquoise-enriched branch.</p>
+</div>
+<div class="section level3">
+<h3 id="markov-hitting-time-perturbation-pseudotime">Markov hitting time (perturbation pseudotime)<a class="anchor" aria-label="anchor" href="#markov-hitting-time-perturbation-pseudotime"></a>
 </h3>
 <p><code>PredictPerturbationTime</code> sets up an <strong>absorbing
 Markov chain</strong> with the sink cells as absorbing states and
 computes the expected number of steps each cell needs to reach the sink.
 This is analogous to RNA velocity pseudotime, but derived from in-silico
-perturbation transition probabilities.</p>
+perturbation transition probabilities. Sink cells receive a
+“perturbation pseudotime” of 0; cells that never reach the sink within
+<code>max_iter</code> steps (default 10,000) are flagged as
+unconverged.</p>
 <div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PredictPerturbationTime.html">PredictPerturbationTime</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
@@ -1138,107 +1403,73 @@ perturbation transition probabilities.</p>
 <span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>Visualize on the embedding:</p>
+<p>Visualize on the embedding with <code>PlotMarkovEmbedding</code>. We
+pass <code>sink_cells</code> so the absorbing state (B1-1) is marked
+with a centroid diamond, and we grey out any unconverged cells so they
+do not distort the color scale:</p>
 <div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotTransitionVectors.html">PlotTransitionVectors</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
-<span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
-<span>    color.by <span class="op">=</span> <span class="st">'perturbation_pseudotime'</span>,</span>
-<span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
-<span>    arrow_scale <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    point_alpha <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>    point_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>    arrow_size <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>    max_pct <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>    arrow_alpha <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradientn</a></span><span class="op">(</span>colors <span class="op">=</span> <span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">plasma</a></span><span class="op">(</span><span class="fl">256</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Perturbation pseudotime — knock-down'</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># cells that hit max_iter are unconverged — grey them out rather than color them</span></span>
+<span><span class="va">unconverged_cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">perturbation_pseudotime</span> <span class="op">&gt;=</span> <span class="fl">10000</span><span class="op">]</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-30-1.png" class="r-plt" alt="" width="672"></p>
+<span><span class="va">p_pseudotime</span> <span class="op">&lt;-</span> <span class="fu">PlotMarkovEmbedding</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    feature           <span class="op">=</span> <span class="st">'perturbation_pseudotime'</span>,</span>
+<span>    reduction         <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    sink_cells        <span class="op">=</span> <span class="va">sink_cells</span>,</span>
+<span>    sink_label        <span class="op">=</span> <span class="st">'B1-4 (absorbing state)'</span>,</span>
+<span>    unconverged_cells <span class="op">=</span> <span class="va">unconverged_cells</span>,</span>
+<span>    color_scale       <span class="op">=</span> <span class="fu">viridis</span><span class="fu">::</span><span class="fu"><a href="https://sjmgarnier.github.io/viridisLite/reference/viridis.html" class="external-link">plasma</a></span><span class="op">(</span><span class="fl">256</span><span class="op">)</span>,</span>
+<span>    pt_size           <span class="op">=</span> <span class="fl">1.5</span>,</span>
+<span>    legend_title      <span class="op">=</span> <span class="st">'Perturbation \npseudotime'</span>,</span>
+<span>    title             <span class="op">=</span> <span class="st">'Turquoise, knock-down'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p_pseudotime</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-32-1.png" class="r-plt" alt="" width="576"></p>
 <p>Cells far from the sink in transition probability space will have
 high pseudotime values. When turquoise is knocked down, cells that would
 normally move toward the turquoise-enriched branch should instead
 require many more steps (or move in a different direction) to reach the
-root.</p>
+root. The centroid diamond marks where the clock is anchored: sink cells
+at B1-1 have pseudotime 0 by definition.</p>
 </div>
 <div class="section level3">
-<h3 id="attractor-identification-predictattractors">Attractor Identification (<code>PredictAttractors</code>)<a class="anchor" aria-label="anchor" href="#attractor-identification-predictattractors"></a>
-</h3>
-<p><code>PredictAttractors</code> computes the <strong>stationary
-distribution</strong> of the transition probability Markov chain — the
-long-run probability of finding the random walk at each cell. Cells with
-high stationary probability act as attractors, or “sinks,” in the
-perturbation dynamics.</p>
-<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PredictAttractors.html">PredictAttractors</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
-<span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotTransitionVectors.html">PlotTransitionVectors</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
-<span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
-<span>    color.by <span class="op">=</span> <span class="st">'attractor_score'</span>,</span>
-<span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
-<span>    arrow_scale <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    point_alpha <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>    point_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>    arrow_size <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>    max_pct <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>    arrow_alpha <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradient</a></span><span class="op">(</span>low <span class="op">=</span> <span class="st">'whitesmoke'</span>, high <span class="op">=</span> <span class="st">'darkorchid3'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Attractor score — knock-down'</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-31-1.png" class="r-plt" alt="" width="672"></p>
-<p>Terminal states on the branches that the perturbation drives cells
-toward should show the highest attractor scores. After turquoise
-knock-down, we expect the attractor mass to shift away from the
-turquoise-enriched branch tip.</p>
-</div>
-<div class="section level3">
-<h3 id="fate-prediction-predictfates">Fate Prediction (<code>PredictFates</code>)<a class="anchor" aria-label="anchor" href="#fate-prediction-predictfates"></a>
+<h3 id="predicting-specific-cell-fates">Predicting specific cell fates<a class="anchor" aria-label="anchor" href="#predicting-specific-cell-fates"></a>
 </h3>
 <p><code>PredictFates</code> computes the <strong>committor
-probability</strong> — the probability that a random walk starting from
+probability</strong>, the probability that a random walk starting from
 each cell will reach a specified target group before leaving the graph.
-This answers the question: “Given where this cell is, how likely is it
-to end up in state X?”</p>
-<p>Here we ask: what fraction of the time does the perturbed random walk
-reach <code>B1-4</code> (the tip of Branch 1)?</p>
-<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+This answers the question: <em>“Given where this cell is, how likely is
+it to end up in state X?”</em></p>
+<p>In this example, we use this function to calculate the probability
+that each cell ends up in the B1-4 group.</p>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PredictFates.html">PredictFates</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
 <span>    group_name <span class="op">=</span> <span class="st">'B1-4'</span></span>
-<span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>We mark the B1-4 target cells with a centroid diamond so their
+position on the embedding is unambiguous:</p>
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fate_target_cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span> <span class="op">==</span> <span class="st">'B1-4'</span><span class="op">]</span></span>
 <span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotTransitionVectors.html">PlotTransitionVectors</a></span><span class="op">(</span></span>
+<span><span class="va">p_fates</span> <span class="op">&lt;-</span> <span class="fu">PlotMarkovEmbedding</span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
-<span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
-<span>    color.by <span class="op">=</span> <span class="st">'forward_fate'</span>,</span>
-<span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
-<span>    arrow_scale <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    point_alpha <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>    point_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>    arrow_size <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>    max_pct <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>    arrow_alpha <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradient</a></span><span class="op">(</span>low <span class="op">=</span> <span class="st">'whitesmoke'</span>, high <span class="op">=</span> <span class="st">'darkorchid3'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Fate toward B1-4 — knock-down'</span><span class="op">)</span></span>
+<span>    feature      <span class="op">=</span> <span class="st">'forward_fate'</span>,</span>
+<span>    reduction    <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    sink_cells   <span class="op">=</span> <span class="va">fate_target_cells</span>,</span>
+<span>    sink_label   <span class="op">=</span> <span class="st">'B1-4 (fate target)'</span>,</span>
+<span>    color_scale  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'whitesmoke'</span>, <span class="st">'darkorchid3'</span><span class="op">)</span>,</span>
+<span>    pt_size      <span class="op">=</span> <span class="fl">1.5</span>,</span>
+<span>    legend_title <span class="op">=</span> <span class="st">'Fate probability'</span>,</span>
+<span>    title        <span class="op">=</span> <span class="st">'Turquoise, knock-down'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-32-1.png" class="r-plt" alt="" width="672"></p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p_fates</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-34-1.png" class="r-plt" alt="" width="576"></p>
 <p>Cells on Branch 1 should have high fate probability toward
 <code>B1-4</code>. If turquoise drives differentiation along a different
 branch, knocking it down should not dramatically alter Branch 1 fate
@@ -1246,50 +1477,113 @@ probabilities, while fate probabilities toward the turquoise-enriched
 branch tip should decrease.</p>
 </div>
 <div class="section level3">
-<h3 id="commitment-score-predictcommitment">Commitment Score (<code>PredictCommitment</code>)<a class="anchor" aria-label="anchor" href="#commitment-score-predictcommitment"></a>
+<h3 id="commitment-between-two-states">Commitment between two states<a class="anchor" aria-label="anchor" href="#commitment-between-two-states"></a>
 </h3>
 <p><code>PredictCommitment</code> computes the committor probability
-<strong>between two specified groups</strong> — a source and a sink. It
-quantifies how committed each cell is to transitioning from the source
-state toward the sink state.</p>
+<strong>between two specified groups</strong>. In general it quantifies
+how committed each cell is to transitioning from the source state toward
+the sink state, but the same function could also be used equivalently to
+study the whether a cell will commit to one of two terminal states.</p>
 <div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PredictCommitment.html">PredictCommitment</a></span><span class="op">(</span></span>
 <span>    <span class="va">seurat_obj</span>,</span>
 <span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
 <span>    graph <span class="op">=</span> <span class="st">'RNA_snn'</span>,</span>
 <span>    group.by <span class="op">=</span> <span class="st">'Group'</span>,</span>
-<span>    source_group <span class="op">=</span> <span class="st">'B1-1'</span>,</span>
-<span>    sink_group <span class="op">=</span> <span class="st">'B1-4'</span></span>
+<span>    source_group <span class="op">=</span> <span class="st">'B1-4'</span>,</span>
+<span>    sink_group <span class="op">=</span> <span class="st">'B3-4'</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Both boundary populations are marked with labeled centroid diamonds,
+anchoring the gradient so the reader immediately sees where the 0 and 1
+ends lie:</p>
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">p_commitment</span> <span class="op">&lt;-</span> <span class="fu">PlotMarkovEmbedding</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    feature       <span class="op">=</span> <span class="st">'commitment_score'</span>,</span>
+<span>    reduction     <span class="op">=</span> <span class="st">'pca'</span>,</span>
+<span>    source_cells  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span> <span class="op">==</span> <span class="st">'B1-4'</span><span class="op">]</span>,</span>
+<span>    sink_cells    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">seurat_obj</span><span class="op">)</span><span class="op">[</span><span class="va">seurat_obj</span><span class="op">$</span><span class="va">Group</span> <span class="op">==</span> <span class="st">'B3-4'</span><span class="op">]</span>,</span>
+<span>    source_label  <span class="op">=</span> <span class="st">'B1-4'</span>,</span>
+<span>    sink_label    <span class="op">=</span> <span class="st">'B3-4'</span>,</span>
+<span>    pt_size       <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>    legend_title  <span class="op">=</span> <span class="st">'Commitment'</span>,</span>
+<span>    title         <span class="op">=</span> <span class="st">'Commitment to B1-4 or B3-4'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradientn</a></span><span class="op">(</span></span>
+<span>  colors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">cp</span><span class="op">[</span><span class="st">"B1-4"</span><span class="op">]</span>, <span class="st">"whitesmoke"</span>, <span class="st">"whitesmoke"</span>, <span class="va">cp</span><span class="op">[</span><span class="st">"B3-4"</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>  values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.25</span>, <span class="fl">0.75</span>, <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/PlotTransitionVectors.html">PlotTransitionVectors</a></span><span class="op">(</span></span>
-<span>    <span class="va">seurat_obj</span>,</span>
-<span>    perturbation_name <span class="op">=</span> <span class="va">perturb_name</span>,</span>
-<span>    reduction <span class="op">=</span> <span class="st">'pca'</span>,</span>
-<span>    color.by <span class="op">=</span> <span class="st">'commitment_score'</span>,</span>
-<span>    grid_resolution <span class="op">=</span> <span class="fl">25</span>,</span>
-<span>    arrow_scale <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>    point_alpha <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>    point_size <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>    arrow_size <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>    max_pct <span class="op">=</span> <span class="fl">0.5</span>,</span>
-<span>    arrow_alpha <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_gradient.html" class="external-link">scale_color_gradient</a></span><span class="op">(</span>low <span class="op">=</span> <span class="st">'whitesmoke'</span>, high <span class="op">=</span> <span class="st">'darkorchid3'</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_fixed.html" class="external-link">coord_equal</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">ggtitle</a></span><span class="op">(</span><span class="st">'Commitment: B1-1 → B1-4 (knock-down)'</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p</span><span class="op">)</span></span></code></pre></div>
-<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-33-1.png" class="r-plt" alt="" width="672"></p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">p_commitment</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-36-1.png" class="r-plt" alt="" width="576"></p>
 <p>Cells along the Branch 1 trajectory should show a gradient from 0 (at
 <code>B1-1</code>, the source) to 1 (at <code>B1-4</code>, the sink).
 Cells on Branches 2 and 3 should have lower commitment scores for this
 source–sink pair, since their perturbation-driven transitions are not
 directed toward <code>B1-4</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="summary-all-four-markov-analyses">Summary: all four Markov analyses<a class="anchor" aria-label="anchor" href="#summary-all-four-markov-analyses"></a>
+</h3>
+<p>With all four scores computed, we can display them together in a
+single 2 × 2 panel:</p>
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://patchwork.data-imaginist.com/reference/wrap_plots.html" class="external-link">wrap_plots</a></span><span class="op">(</span></span>
+<span>    <span class="va">p_attractors</span>, <span class="va">p_pseudotime</span>,</span>
+<span>    <span class="va">p_fates</span>,      <span class="va">p_commitment</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-37-1.png" class="r-plt" alt="" width="1152"></p>
+</div>
+<div class="section level3">
+<h3 id="alternative-visualizations">Alternative visualizations<a class="anchor" aria-label="anchor" href="#alternative-visualizations"></a>
+</h3>
+<p>Individual embedding plots show where each score is high or low
+across the manifold. <code>compact</code> also includs another
+visualization function <code>PlotMarkovScatter</code> to examine
+<strong>relationships between predicted cell fate scores</strong> or
+between a score and a biological feature, colored by a grouping
+variable. Two illustrative comparisons are shown below.</p>
+<p><strong>Module eigengene vs. commitment score</strong> — turquoise
+expression should predict commitment to B1-4, since the module is
+enriched at that branch tip. The dashed reference line at 0.5 marks the
+threshold above which a cell is more likely to reach B1-4 than to return
+to B1-1.</p>
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">PlotMarkovScatter</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    x_feature     <span class="op">=</span> <span class="va">cur_mod</span>,</span>
+<span>    y_feature     <span class="op">=</span> <span class="st">'commitment_score'</span>,</span>
+<span>    color.by      <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>    hline         <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>    x_label       <span class="op">=</span> <span class="st">'Turquoise module eigengene'</span>,</span>
+<span>    y_label       <span class="op">=</span> <span class="st">'Commitment P(B1-4 before B1-1)'</span>,</span>
+<span>    title         <span class="op">=</span> <span class="st">'Module expression vs. commitment'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values<span class="op">=</span><span class="va">cp</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-38-1.png" class="r-plt" alt="" width="576"></p>
+<p><strong>Attractor score vs. perturbation pseudotime</strong> —
+attractor cells are where the random walk converges; they should cluster
+at low pseudotime values (close to the root sink in transition space) or
+at particular branch tips depending on the perturbation direction.</p>
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">PlotMarkovScatter</span><span class="op">(</span></span>
+<span>    <span class="va">seurat_obj</span>,</span>
+<span>    x_feature <span class="op">=</span> <span class="st">'attractor_score'</span>,</span>
+<span>    y_feature <span class="op">=</span> <span class="st">'perturbation_pseudotime'</span>,</span>
+<span>    color.by  <span class="op">=</span> <span class="st">'Group'</span>,</span>
+<span>    x_label   <span class="op">=</span> <span class="st">'Attractor score'</span>,</span>
+<span>    y_label   <span class="op">=</span> <span class="st">'Perturbation pseudotime'</span>,</span>
+<span>    title     <span class="op">=</span> <span class="st">'Attractor score vs. pseudotime'</span></span>
+<span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span>values<span class="op">=</span><span class="va">cp</span><span class="op">)</span></span></code></pre></div>
+<p><img src="simulation_tutorial_files/figure-html/unnamed-chunk-39-1.png" class="r-plt" alt="" width="576"></p>
+<p>Each branch forms a distinct cluster in this space: cells with high
+attractor score are either near the root (low pseudotime) or
+concentrated at branch tips.</p>
 <hr>
 </div>
 </div>
 <div class="section level2">
-<h2 id="summary-and-next-steps">Summary and Next Steps<a class="anchor" aria-label="anchor" href="#summary-and-next-steps"></a>
+<h2 id="summary-and-next-steps">Summary and next steps<a class="anchor" aria-label="anchor" href="#summary-and-next-steps"></a>
 </h2>
 <p>In this tutorial we used <strong><code>compact</code></strong> to
 perform in-silico module perturbations on a simulated branching
@@ -1318,16 +1612,20 @@ indices and cross-group flow from the Q matrix heatmap.</li>
 (<code>PredictPerturbationTime</code>), attractors
 (<code>PredictAttractors</code>), fate probabilities
 (<code>PredictFates</code>), and commitment scores
-(<code>PredictCommitment</code>).</li>
+(<code>PredictCommitment</code>), visualized with
+<code>PlotMarkovEmbedding</code> (source/sink overlays, unconverged-cell
+greying) and <code>PlotMarkovScatter</code> (cross-score
+relationships).</li>
 </ol>
 <p>The same workflow applies directly to real biological datasets. For a
 tutorial using Alzheimer’s disease microglia or NSCLC data, see the
-<strong>basic tutorial</strong> (coming soon).</p>
+<strong>basic tutorial</strong> (⚠️ under construction, coming
+soon).</p>
 <p>For transcription factor–based perturbations using
 <code>TFPerturbation</code>, see the <strong>TF perturbation
 tutorial</strong> (coming soon).</p>
 <details><summary><strong>Session information (click to expand)</strong>
-</summary><div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
+</summary><div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/sessionInfo.html" class="external-link">sessionInfo</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; R version 4.5.3 (2026-03-11)</span></span>
 <span><span class="co">#&gt; Platform: x86_64-conda-linux-gnu</span></span>
@@ -1352,27 +1650,27 @@ tutorial</strong> (coming soon).</p>
 <span><span class="co">#&gt; [8] base     </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; other attached packages:</span></span>
-<span><span class="co">#&gt;  [1] future_1.70.0               compact_0.1.0              </span></span>
-<span><span class="co">#&gt;  [3] hdWGCNA_0.4.11              enrichR_3.4                </span></span>
-<span><span class="co">#&gt;  [5] SummarizedExperiment_1.40.0 Biobase_2.70.0             </span></span>
-<span><span class="co">#&gt;  [7] MatrixGenerics_1.22.0       matrixStats_1.5.0          </span></span>
-<span><span class="co">#&gt;  [9] GenomicRanges_1.62.1        Seqinfo_1.0.0              </span></span>
-<span><span class="co">#&gt; [11] IRanges_2.44.0              S4Vectors_0.48.0           </span></span>
-<span><span class="co">#&gt; [13] BiocGenerics_0.56.0         generics_0.1.4             </span></span>
-<span><span class="co">#&gt; [15] GeneOverlap_1.46.0          UCell_2.14.0               </span></span>
-<span><span class="co">#&gt; [17] tidygraph_1.3.0             ggraph_2.2.2               </span></span>
-<span><span class="co">#&gt; [19] igraph_2.3.1                WGCNA_1.74                 </span></span>
-<span><span class="co">#&gt; [21] fastcluster_1.3.0           dynamicTreeCut_1.63-1      </span></span>
-<span><span class="co">#&gt; [23] ggrepel_0.9.8               harmony_2.0.2              </span></span>
-<span><span class="co">#&gt; [25] Rcpp_1.1.1-1.1              RColorBrewer_1.1-3         </span></span>
-<span><span class="co">#&gt; [27] patchwork_1.3.2             cowplot_1.2.0              </span></span>
-<span><span class="co">#&gt; [29] lubridate_1.9.5             forcats_1.0.1              </span></span>
-<span><span class="co">#&gt; [31] stringr_1.6.0               dplyr_1.2.1                </span></span>
-<span><span class="co">#&gt; [33] purrr_1.2.2                 readr_2.2.0                </span></span>
-<span><span class="co">#&gt; [35] tidyr_1.3.2                 tibble_3.3.1               </span></span>
-<span><span class="co">#&gt; [37] ggplot2_4.0.3               tidyverse_2.0.0            </span></span>
-<span><span class="co">#&gt; [39] Seurat_5.5.0                SeuratObject_5.4.0         </span></span>
-<span><span class="co">#&gt; [41] sp_2.2-1                   </span></span>
+<span><span class="co">#&gt;  [1] ggpubr_0.6.3                future_1.70.0              </span></span>
+<span><span class="co">#&gt;  [3] compact_0.1.0               hdWGCNA_0.4.11             </span></span>
+<span><span class="co">#&gt;  [5] enrichR_3.4                 SummarizedExperiment_1.40.0</span></span>
+<span><span class="co">#&gt;  [7] Biobase_2.70.0              MatrixGenerics_1.22.0      </span></span>
+<span><span class="co">#&gt;  [9] matrixStats_1.5.0           GenomicRanges_1.62.1       </span></span>
+<span><span class="co">#&gt; [11] Seqinfo_1.0.0               IRanges_2.44.0             </span></span>
+<span><span class="co">#&gt; [13] S4Vectors_0.48.0            BiocGenerics_0.56.0        </span></span>
+<span><span class="co">#&gt; [15] generics_0.1.4              GeneOverlap_1.46.0         </span></span>
+<span><span class="co">#&gt; [17] UCell_2.14.0                tidygraph_1.3.0            </span></span>
+<span><span class="co">#&gt; [19] ggraph_2.2.2                igraph_2.3.1               </span></span>
+<span><span class="co">#&gt; [21] WGCNA_1.74                  fastcluster_1.3.0          </span></span>
+<span><span class="co">#&gt; [23] dynamicTreeCut_1.63-1       ggrepel_0.9.8              </span></span>
+<span><span class="co">#&gt; [25] harmony_2.0.2               Rcpp_1.1.1-1.1             </span></span>
+<span><span class="co">#&gt; [27] RColorBrewer_1.1-3          patchwork_1.3.2            </span></span>
+<span><span class="co">#&gt; [29] cowplot_1.2.0               lubridate_1.9.5            </span></span>
+<span><span class="co">#&gt; [31] forcats_1.0.1               stringr_1.6.0              </span></span>
+<span><span class="co">#&gt; [33] dplyr_1.2.1                 purrr_1.2.2                </span></span>
+<span><span class="co">#&gt; [35] readr_2.2.0                 tidyr_1.3.2                </span></span>
+<span><span class="co">#&gt; [37] tibble_3.3.1                ggplot2_4.0.3              </span></span>
+<span><span class="co">#&gt; [39] tidyverse_2.0.0             Seurat_5.5.0               </span></span>
+<span><span class="co">#&gt; [41] SeuratObject_5.4.0          sp_2.2-1                   </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; loaded via a namespace (and not attached):</span></span>
 <span><span class="co">#&gt;   [1] fs_2.1.0                    spatstat.sparse_3.1-0      </span></span>
@@ -1442,20 +1740,19 @@ tutorial</strong> (coming soon).</p>
 <span><span class="co">#&gt; [129] deldir_2.0-4                graphlayouts_1.2.3         </span></span>
 <span><span class="co">#&gt; [131] splines_4.5.3               tensor_1.5.1               </span></span>
 <span><span class="co">#&gt; [133] hms_1.1.4                   rdist_0.0.5                </span></span>
-<span><span class="co">#&gt; [135] ggpubr_0.6.3                spatstat.geom_3.7-3        </span></span>
-<span><span class="co">#&gt; [137] ggsignif_0.6.4              RcppHNSW_0.6.0             </span></span>
-<span><span class="co">#&gt; [139] reshape2_1.4.5              evaluate_1.0.5             </span></span>
-<span><span class="co">#&gt; [141] tester_0.3.0                tzdb_0.5.0                 </span></span>
-<span><span class="co">#&gt; [143] foreach_1.5.2               tweenr_2.0.3               </span></span>
-<span><span class="co">#&gt; [145] httpuv_1.6.17               RANN_2.6.2                 </span></span>
-<span><span class="co">#&gt; [147] polyclip_1.10-7             scattermore_1.2            </span></span>
-<span><span class="co">#&gt; [149] ggforce_0.5.0               broom_1.0.12               </span></span>
-<span><span class="co">#&gt; [151] xtable_1.8-8                RSpectra_0.16-2            </span></span>
-<span><span class="co">#&gt; [153] rstatix_0.7.3               later_1.4.8                </span></span>
-<span><span class="co">#&gt; [155] viridisLite_0.4.3           ragg_1.5.2                 </span></span>
-<span><span class="co">#&gt; [157] beeswarm_0.4.0              memoise_2.0.1              </span></span>
-<span><span class="co">#&gt; [159] cluster_2.1.8.2             timechange_0.4.0           </span></span>
-<span><span class="co">#&gt; [161] globals_0.19.1</span></span></code></pre></div>
+<span><span class="co">#&gt; [135] spatstat.geom_3.7-3         ggsignif_0.6.4             </span></span>
+<span><span class="co">#&gt; [137] RcppHNSW_0.6.0              reshape2_1.4.5             </span></span>
+<span><span class="co">#&gt; [139] evaluate_1.0.5              tester_0.3.0               </span></span>
+<span><span class="co">#&gt; [141] tzdb_0.5.0                  foreach_1.5.2              </span></span>
+<span><span class="co">#&gt; [143] tweenr_2.0.3                httpuv_1.6.17              </span></span>
+<span><span class="co">#&gt; [145] RANN_2.6.2                  polyclip_1.10-7            </span></span>
+<span><span class="co">#&gt; [147] scattermore_1.2             ggforce_0.5.0              </span></span>
+<span><span class="co">#&gt; [149] broom_1.0.12                xtable_1.8-8               </span></span>
+<span><span class="co">#&gt; [151] RSpectra_0.16-2             rstatix_0.7.3              </span></span>
+<span><span class="co">#&gt; [153] later_1.4.8                 viridisLite_0.4.3          </span></span>
+<span><span class="co">#&gt; [155] ragg_1.5.2                  beeswarm_0.4.0             </span></span>
+<span><span class="co">#&gt; [157] memoise_2.0.1               cluster_2.1.8.2            </span></span>
+<span><span class="co">#&gt; [159] timechange_0.4.0            globals_0.19.1</span></span></code></pre></div>
 </details>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

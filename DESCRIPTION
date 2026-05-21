@@ -28,6 +28,7 @@ Imports:
     xgboost (>= 1.7.11.1),
     SHAPforxgboost (>= 0.1.3),
     ggplot2,
+    ggrepel,
     data.table,
     ggrastr,
     pbapply,

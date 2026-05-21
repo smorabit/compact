@@ -215,6 +215,12 @@ seurat_obj <- SetNetworkData(seurat_obj, net)
 # we load this internally only, not shown in the tutorial
 seurat_obj <- readRDS('/home/groups/singlecell/smorabito/analysis/COMPACT/data/simulation_branch_compact.rds')
 cur_mod <- 'turquoise'
+
+# register the TOM file path inside the Seurat object
+net <- GetNetworkData(seurat_obj)
+net$TOMFiles <- "/home/groups/singlecell/smorabito/analysis/COMPACT/data/TOM/sim_TOM.rda"
+seurat_obj <- SetNetworkData(seurat_obj, net)
+
 ```
 
 ## Plot the clusters
@@ -240,10 +246,10 @@ DimPlot(
     cols = cp,
     label = FALSE,
     pt.size = 1
-) + coord_equal() + NoLegend()
+) + coord_equal() 
 ```
 
-## Plot Module Eigengenes
+## Plot module eigengenes
 
 We next inspect the expression level of each gene co-expression module identified by hdWGCNA.
 
@@ -368,11 +374,11 @@ seurat_obj <- FindConnectedComponents(
 
 # Running `ModulePerturbation`
 
-`ModulePerturbation` is the core function of `compact`. It performs three sequential steps internally:
+Here we run `ModulePerturbation`, the core function of `compact`, to perform an in-silico down-regulation and up-regulation of the turquoise module. This function performs three sequential steps internally:
 
-1. **`ApplyPerturbation`**: Directly modifies the expression of the top hub genes in the target module in the direction specified by `perturb_dir`.
-2. **`ApplyPropagation`**: Propagates that initial perturbation signal through the co-expression network, updating the expression of all genes connected to the hub genes.
-3. **`PerturbationTransitions`**: Computes cell-cell transition probabilities on the KNN graph using the perturbed expression matrix, yielding a transition probability matrix analogous to those from RNA velocity.
+1. **`ApplyPerturbation`**: Directly modifies the gene expression counts of the top hub genes in the target co-expression module in the direction specified by `perturb_dir`.
+2. **`ApplyPropagation`**: Propagates that initial perturbation signal on the hub genes through the rest of the co-expression network, updating the expression of all genes connected to the hub genes.
+3. **`PerturbationTransitions`**: Computes cell-cell transition probabilities on a cell-cell nearest neighbors graph using the perturbed expression matrix, yielding a transition probability matrix analogous to those from RNA velocity.
 
 The results are stored back into the Seurat object as a new assay (the perturbed expression) and a new graph (the transition probability matrix).
 
@@ -380,7 +386,7 @@ The results are stored back into the Seurat object as a new assay (the perturbed
 
 `compact` defaults to ZINB mode (`perturb_mode = "zinb"`), which models each hub gene's baseline expression with a Zero-Inflated Negative Binomial distribution and adds (knock-in) or subtracts (knock-down) a sample from that distribution. For knock-down, set `perturb_dir = -1`; for knock-in, set `perturb_dir = 1`; for knock-out (force expression to zero), set `perturb_dir = 0`.
 
-```{r eval=FALSE}
+```{r eval=TRUE}
 cur_mod <- 'turquoise'
 
 seurat_obj <- ModulePerturbation(
@@ -391,7 +397,8 @@ seurat_obj <- ModulePerturbation(
     group.by = 'Group',
     graph = 'RNA_snn',
     n_hubs = 10,
-    delta_scale = 0.2,
+    delta_scale = 1.0,
+    row_normalize = FALSE,
     use_velocyto = FALSE,
     n_workers = 1
 )
@@ -399,9 +406,9 @@ seurat_obj <- ModulePerturbation(
 
 ## Up-regulation (knock-in)
 
-Set `perturb_dir = 1` to simulate forced over-expression:
+We set `perturb_dir = 1` to simulate over-expression of the module, holding all other parameters the same as the down-regulation case.
 
-```{r eval=FALSE}
+```{r eval=TRUE}
 seurat_obj <- ModulePerturbation(
     seurat_obj,
     mod = cur_mod,
@@ -410,66 +417,17 @@ seurat_obj <- ModulePerturbation(
     group.by = 'Group',
     graph = 'RNA_snn',
     n_hubs = 10,
-    delta_scale = 0.2,
+    delta_scale = 1.0,
+    row_normalize = FALSE,
     use_velocyto = FALSE,
-    n_workers = 1
+    n_workers = 1, 
+    n_iters = 1
 )
 ```
 
-## Multiplicative mode
+## Looping over all modules
 
-An alternative to the default ZINB model is `perturb_mode = "multiplicative"`, which scales each cell's observed counts directly by a user-specified fold change, bypassing distribution fitting entirely. In this mode `perturb_dir` is interpreted as a **positive fold-change multiplier** rather than a directional sign:
-
-- Values **between 0 and 1** reduce expression (e.g., `0.5` halves counts — knock-down equivalent)
-- Values **greater than 1** amplify expression (e.g., `2.0` doubles counts — knock-in equivalent)
-- `perturb_dir = 0` produces a knock-out in either mode
-
-```{r eval=FALSE}
-# multiplicative knock-down: reduce hub gene expression to 50%
-seurat_obj <- ModulePerturbation(
-    seurat_obj,
-    mod               = cur_mod,
-    perturb_dir       = 0.5,
-    perturb_mode      = 'multiplicative',
-    perturbation_name = 'turquoise_down_mult',
-    group.by          = 'Group',
-    graph             = 'RNA_snn',
-    n_hubs            = 10,
-    delta_scale       = 0.2,
-    use_velocyto      = FALSE
-)
-
-# multiplicative knock-in: double hub gene expression
-seurat_obj <- ModulePerturbation(
-    seurat_obj,
-    mod               = cur_mod,
-    perturb_dir       = 2.0,
-    perturb_mode      = 'multiplicative',
-    perturbation_name = 'turquoise_up_mult',
-    group.by          = 'Group',
-    graph             = 'RNA_snn',
-    n_hubs            = 10,
-    delta_scale       = 0.2,
-    use_velocyto      = FALSE
-)
-```
-
-Multiplicative mode differs from ZINB mode in two important ways.
-
-**Speed.** No per-gene distribution fitting is performed, so `group.by` and `n_workers` are both ignored and the computation is substantially faster — particularly useful when sweeping over many modules or working with large datasets.
-
-**Cell-specificity.** Because the delta is proportional to each cell's observed counts, **cells with zero baseline expression are not affected**. In ZINB mode, non-expressing cells can receive positive counts during knock-in because the sampled delta is drawn from a group-level distribution independent of that cell's actual value. Multiplicative mode therefore better preserves the mathematical symmetry between knock-downs and knock-ins.
-
-**Key parameters:**
-
-- `perturb_dir`: `-1` for knock-down, `+1` for knock-in, `0` for knock-out.
-- `n_hubs = 10`: The top 10 hub genes (by kME, module membership score) receive the primary perturbation; the signal diffuses to the rest of the network through `ApplyPropagation`.
-- `delta_scale = 0.2`: Dampening factor for network propagation. Keeping this ≤ 0.2 avoids signal saturation, where up- and down-regulation produce indistinguishable vector fields. If you see a warning from `CheckSaturation`, reduce this value. See `?ApplyPropagation` for details.
-- `n_workers = 1`: Number of parallel workers for fitting the ZINB model across hub genes. Set to a higher value (e.g., `n_workers = 4`) to speed up the computation on Unix/macOS. **Note:** `n_workers > 1` uses fork-based parallelism (`mclapply`) and is not supported on Windows; on Windows, leave this at 1.
-
-> **Note:** The KNN graph is built once and reused. You can run `ModulePerturbation` for multiple modules or directions without re-running `FindNeighbors`.
-
-After running both perturbations, the Seurat object contains two new assays (`turquoise_down`, `turquoise_up`) and two new transition probability graphs (`turquoise_down_tp`, `turquoise_up_tp`).
+To systematically perform perturbations over all modules, we can simply run a for loop across all the modules.
 
 <details>
 <summary>**Running perturbations for all modules (click to expand)**</summary>
@@ -490,7 +448,8 @@ for (cur_mod in mods) {
         group.by = 'Group',
         graph = 'RNA_snn',
         n_hubs = 10,
-        delta_scale = 0.2,
+        delta_scale = 1.0,
+        row_normalize = FALSE,
         use_velocyto = FALSE,
         n_workers = 1
     )
@@ -502,7 +461,8 @@ for (cur_mod in mods) {
         group.by = 'Group',
         graph = 'RNA_snn',
         n_hubs = 10,
-        delta_scale = 0.2,
+        delta_scale = 1.0,
+        row_normalize = FALSE,
         use_velocyto = FALSE,
         n_workers = 1
     )
@@ -511,66 +471,165 @@ for (cur_mod in mods) {
 
 </details>
 
+
+## Key parameters
+
+- `perturb_dir`: `-1` for knock-down, `+1` for knock-in, `0` for knock-out.
+- `n_hubs = 10`: The top 10 hub genes (by kME, module membership score) receive the primary perturbation; the signal diffuses to the rest of the network through `ApplyPropagation`.
+- `delta_scale = 1.0`: Scaling factor for network propagation. The effective propagation magnitude depends on the density of the TOM (sum of edge weights per gene). When `row_normalize = TRUE` (see below), each propagation step is guaranteed to dampen the signal regardless of TOM density, so `delta_scale = 1.0` is a safe default. Without row normalization, a smaller value (e.g. 0.01–0.05) may be needed to avoid saturation on dense networks. See `?ApplyPropagation` for details.
+- `row_normalize = TRUE`: Normalizes each row of the TOM to sum to 1 before propagation. This is recommended when working with dense networks (e.g. those built from simulated data or datasets with many co-expressed genes), where large row sums would otherwise cause signal amplification and floor-clipping across iterations.
+- `n_workers = 1`: Number of parallel workers for fitting the ZINB model across hub genes. Set to a higher value (e.g., `n_workers = 4`) to speed up the computation on Unix/macOS. **Note:** `n_workers > 1` uses fork-based parallelism (`mclapply`) and is not supported on Windows; on Windows, leave this at 1.
+
+> **Note:** The KNN graph is built once and reused. You can run `ModulePerturbation` for multiple modules or directions without re-running `FindNeighbors`.
+
+After running both perturbations, the Seurat object contains two new assays (`turquoise_down`, `turquoise_up`) and two new transition probability graphs (`turquoise_down_tp`, `turquoise_up_tp`).
+
 > **`use_velocyto`:** This flag controls which implementation computes the cosine correlations inside `PerturbationTransitions`. The default (`use_velocyto = FALSE`) uses `compact`'s built-in `SparseColDeltaCor`, which operates on sparse matrices and only evaluates correlations for graph-connected cell pairs — making it memory-efficient and fast for large datasets. Setting `use_velocyto = TRUE` instead calls `colDeltaCor` from the `velocyto.R` package (which must be installed separately); this implementation requires expression matrices in dense format before computing correlations, so it is markedly slower and more memory-intensive but is provided for users who need to reproduce results from older compact analyses originally built on the velocyto implementation. The two implementations produce similar results but not numerically identical, since `velocyto.R` is calculating cell-cell transitions for every pair of cells in the dataset, while `compact` focuses only on cell-cell transitions for pairs of cells connected in the user-specified KNN or SNN graph.
+
+## Multiplicative mode
+
+An alternative to the default ZINB model is `perturb_mode = "multiplicative"`, which scales each cell's observed counts directly by a user-specified fold change, bypassing distribution fitting entirely. In this mode `perturb_dir` is interpreted as a **positive fold-change multiplier** rather than a directional sign:
+
+- Values **between 0 and 1** reduce expression (e.g., `0.5` halves counts — knock-down equivalent)
+- Values **greater than 1** amplify expression (e.g., `2.0` doubles counts — knock-in equivalent)
+- `perturb_dir = 0` produces a knock-out in either mode
+
+<details>
+<summary>**Code example for multiplicative mode (click to expand)**</summary>
+
+```{r eval=FALSE}
+# multiplicative knock-down: reduce hub gene expression to 50%
+seurat_obj <- ModulePerturbation(
+    seurat_obj,
+    mod               = cur_mod,
+    perturb_dir       = 0.5,
+    perturb_mode      = 'multiplicative',
+    perturbation_name = 'turquoise_down_mult',
+    group.by          = 'Group',
+    graph             = 'RNA_snn',
+    n_hubs            = 10,
+    delta_scale       = 1.0,
+    row_normalize     = TRUE,
+    use_velocyto      = FALSE
+)
+
+# multiplicative knock-in: double hub gene expression
+seurat_obj <- ModulePerturbation(
+    seurat_obj,
+    mod               = cur_mod,
+    perturb_dir       = 2.0,
+    perturb_mode      = 'multiplicative',
+    perturbation_name = 'turquoise_up_mult',
+    group.by          = 'Group',
+    graph             = 'RNA_snn',
+    n_hubs            = 10,
+    delta_scale       = 1.0,
+    row_normalize     = TRUE,
+    use_velocyto      = FALSE
+)
+```
+
+</details>
+
+Multiplicative mode differs from ZINB mode in two important ways.
+
+**Speed.** No per-gene distribution fitting is performed, so `group.by` and `n_workers` are both ignored and the computation is substantially faster — particularly useful when sweeping over many modules or working with large datasets.
+
+**Cell-specificity.** Because the delta is proportional to each cell's observed counts, **cells with zero baseline expression are not affected**. In ZINB mode, non-expressing cells can receive positive counts during knock-in because the sampled delta is drawn from a group-level distribution independent of that cell's actual value. Multiplicative mode therefore better preserves the mathematical symmetry between knock-downs and knock-ins.
 
 ---
 
-# Inspecting Expression Changes
+# Inspecting expression changes
 
 Before examining cell-state transitions, it is good practice to verify that the perturbation changed gene expression in the expected direction. This section shows two complementary views.
 
 ## Violin plots of individual genes
 
-We compare a top hub gene and a secondary module gene across the three assays (observed, knock-down, knock-in), grouped by branch:
+We compare a top hub gene and a secondary module gene across the three conditions (observed, knock-down, knock-in), faceted by branch. Each column is a gene; each row is a branch. Significance brackets from a Wilcoxon test show whether knock-down and knock-in differ from the observed baseline within each branch.
 
-```{r eval=TRUE, fig.width=6, fig.height=12}
+```{r eval=TRUE, fig.width=8, fig.height=9}
+library(ggpubr)
+
 # get the top hub gene and a secondary gene
-hub_genes <- GetHubGenes(seurat_obj, n_hubs = 10)
-module_genes <- subset(GetModules(seurat_obj), module == cur_mod)$gene_name
-
-hub_gene <- subset(hub_genes, module == cur_mod)$gene_name[1]
+hub_genes     <- GetHubGenes(seurat_obj, n_hubs = 10)
+module_genes  <- subset(GetModules(seurat_obj), module == cur_mod)$gene_name
+hub_gene      <- subset(hub_genes, module == cur_mod)$gene_name[1]
 secondary_gene <- module_genes[1]
+genes_plot    <- c(hub_gene, secondary_gene)
 
-# hub gene: observed vs. perturbed
-p1 <- VlnPlot(seurat_obj, features = hub_gene, group.by = 'branch',
-              assay = 'RNA', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle(paste0(hub_gene, ' — observed')) +
-    theme(axis.text.x = element_blank(), plot.margin = margin(c(0,0,0,0)))
+# pull normalized expression from each assay and combine into a long data frame
+get_expr_df <- function(assay_name, condition_label) {
+    mat <- GetAssayData(seurat_obj, assay = assay_name, layer = 'data')
+    df  <- as.data.frame(t(as.matrix(mat[genes_plot, , drop = FALSE])))
+    df$condition <- condition_label
+    df$branch    <- seurat_obj$branch
+    df
+}
 
-p2 <- VlnPlot(seurat_obj, features = hub_gene, group.by = 'branch',
-              assay = 'turquoise_down', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle('knock-down') +
-    theme(plot.margin = margin(c(0,0,0,0)))
+plot_df <- bind_rows(
+    get_expr_df('RNA',            'Observed'),
+    get_expr_df('turquoise_down', 'Knock-down'),
+    get_expr_df('turquoise_up',   'Knock-in')
+) %>%
+    pivot_longer(
+        cols      = all_of(genes_plot),
+        names_to  = 'gene',
+        values_to = 'expression'
+    ) %>%
+    mutate(
+        condition = factor(condition, levels = c('Observed', 'Knock-down', 'Knock-in')),
+        gene      = factor(gene, levels = genes_plot)
+    )
 
-p3 <- VlnPlot(seurat_obj, features = hub_gene, group.by = 'branch',
-              assay = 'turquoise_up', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle('knock-in') +
-    theme(plot.margin = margin(c(0,0,0,0)))
+# significance brackets comparing each perturbation to observed
+comparisons <- list(
+    c('Observed', 'Knock-down'),
+    c('Observed', 'Knock-in')
+)
 
-# secondary gene: observed vs. perturbed
-p4 <- VlnPlot(seurat_obj, features = secondary_gene, group.by = 'branch',
-              assay = 'RNA', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle(paste0(secondary_gene, ' — observed')) +
-    theme(axis.text.x = element_blank(), plot.margin = margin(c(0,0,0,0)))
+cond_colors <- c(
+    'Observed'   = 'grey50',
+    'Knock-down' = 'steelblue3',
+    'Knock-in'   = 'firebrick3'
+)
 
-p5 <- VlnPlot(seurat_obj, features = secondary_gene, group.by = 'branch',
-              assay = 'turquoise_down', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle('knock-down') +
-    theme(plot.margin = margin(c(0,0,0,0)))
-
-p6 <- VlnPlot(seurat_obj, features = secondary_gene, group.by = 'branch',
-              assay = 'turquoise_up', pt.size = 0.1) +
-    NoLegend() + xlab('') + ylab('') + ggtitle('knock-in') +
-    theme(plot.margin = margin(c(0,0,0,0)))
-
-(p1 / p2 / p3) | (p4 / p5 / p6)
+ggplot(plot_df, aes(x = condition, y = expression, color = condition)) +
+    ggrastr::rasterise(ggbeeswarm::geom_quasirandom(
+        method = 'pseudorandom',
+        size   = 0.2,
+        alpha  = 0.5
+    ), dpi = 300) +
+    geom_boxplot(
+        outlier.shape = NA,
+        alpha  = 0.3,
+        color  = 'black',
+        width  = 0.5
+    ) +
+    stat_compare_means(
+        comparisons = comparisons,
+        method      = 'wilcox.test',
+        label       = 'p.signif',
+        size        = 3,
+        tip.length  = 0.01
+    ) +
+    scale_color_manual(values = cond_colors) +
+    facet_grid(branch ~ gene, scales = 'free_y') +
+    theme(
+        axis.text.x        = element_text(angle = 45, hjust = 1),
+        panel.border       = element_rect(linewidth = 1, color = 'black', fill = NA),
+        panel.grid.major.y = element_line(linewidth = 0.25, color = 'lightgrey'),
+        strip.text         = element_text(size = 9)
+    ) +
+    NoLegend() +
+    xlab('') + ylab('Normalized expression')
 ```
 
-Hub genes should show the largest changes (they are the primary perturbation targets); secondary genes should show smaller but consistent changes that reflect the propagated signal through the network.
+Hub genes (left column) should show the largest effect sizes — they are the primary targets of the perturbation. Secondary module genes (right column) show smaller but consistent changes, reflecting signal propagated through the co-expression network. The turquoise module is most highly expressed on Branch 1, so that row is expected to show the strongest and most significant differences.
 
-## Log2FC scatter plot
+<details>
+<summary>**Perturbed vs. observed log2FC (click to expand)**</summary>
 
-`PerturbationLog2FC` computes the log2 fold change for all genes in a module, comparing the perturbed assay to the baseline. Plotting Log2FC against kME (module membership score) reveals the network-scaling property: genes more central to the module (higher kME) should show larger |Log2FC|.
+`PerturbationLog2FC` computes the log2 fold change for all genes in a module, comparing the perturbed assay to the baseline. Here we simply show how to access this information using the `compact` function `PerturbationLog2FC`.
 
 ```{r eval=TRUE, fig.width=8, fig.height=4}
 library(ggrepel)
@@ -582,57 +641,23 @@ lfc_down <- PerturbationLog2FC(
     n_hubs = 10
 )
 
-lfc_up <- PerturbationLog2FC(
-    seurat_obj,
-    perturbation_name = 'turquoise_up',
-    module = cur_mod,
-    n_hubs = 10
+knitr::kable(
+    head(lfc_down, 10),
+    digits    = 4
 )
-
-# plot for knock-down
-p_down <- lfc_down %>%
-    ggplot(aes(x = log2fc, y = kME, color = hub, size = avg_exp)) +
-    geom_point() +
-    geom_text_repel(
-        data = subset(lfc_down, hub == 'hub'),
-        aes(label = gene_name), size = 3
-    ) +
-    scale_color_manual(values = c('hub' = 'firebrick', 'other' = 'grey60')) +
-    theme(
-        panel.border = element_rect(color = 'black', fill = NA, linewidth = 1),
-        panel.grid.major = element_line(linewidth = 0.25, color = 'lightgrey')
-    ) +
-    xlab('Log2FC') + ylab('kME') + ggtitle('turquoise — knock-down') +
-    labs(color = '', size = 'avg exp')
-
-# plot for knock-in
-p_up <- lfc_up %>%
-    ggplot(aes(x = log2fc, y = kME, color = hub, size = avg_exp)) +
-    geom_point() +
-    geom_text_repel(
-        data = subset(lfc_up, hub == 'hub'),
-        aes(label = gene_name), size = 3
-    ) +
-    scale_color_manual(values = c('hub' = 'firebrick', 'other' = 'grey60')) +
-    theme(
-        panel.border = element_rect(color = 'black', fill = NA, linewidth = 1),
-        panel.grid.major = element_line(linewidth = 0.25, color = 'lightgrey')
-    ) +
-    xlab('Log2FC') + ylab('kME') + ggtitle('turquoise — knock-in') +
-    labs(color = '', size = 'avg exp')
-
-p_down | p_up
 ```
 
-The down-regulation should show negative Log2FC values (expression decreased), and the up-regulation should show positive values. Hub genes (labeled) should cluster at the extremes of the Log2FC axis, while secondary genes scale continuously with their kME.
+> **Note:** In the case of this simulated dataset, the log2FCs of non-hub genes are very low in the current parameter regime. This is partially due to the abnormally dense nature of the co-expression matrix itself in a simulated dataset. We show more biologically realistic log2FC values in the tutorial on non-simulated data.
+
+</details>
 
 ---
 
-# Transition Vector Fields
+# Transition vector fields
 
-`PlotTransitionVectors` projects the cell-cell transition probabilities onto the two-dimensional embedding as a vector field — directly analogous to an RNA velocity plot. Each arrow on the grid represents the weighted average direction of transitions in that region of the embedding.
+`PlotTransitionVectors` projects the cell-cell transition probabilities onto the two-dimensional embedding as a vector field. While this visualization resembles an RNA velocity plot, the vector field in this context summarizes the local directional change of a cell under a specific in-silico perturbation, while RNA velocity aims to show a cell's "natural" trajectory based on ratios of spliced to unspliced transcripts. Each arrow on the grid represents the weighted average direction of transitions in that region of the embedding.
 
-The points are colored by the turquoise module eigengene, so you can see where turquoise is expressed relative to where the arrows are pointing.
+The points are colored by the turquoise module eigengene, so you can see where turquoise module is expressed at baseline relative to where the arrows are pointing.
 
 ```{r eval=TRUE}
 # extract the module color for turquoise
@@ -657,7 +682,7 @@ p_down <- PlotTransitionVectors(
 ) +
     NoLegend() +
     scale_color_gradient2(high = cur_mod_color, low = 'whitesmoke', mid = 'whitesmoke') +
-    ggtitle('turquoise — knock-down') +
+    ggtitle('turquoise, knock-down') +
     coord_equal()
 
 # knock-in vector field
@@ -676,13 +701,13 @@ p_up <- PlotTransitionVectors(
 ) +
     NoLegend() +
     scale_color_gradient2(high = cur_mod_color, low = 'whitesmoke', mid = 'whitesmoke') +
-    ggtitle('turquoise — knock-in') +
+    ggtitle('turquoise, knock-in') +
     coord_equal()
 
 p_down + p_up
 ```
 
-**What to look for:** The two vector fields should be roughly opposite. In the region where turquoise expression is highest (bright-colored cells), knock-down arrows should point **away** from that region, and knock-in arrows should point **toward** it. This is the key biological validation: the perturbation shifts cell-state transitions in the direction consistent with the module's role in differentiation.
+**What to look for:** The two vector fields should be roughly opposite. In the region where turquoise expression is highest (bright-colored cells), knock-down arrows should point **away** from that region, and knock-in arrows should point **toward** it. The perturbation shifts cell-state transitions in the direction consistent with the module's role in defining the underlying trajectory.
 
 **Key parameters:**
 
@@ -691,38 +716,36 @@ p_down + p_up
 - `max_pct = 0.5`: Trims the top 50% of arrow magnitudes before scaling, preventing a few extreme arrows from dominating the visualization.
 - `arrow_alpha = TRUE`: Fades arrows with smaller magnitudes so that stronger transitions stand out visually.
 
-## Vector Field Coherence
+## Vector field coherence
 
-`VectorFieldCoherence` quantifies how **locally consistent** the perturbation signal is across the embedding. For each cell, it computes the cosine similarity between that cell's perturbation vector and those of its neighbors in the KNN graph. Coherence ranges from −1 (perfectly anti-aligned with neighbors) to +1 (perfectly aligned), with values near 0 indicating random or mixed directions.
+Two-dimensional embeddings like UMAP invariably introduce global distortions in the underlying dataset, and therefore we must avoid over-interpretation of the results in a two-dimensional setting. `VectorFieldCoherence` quantifies how **locally consistent** the perturbation signal is across the embedding. For each cell, it computes the cosine similarity between that cell's perturbation vector and those of its neighbors in the cell-cell neighborhod graph. Coherence ranges from −1 (perfectly anti-aligned with neighbors) to +1 (perfectly aligned), with values near 0 indicating random or mixed directions.
 
 High coherence in a region means the perturbation consistently pushes cells in the same direction there. Low coherence may indicate cells with low module expression or cells in a transition zone between two cell states.
 
 ```{r eval=TRUE}
-coherence_down <- VectorFieldCoherence(
+seurat_obj$coherence_down <- VectorFieldCoherence(
     seurat_obj,
     perturbation_name = 'turquoise_down',
     reduction = 'pca',
     graph = 'RNA_snn',
     weighted = TRUE
 )
-seurat_obj$coherence_down <- coherence_down
 
-coherence_up <- VectorFieldCoherence(
+seurat_obj$coherence_up <- VectorFieldCoherence(
     seurat_obj,
     perturbation_name = 'turquoise_up',
     reduction = 'pca',
     graph = 'RNA_snn',
     weighted = TRUE
 )
-seurat_obj$coherence_up <- coherence_up
 ```
 
-Visualize coherence by group and branch:
+We can visualize coherence directly on the embedding, but here we plot the distributions of these values by group and branch:
 
 ```{r eval=TRUE}
 
 plot_df <- as.data.frame(Reductions(seurat_obj, 'pca')@cell.embeddings[, 1:2])
-plot_df$coherence <- coherence_down
+plot_df$coherence <- seurat_obj$coherence_down
 plot_df$Group <- seurat_obj$Group
 plot_df$branch <- seurat_obj$branch
 
@@ -760,22 +783,30 @@ p + facet_wrap(vars(branch), ncol=1, scales='free_y')
 
 ```
 
-**Expected result:** Cells in the branch where turquoise is most highly expressed should show higher coherence — their perturbation vectors agree with their neighbors because they all respond similarly to the turquoise module's suppression. Cells on other branches, where turquoise expression is low, may show lower or near-zero coherence.
+This analysis shows generally high local coherence of the perturbation vectors across all branches and individual groups, meaning that transcriptomically similar cells (ie, connected in the cell-cell neighborhood graph) overall respond similarly to the perturbation. Ultimately each cell and each cluster is unique, so there remains dynamic range of coherence values across groups.
 
 ---
 
-# Macrostate Transition Matrix (`MacrostateTransitions`)
+# Macrostate transitions
 
-`PlotTransitionVectors` shows per-cell transition directions projected onto the UMAP — informative but inherently limited by embedding distortions. `MacrostateTransitions` provides a complementary **embedding-independent** view: it coarse-grains the full-dimensional transition probability matrix into a K × K group-level summary, answering the question "on average, when a cell in group A transitions, where does it go?"
+`PlotTransitionVectors` shows per-cell transition directions projected onto the UMAP — informative but inherently limited by embedding distortions. `MacrostateTransitions` provides a complementary **embedding-independent** view: it coarse-grains the full-dimensional transition probability matrix into a K × K group-level summary, answering the question *"on average, when a cell in group A transitions, where does it go?"* Here the "macrostates" are simply the previously defined cell clusters.
 
 The result is a matrix **Q** where each entry Q[source, destination] is the mean transition probability from any cell in the source group to any cell in the destination group. The **diagonal** of Q is the **stability index** — the fraction of a group's outgoing transitions that stay within the same group. A stability close to 1 signals an attractor-like state that resists the perturbation; low stability marks a transient source population whose cells are being redirected elsewhere.
 
-## Knock-down
+## Run `MacrostateTransitions`
 
 ```{r eval=TRUE}
+# down-regulation
 seurat_obj <- MacrostateTransitions(
     seurat_obj,
     perturbation_name = 'turquoise_down',
+    graph             = 'RNA_snn',
+    group.by          = 'Group'
+)
+
+seurat_obj <- MacrostateTransitions(
+    seurat_obj,
+    perturbation_name = 'turquoise_up',
     graph             = 'RNA_snn',
     group.by          = 'Group'
 )
@@ -797,24 +828,18 @@ PlotMacrostateTransitions(
 )
 ```
 
-Read the heatmap row by row: each row is a source group; the tile intensities tell you where its cells are predicted to transition. **Strong diagonal tiles** (high self-transition probability) indicate stable groups that the perturbation does not displace. **Strong off-diagonal tiles** in a row indicate groups from which cells are being redirected to a different destination.
+To interpret this plot, we can read the heatmap row by row. Each row corresponds to a "source" group; the tile intensities tell you where the cells are predicted to transition. For example, for the top row (group B1-1) aside from remaining within the same group, under this perturbation the cells are likely to transition to group B2-2, but to no other groups. This makes intuitive sense when we consider the PCA DimPlot from earlier, the only "neighboring" cluster to B1-1 is in fact B1-2. 
 
-**Expected result:** Terminal tip groups — particularly those enriched for the turquoise module — should show a reduced stability index under the knock-down, as their characteristic expression is directly disrupted. Cells currently occupying those groups are predicted to scatter toward neighboring branches rather than remain in place.
+In general, we observe **strong diagonal tiles** in the heatmap, showing self-transition probability. This is expected since cells within the same group have the densest connections within the cell-cell network. The **strong off-diagonal tiles** are more interesting in this case as they show the predicted shifts from one group to another under this perturbation.
 
+<!-- 
 ## Knock-in vs knock-down comparison
 
-Running `MacrostateTransitions` on both perturbations and plotting them side-by-side makes the directional contrast explicit. Groups that are stable under one perturbation but unstable under the other are the most informative about the turquoise module's role in maintaining those states.
+By visualizing the macrostate transition matrices side-by-side, we can b makes the directional contrast explicit. Groups that are stable under one perturbation but unstable under the other are the most informative about the turquoise module's role in maintaining those states.
 
-```{r eval=TRUE}
-seurat_obj <- MacrostateTransitions(
-    seurat_obj,
-    perturbation_name = 'turquoise_up',
-    graph             = 'RNA_snn',
-    group.by          = 'Group'
-)
-```
+> **Note:** compact does not do this right now, but in principle it would be cool to plot the delta between knock-in and knock-outs.
 
-```{r eval=TRUE, fig.width=14, fig.height=6}
+```{r eval=FALSE, fig.width=14, fig.height=6}
 p_down <- PlotMacrostateTransitions(
     seurat_obj,
     perturbation_name = 'turquoise_down',
@@ -830,15 +855,13 @@ p_up <- PlotMacrostateTransitions(
 )
 
 p_down | p_up
-```
-
-Under the knock-in, the turquoise-enriched terminal groups should show *higher* stability than under baseline (the module is reinforced), while early progenitor groups may show increased off-diagonal outflow toward the turquoise branch tip. The two heatmaps together form a mirror image: the groups that destabilize under knock-down are stabilized under knock-in, and vice versa.
-
+``` -->
+<!-- 
 ## Stability bar chart
 
 The stability index — the diagonal of Q — can be extracted and plotted directly to compare group-level resistance to the perturbation:
 
-```{r eval=TRUE, fig.width=8, fig.height=4}
+```{r eval=FALSE, fig.width=8, fig.height=4}
 stab_down <- seurat_obj@misc$MacrostateTransitions[['turquoise_down']]$stability
 stab_up   <- seurat_obj@misc$MacrostateTransitions[['turquoise_up']]$stability
 
@@ -862,28 +885,117 @@ ggplot(stab_df, aes(x = group, y = stability, fill = perturbation)) +
     ggtitle('Group stability index — knock-down vs knock-in')
 ```
 
-Groups where the two bars are roughly equal are insensitive to the turquoise module in either direction. Groups with a large knock-down vs knock-in gap are the most directly regulated by turquoise: they destabilize when turquoise is suppressed and become more "sticky" when it is amplified.
+Groups where the two bars are roughly equal are insensitive to the turquoise module in either direction. Groups with a large knock-down vs knock-in gap are the most directly regulated by turquoise: they destabilize when turquoise is suppressed and become more "sticky" when it is amplified. -->
 
 ---
 
-# Cell Fate Markov Chain Analyses
+# Perturbation cell fate analysis 
 
-`compact` provides four functions that treat the transition probability matrix as a Markov chain and extract different types of cell-fate information. All four are illustrated here using the **knock-down** perturbation of the turquoise module.
+`compact` provides several functions that together aim to interrogate the downstream consequences of in-silico perturbations on cell fates. In particular, we treat the transition probability matrix as a Markov chain and extract different types of cell-fate information. We demonstrate each of these functions using the **knock-down** perturbation of the turquoise module.
+
+- `PredictAttractors` identifies natural sink states from the stationary distribution
+- `PredictPerturbationTime` computes an absorbing-chain hitting time (perturbation pseudotime)
+- `PredictFates` calculates forward-diffusion fate probabilities toward a target population
+- `PredictCommitment` computes the committor probability between two competing cell states.
+
+In general, these functions provide cell-level outputs which we can then visualize using different approaches. `compact` provides a built-in visualization solution, `PlotMarkovEmbedding`, which you can consider as a specialized form of the Seurat `FeaturePlot` function with some additional functionality for this analysis in particular. For instance, source and sink populations can be explicitly marked with a single centroid diamond per group (labeled automatically with ggrepel), making their positions clear without cluttering the plot; and unconverged cells (those that hit `max_iter` in iterative solvers) are drawn in grey below the color scale rather than receiving a misleading color value.
 
 ## Shared setup: defining sink cells
 
-For several of the analyses below, we must specify **sink cells** — a set of cells that serve as absorbing states in the Markov chain. We define them simply as all cells in the earliest pseudotime group, `B1-1`, which sits at the shared root region of the trajectory:
+For several of the analyses below, we must specify **sink cells**, a set of cells that serve as absorbing states in the Markov chain. We define them simply as all cells in the earliest pseudotime group, `B1-1`, which sits at the shared root region of the trajectory:
 
 ```{r eval=TRUE}
 perturb_name <- 'turquoise_down'
 
 # define sink cells by group membership (root of the trajectory)
-sink_cells <- colnames(seurat_obj)[seurat_obj$Group == 'B1-1']
+sink_cells <- colnames(seurat_obj)[seurat_obj$Group == 'B1-4']
 ```
 
-## Perturbation Pseudotime (`PredictPerturbationTime`)
+## Identifying attractor states
 
-`PredictPerturbationTime` sets up an **absorbing Markov chain** with the sink cells as absorbing states and computes the expected number of steps each cell needs to reach the sink. This is analogous to RNA velocity pseudotime, but derived from in-silico perturbation transition probabilities.
+`PredictAttractors` computes the **stationary distribution** of the transition probability Markov chain, which represents the probability of finding the Markov random walk at each cell. Cells with high stationary probability act as attractors, or natural "sinks," in the perturbation dynamics.
+
+Setting `return_seurat = FALSE` returns a list with both the continuous stationary-distribution scores and the binary sink-cell membership. We then compute the ECDF transformation manually so we can store both the raw and the rank-normalized scores for comparison.
+
+```{r eval=TRUE}
+# return_seurat=FALSE gives us both the raw scores and the identified sink cells
+attr_result <- PredictAttractors(
+    seurat_obj,
+    perturbation_name = perturb_name,
+    graph             = 'RNA_snn',
+    rank_transform    = FALSE,
+    return_seurat     = FALSE
+)
+
+# store raw stationary-distribution scores
+seurat_obj <- AddMetaData(seurat_obj,
+    metadata = attr_result$attractor_score,
+    col.name = 'attractor_score_raw'
+)
+
+# compute ECDF-normalized scores ([0,1] percentile ranks) and store separately
+ecdf_scores <- ecdf(attr_result$attractor_score)(attr_result$attractor_score)
+names(ecdf_scores) <- names(attr_result$attractor_score)
+seurat_obj <- AddMetaData(seurat_obj,
+    metadata = ecdf_scores,
+    col.name = 'attractor_score'
+)
+
+# add binary attractor state (top 2% by default quantile_threshold = 0.98);
+# factor levels are set so 'Other' is drawn first and 'Attractor' on top
+seurat_obj$attractor_state <- factor(
+    ifelse(colnames(seurat_obj) %in% attr_result$sink_cells, 'Attractor', 'Other'),
+    levels = c('Other', 'Attractor')
+)
+```
+
+Plotting the raw score alongside the ECDF-normalized version makes the benefit of the rank transformation visible: the raw stationary distribution has a heavy right tail concentrated on a handful of cells, while ECDF spreading stretches the color scale across the full manifold.
+
+```{r eval=TRUE, fig.width=12, fig.height=5}
+p_raw <- PlotMarkovEmbedding(
+    seurat_obj,
+    feature      = 'attractor_score_raw',
+    reduction    = 'pca',
+    sink_cells   = attr_result$sink_cells,
+    sink_label   = 'Attractor cells',
+    color_scale  = c('whitesmoke', 'darkorchid3'),
+    pt_size      = 1.5,
+    legend_title = 'Attractor score\n(raw)',
+    title        = 'Raw stationary distribution'
+) + coord_equal()
+
+p_attractors <- PlotMarkovEmbedding(
+    seurat_obj,
+    feature      = 'attractor_score',
+    reduction    = 'pca',
+    sink_cells   = attr_result$sink_cells,
+    sink_label   = 'Attractor cells',
+    color_scale  = c('whitesmoke', 'darkorchid3'),
+    pt_size      = 1.5,
+    legend_title = 'Attractor score\n(ECDF)',
+    title        = 'ECDF-normalized'
+) + coord_equal()
+
+wrap_plots(p_raw, p_attractors, ncol = 2)
+```
+<!-- 
+The same cells can be shown as a binary classification — the top 2% of the stationary distribution, flagged as predicted attractor cells:
+
+```{r eval=FALSE, fig.width=6, fig.height=5}
+DimPlot(
+    seurat_obj,
+    reduction = 'pca',
+    group.by  = 'attractor_state',
+    cols      = c('Other' = 'lightgrey', 'Attractor' = 'darkorchid3'),
+    pt.size   = 1.5
+) + coord_equal() + ggtitle('Predicted attractor cells — turquoise, knock-down')
+``` -->
+
+Terminal states on the branches that the perturbation drives cells toward should show the highest attractor scores. After turquoise knock-down, we expect the attractor mass to concentrate at the branch tip that the knock-down promotes, and to shift away from the turquoise-enriched branch.
+
+## Markov hitting time (perturbation pseudotime)
+
+`PredictPerturbationTime` sets up an **absorbing Markov chain** with the sink cells as absorbing states and computes the expected number of steps each cell needs to reach the sink. This is analogous to RNA velocity pseudotime, but derived from in-silico perturbation transition probabilities. Sink cells receive a "perturbation pseudotime" of 0; cells that never reach the sink within `max_iter` steps (default 10,000) are flagged as unconverged.
 
 ```{r eval=TRUE}
 seurat_obj <- PredictPerturbationTime(
@@ -894,67 +1006,35 @@ seurat_obj <- PredictPerturbationTime(
 )
 ```
 
-Visualize on the embedding:
+Visualize on the embedding with `PlotMarkovEmbedding`. We pass `sink_cells` so the absorbing state (B1-1) is marked with a centroid diamond, and we grey out any unconverged cells so they do not distort the color scale:
 
-```{r eval=TRUE}
-p <- PlotTransitionVectors(
+```{r eval=TRUE, fig.width=6, fig.height=5}
+# cells that hit max_iter are unconverged — grey them out rather than color them
+unconverged_cells <- colnames(seurat_obj)[seurat_obj$perturbation_pseudotime >= 10000]
+
+p_pseudotime <- PlotMarkovEmbedding(
     seurat_obj,
-    perturbation_name = perturb_name,
-    reduction = 'pca',
-    color.by = 'perturbation_pseudotime',
-    grid_resolution = 25,
-    arrow_scale = 2,
-    point_alpha = 0.9,
-    point_size = 3,
-    arrow_size = 0.4,
-    max_pct = 0.5,
-    arrow_alpha = TRUE
-) + scale_color_gradientn(colors = viridis::plasma(256)) +
-    coord_equal() +
-    ggtitle('Perturbation pseudotime — knock-down')
+    feature           = 'perturbation_pseudotime',
+    reduction         = 'pca',
+    sink_cells        = sink_cells,
+    sink_label        = 'B1-4 (absorbing state)',
+    unconverged_cells = unconverged_cells,
+    color_scale       = viridis::plasma(256),
+    pt_size           = 1.5,
+    legend_title      = 'Perturbation \npseudotime',
+    title             = 'Turquoise, knock-down'
+) + coord_equal()
 
-print(p)
+print(p_pseudotime)
 ```
 
-Cells far from the sink in transition probability space will have high pseudotime values. When turquoise is knocked down, cells that would normally move toward the turquoise-enriched branch should instead require many more steps (or move in a different direction) to reach the root.
+Cells far from the sink in transition probability space will have high pseudotime values. When turquoise is knocked down, cells that would normally move toward the turquoise-enriched branch should instead require many more steps (or move in a different direction) to reach the root. The centroid diamond marks where the clock is anchored: sink cells at B1-1 have pseudotime 0 by definition.
 
-## Attractor Identification (`PredictAttractors`)
+## Predicting specific cell fates
 
-`PredictAttractors` computes the **stationary distribution** of the transition probability Markov chain — the long-run probability of finding the random walk at each cell. Cells with high stationary probability act as attractors, or "sinks," in the perturbation dynamics.
+`PredictFates` computes the **committor probability**, the probability that a random walk starting from each cell will reach a specified target group before leaving the graph. This answers the question: *"Given where this cell is, how likely is it to end up in state X?"*
 
-```{r eval=TRUE}
-seurat_obj <- PredictAttractors(
-    seurat_obj,
-    perturbation_name = perturb_name,
-    graph = 'RNA_snn'
-)
-
-p <- PlotTransitionVectors(
-    seurat_obj,
-    perturbation_name = perturb_name,
-    reduction = 'pca',
-    color.by = 'attractor_score',
-    grid_resolution = 25,
-    arrow_scale = 2,
-    point_alpha = 0.9,
-    point_size = 3,
-    arrow_size = 0.4,
-    max_pct = 0.5,
-    arrow_alpha = TRUE
-) + scale_color_gradient(low = 'whitesmoke', high = 'darkorchid3') +
-    coord_equal() +
-    ggtitle('Attractor score — knock-down')
-
-print(p)
-```
-
-Terminal states on the branches that the perturbation drives cells toward should show the highest attractor scores. After turquoise knock-down, we expect the attractor mass to shift away from the turquoise-enriched branch tip.
-
-## Fate Prediction (`PredictFates`)
-
-`PredictFates` computes the **committor probability** — the probability that a random walk starting from each cell will reach a specified target group before leaving the graph. This answers the question: "Given where this cell is, how likely is it to end up in state X?"
-
-Here we ask: what fraction of the time does the perturbed random walk reach `B1-4` (the tip of Branch 1)?
+In this example, we use this function to calculate the probability that each cell ends up in the B1-4 group.
 
 ```{r eval=TRUE}
 seurat_obj <- PredictFates(
@@ -964,31 +1044,33 @@ seurat_obj <- PredictFates(
     group.by = 'Group',
     group_name = 'B1-4'
 )
+```
 
-p <- PlotTransitionVectors(
+We mark the B1-4 target cells with a centroid diamond so their position on the embedding is unambiguous:
+
+```{r eval=TRUE, fig.width=6, fig.height=5}
+fate_target_cells <- colnames(seurat_obj)[seurat_obj$Group == 'B1-4']
+
+p_fates <- PlotMarkovEmbedding(
     seurat_obj,
-    perturbation_name = perturb_name,
-    reduction = 'pca',
-    color.by = 'forward_fate',
-    grid_resolution = 25,
-    arrow_scale = 2,
-    point_alpha = 0.9,
-    point_size = 3,
-    arrow_size = 0.4,
-    max_pct = 0.5,
-    arrow_alpha = TRUE
-) + scale_color_gradient(low = 'whitesmoke', high = 'darkorchid3') +
-    coord_equal() +
-    ggtitle('Fate toward B1-4 — knock-down')
+    feature      = 'forward_fate',
+    reduction    = 'pca',
+    sink_cells   = fate_target_cells,
+    sink_label   = 'B1-4 (fate target)',
+    color_scale  = c('whitesmoke', 'darkorchid3'),
+    pt_size      = 1.5,
+    legend_title = 'Fate probability',
+    title        = 'Turquoise, knock-down'
+) + coord_equal()
 
-print(p)
+print(p_fates)
 ```
 
 Cells on Branch 1 should have high fate probability toward `B1-4`. If turquoise drives differentiation along a different branch, knocking it down should not dramatically alter Branch 1 fate probabilities, while fate probabilities toward the turquoise-enriched branch tip should decrease.
 
-## Commitment Score (`PredictCommitment`)
+## Commitment between two states
 
-`PredictCommitment` computes the committor probability **between two specified groups** — a source and a sink. It quantifies how committed each cell is to transitioning from the source state toward the sink state.
+`PredictCommitment` computes the committor probability **between two specified groups**. In general it quantifies how committed each cell is to transitioning from the source state toward the sink state, but the same function could also be used equivalently to study the whether a cell will commit to one of two terminal states.
 
 ```{r eval=TRUE}
 seurat_obj <- PredictCommitment(
@@ -996,34 +1078,86 @@ seurat_obj <- PredictCommitment(
     perturbation_name = perturb_name,
     graph = 'RNA_snn',
     group.by = 'Group',
-    source_group = 'B1-1',
-    sink_group = 'B1-4'
+    source_group = 'B1-4',
+    sink_group = 'B3-4'
+)
+```
+
+Both boundary populations are marked with labeled centroid diamonds, anchoring the gradient so the reader immediately sees where the 0 and 1 ends lie:
+
+```{r eval=TRUE, fig.width=6, fig.height=5}
+p_commitment <- PlotMarkovEmbedding(
+    seurat_obj,
+    feature       = 'commitment_score',
+    reduction     = 'pca',
+    source_cells  = colnames(seurat_obj)[seurat_obj$Group == 'B1-4'],
+    sink_cells    = colnames(seurat_obj)[seurat_obj$Group == 'B3-4'],
+    source_label  = 'B1-4',
+    sink_label    = 'B3-4',
+    pt_size       = 1,
+    legend_title  = 'Commitment',
+    title         = 'Commitment to B1-4 or B3-4'
+) + coord_equal() + scale_color_gradientn(
+  colors = c(cp["B1-4"], "whitesmoke", "whitesmoke", cp["B3-4"]),
+  values = c(0, 0.25, 0.75, 1),
+  limits = c(0, 1)
 )
 
-p <- PlotTransitionVectors(
-    seurat_obj,
-    perturbation_name = perturb_name,
-    reduction = 'pca',
-    color.by = 'commitment_score',
-    grid_resolution = 25,
-    arrow_scale = 2,
-    point_alpha = 0.9,
-    point_size = 3,
-    arrow_size = 0.4,
-    max_pct = 0.5,
-    arrow_alpha = TRUE
-) + scale_color_gradient(low = 'whitesmoke', high = 'darkorchid3') +
-    coord_equal() +
-    ggtitle('Commitment: B1-1 → B1-4 (knock-down)')
-
-print(p)
+print(p_commitment)
 ```
 
 Cells along the Branch 1 trajectory should show a gradient from 0 (at `B1-1`, the source) to 1 (at `B1-4`, the sink). Cells on Branches 2 and 3 should have lower commitment scores for this source–sink pair, since their perturbation-driven transitions are not directed toward `B1-4`.
 
+## Summary: all four Markov analyses
+
+With all four scores computed, we can display them together in a single 2 × 2 panel:
+
+```{r eval=TRUE, fig.width=12, fig.height=10}
+wrap_plots(
+    p_attractors, p_pseudotime,
+    p_fates,      p_commitment,
+    ncol = 2
+)
+```
+
+## Alternative visualizations
+
+Individual embedding plots show where each score is high or low across the manifold. `compact` also includs another visualization function `PlotMarkovScatter` to examine **relationships between predicted cell fate scores** or between a score and a biological feature, colored by a grouping variable. Two illustrative comparisons are shown below.
+
+**Module eigengene vs. commitment score** — turquoise expression should predict commitment to B1-4, since the module is enriched at that branch tip. The dashed reference line at 0.5 marks the threshold above which a cell is more likely to reach B1-4 than to return to B1-1.
+
+```{r eval=TRUE, fig.width=6, fig.height=5}
+PlotMarkovScatter(
+    seurat_obj,
+    x_feature     = cur_mod,
+    y_feature     = 'commitment_score',
+    color.by      = 'Group',
+    hline         = 0.5,
+    x_label       = 'Turquoise module eigengene',
+    y_label       = 'Commitment P(B1-4 before B1-1)',
+    title         = 'Module expression vs. commitment'
+) + scale_color_manual(values=cp)
+```
+
+**Attractor score vs. perturbation pseudotime** — attractor cells are where the random walk converges; they should cluster at low pseudotime values (close to the root sink in transition space) or at particular branch tips depending on the perturbation direction.
+
+```{r eval=TRUE, fig.width=6, fig.height=5}
+PlotMarkovScatter(
+    seurat_obj,
+    x_feature = 'attractor_score',
+    y_feature = 'perturbation_pseudotime',
+    color.by  = 'Group',
+    x_label   = 'Attractor score',
+    y_label   = 'Perturbation pseudotime',
+    title     = 'Attractor score vs. pseudotime'
+) + scale_color_manual(values=cp)
+```
+
+Each branch forms a distinct cluster in this space: cells with high attractor score are either near the root (low pseudotime) or concentrated at branch tips.
+
 ---
 
-# Summary and Next Steps
+# Summary and next steps
 
 In this tutorial we used **`compact`** to perform in-silico module perturbations on a simulated branching trajectory and validated the results against the known ground truth. We:
 
@@ -1034,9 +1168,9 @@ In this tutorial we used **`compact`** to perform in-silico module perturbations
 5. Visualized cell-state transitions as vector fields with `PlotTransitionVectors` — the two directions produced opposite fields as expected.
 6. Quantified the local consistency of those transitions with `VectorFieldCoherence`.
 7. Coarse-grained the transition probability matrix to the group level with `MacrostateTransitions`, reading group-level stability indices and cross-group flow from the Q matrix heatmap.
-8. Performed Markov chain analyses to extract pseudotime (`PredictPerturbationTime`), attractors (`PredictAttractors`), fate probabilities (`PredictFates`), and commitment scores (`PredictCommitment`).
+8. Performed Markov chain analyses to extract pseudotime (`PredictPerturbationTime`), attractors (`PredictAttractors`), fate probabilities (`PredictFates`), and commitment scores (`PredictCommitment`), visualized with `PlotMarkovEmbedding` (source/sink overlays, unconverged-cell greying) and `PlotMarkovScatter` (cross-score relationships).
 
-The same workflow applies directly to real biological datasets. For a tutorial using Alzheimer's disease microglia or NSCLC data, see the **basic tutorial** (coming soon).
+The same workflow applies directly to real biological datasets. For a tutorial using Alzheimer's disease microglia or NSCLC data, see the **basic tutorial** (⚠️ under construction, coming soon).
 
 For transcription factor–based perturbations using `TFPerturbation`, see the **TF perturbation tutorial** (coming soon).
 

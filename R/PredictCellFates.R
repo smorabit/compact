@@ -219,14 +219,19 @@ PredictPerturbationTime <- function(
 #'   \code{seurat_obj@graphs} (e.g., "RNA_nn") used to mask the transition probabilities.
 #' @param output_name Character. The column name used to store the resulting attractor 
 #'   scores in \code{seurat_obj@meta.data}. Default is \code{"attractor_score"}.
-#' @param quantile_threshold Numeric. The percentile threshold used to explicitly define 
+#' @param quantile_threshold Numeric. The percentile threshold used to explicitly define
 #'   which cells belong to the terminal sink state. Default is \code{0.98} (top 2%).
-#' @param return_seurat Logical. If \code{TRUE}, returns the updated Seurat object. 
-#'   If \code{FALSE}, returns a list containing the numeric attractor scores and a 
+#' @param rank_transform Logical. If \code{TRUE}, transforms the raw stationary
+#'   distribution values into percentile ranks using the empirical CDF (ECDF),
+#'   mapping scores to \code{[0, 1]} with better dynamic range for visualization.
+#'   The \code{quantile_threshold} is always applied to the raw stationary
+#'   distribution regardless of this setting. Default is \code{FALSE}.
+#' @param return_seurat Logical. If \code{TRUE}, returns the updated Seurat object.
+#'   If \code{FALSE}, returns a list containing the numeric attractor scores and a
 #'   character vector of the identified sink cells. Default is \code{TRUE}.
 #'
-#' @return If \code{return_seurat = TRUE}, a Seurat object with the calculated attractor 
-#'   scores appended to the metadata. If \code{return_seurat = FALSE}, a list containing 
+#' @return If \code{return_seurat = TRUE}, a Seurat object with the calculated attractor
+#'   scores appended to the metadata. If \code{return_seurat = FALSE}, a list containing
 #'   \code{attractor_score} and \code{sink_cells}.
 #'
 #' @export
@@ -236,6 +241,7 @@ PredictAttractors <- function(
     graph,
     output_name = "attractor_score",
     quantile_threshold = 0.98,
+    rank_transform = FALSE,
     return_seurat = TRUE
 ){
 
@@ -295,15 +301,21 @@ PredictAttractors <- function(
     stat_dist <- stat_dist / sum(stat_dist)
     names(stat_dist) <- rownames(P)
 
-    # define the sinks based on the stationary distribution
-    threshold <- quantile(stat_dist, quantile_threshold) 
+    # define the sinks based on the raw stationary distribution (before any transformation)
+    threshold <- quantile(stat_dist, quantile_threshold)
     auto_sink_cells <- names(which(stat_dist >= threshold))
+
+    # apply rank transformation if requested
+    if (rank_transform) {
+        stat_dist <- ecdf(stat_dist)(stat_dist)
+        names(stat_dist) <- rownames(P)
+    }
 
     # -------------------------------------------------------------------------
     # return results
     # -------------------------------------------------------------------------
 
-    if(return_seurat){
+    if (return_seurat) {
         # add to the seurat object metadata
         seurat_obj <- AddMetaData(
             object = seurat_obj,
@@ -311,7 +323,7 @@ PredictAttractors <- function(
             col.name = output_name
         )
         return(seurat_obj)
-        
+
     } else {
         # return a list containing both the continuous scores and the discrete sink cells
         return(list(
