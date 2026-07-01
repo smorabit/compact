@@ -75,6 +75,8 @@ TFPerturbation <- function(
     wgcna_name = NULL
 ){
 
+    perturbation_name <- .sanitize_perturbation_name(perturbation_name)
+
     # set as active assay if wgcna_name is not given
     if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
 
@@ -361,6 +363,8 @@ ModulePerturbation <- function(
     custom_weights = NULL,
     wgcna_name = NULL
 ){
+
+    perturbation_name <- .sanitize_perturbation_name(perturbation_name)
 
     # set as active assay if wgcna_name is not given
     if(is.null(wgcna_name)){wgcna_name <- seurat_obj@misc$active_wgcna}
@@ -709,6 +713,8 @@ CustomPerturbation <- function(
     custom_weights = NULL,
     wgcna_name = NULL
 ){
+
+    perturbation_name <- .sanitize_perturbation_name(perturbation_name)
 
     if(is.null(wgcna_name)){ wgcna_name <- seurat_obj@misc$active_wgcna }
 
