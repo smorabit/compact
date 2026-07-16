@@ -43,6 +43,8 @@ PerturbationTransitions <- function(
                     paste(names(seurat_obj@assays), collapse = ', ')))
     }
 
+    perturbation_name <- .resolve_perturbation_assay_name(seurat_obj, perturbation_name)
+
     # check perturbation assay exists
     if(!(perturbation_name %in% names(seurat_obj@assays))){
         stop(paste0("Perturbation assay '", perturbation_name, "' not found in seurat_obj@assays. ",
@@ -145,4 +147,3 @@ PerturbationTransitions <- function(
 colDeltaCor_velocyto <- function(e, d, nthreads = 1L) {
     .Call('_velocyto_R_colDeltaCor', PACKAGE = 'velocyto.R', e, d, nthreads)
 }
-

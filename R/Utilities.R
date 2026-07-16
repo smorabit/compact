@@ -100,6 +100,40 @@ PerturbationLog2FC <- function(
     return(plot_df)
 }
 
+#' @keywords internal
+#' @noRd
+.sanitize_perturbation_name <- function(perturbation_name) {
+    if(!is.character(perturbation_name) || length(perturbation_name) != 1 ||
+       is.na(perturbation_name) || !nzchar(perturbation_name)){
+        stop("perturbation_name must be a non-empty character string.")
+    }
+
+    safe_name <- make.names(perturbation_name)
+    if(!identical(safe_name, perturbation_name)){
+        warning(paste0(
+            "perturbation_name '", perturbation_name, "' is not a valid Seurat assay name. ",
+            "Using '", safe_name, "' instead."
+        ), call. = FALSE)
+    }
+
+    safe_name
+}
+
+#' @keywords internal
+#' @noRd
+.resolve_perturbation_assay_name <- function(seurat_obj, perturbation_name) {
+    if(perturbation_name %in% names(seurat_obj@assays)){
+        return(perturbation_name)
+    }
+
+    safe_name <- make.names(perturbation_name)
+    if(safe_name %in% names(seurat_obj@assays)){
+        return(safe_name)
+    }
+
+    perturbation_name
+}
+
 #' Check for Signal Saturation After Network Propagation
 #'
 #' After running \code{ApplyPropagation}, checks whether the propagated
