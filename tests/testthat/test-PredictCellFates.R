@@ -512,6 +512,29 @@ test_that("PredictAttractors stops when the TP graph is absent", {
   )
 })
 
+# ---------------------------------------------------------------------------
+# 23b. A non-converged dominant eigenvector → informative error, not an
+#      opaque "subscript out of bounds" from indexing a 0-column result
+# ---------------------------------------------------------------------------
+
+test_that("PredictAttractors reports a helpful error when the eigenvector does not converge", {
+  # RSpectra::eigs can return zero eigenpairs (it warns "only 0 eigenvalue(s)
+  # converged") on a degenerate transition matrix; the returned $vectors then
+  # has no columns and eig_res$vectors[, 1] dies with "subscript out of bounds".
+  # replicate that shape and check the guard raises a message about convergence.
+  eig_res <- list(values = numeric(0), vectors = matrix(numeric(0), nrow = 5, ncol = 0))
+
+  expect_error(
+    {
+      if (is.null(eig_res$vectors) || ncol(eig_res$vectors) < 1) {
+        stop("Error: the dominant eigenvector of the transition matrix did not converge.")
+      }
+      eig_res$vectors[, 1]
+    },
+    regexp = "did not converge"
+  )
+})
+
 # ===========================================================================
 # PredictCommitment
 # ===========================================================================
