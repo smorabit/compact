@@ -293,6 +293,15 @@ PredictAttractors <- function(
     # of t(P)), which gives the stationary distribution of the random walk
     eig_res <- RSpectra::eigs(t(P), k = 1, which = "LR")
 
+    # RSpectra::eigs can return fewer eigenpairs than requested (it warns
+    # "only 0 eigenvalue(s) converged") when the solver fails to converge on P,
+    # leaving eig_res$vectors with zero columns. indexing [, 1] on that then
+    # dies with an opaque "subscript out of bounds", so fail early with a
+    # message that points at the actual cause
+    if (is.null(eig_res$vectors) || ncol(eig_res$vectors) < 1) {
+        stop("Error: the dominant eigenvector of the transition matrix did not converge. This usually means the perturbation transition graph is degenerate (e.g. too sparse or disconnected). Check the '", tp_graph_name, "' graph.")
+    }
+
     # extract the real part; take absolute value before normalizing because
     # ARPACK's Lanczos solver can return sign-ambiguous eigenvectors and a
     # reducible P (disconnected graph components) can produce near-zero negative
