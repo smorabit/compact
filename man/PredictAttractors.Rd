@@ -10,6 +10,7 @@ PredictAttractors(
   graph,
   output_name = "attractor_score",
   quantile_threshold = 0.98,
+  rank_transform = FALSE,
   return_seurat = TRUE
 )
 }
@@ -28,6 +29,12 @@ scores in \code{seurat_obj@meta.data}. Default is \code{"attractor_score"}.}
 
 \item{quantile_threshold}{Numeric. The percentile threshold used to explicitly define
 which cells belong to the terminal sink state. Default is \code{0.98} (top 2\%).}
+
+\item{rank_transform}{Logical. If \code{TRUE}, transforms the raw stationary
+distribution values into percentile ranks using the empirical CDF (ECDF),
+mapping scores to \code{[0, 1]} with better dynamic range for visualization.
+The \code{quantile_threshold} is always applied to the raw stationary
+distribution regardless of this setting. Default is \code{FALSE}.}
 
 \item{return_seurat}{Logical. If \code{TRUE}, returns the updated Seurat object.
 If \code{FALSE}, returns a list containing the numeric attractor scores and a

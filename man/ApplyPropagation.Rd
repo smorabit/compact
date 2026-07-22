@@ -52,5 +52,22 @@ or regulatory network without count-space floor constraints, ensuring
 symmetric behavior between up- and down-regulation perturbations.
 }
 \details{
+This function propagates perturbation signal in log-normalized expression
+space. At each iteration the delta matrix is multiplied by the network and
+damped:
+\deqn{\delta^{(t+1)} = W \cdot \delta^{(t)} \times \texttt{delta\_scale}}
+where \eqn{W} is the (optionally row-normalized) network matrix.
+The intermediate log-simulated expression for the module genes is
+\deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}
+and the result is floored at zero before returning, since log-normalized
+expression cannot be negative.
 
+\strong{Signal amplification warning}: when \code{row_normalize = FALSE}
+(default), the per-iteration effective multiplier is
+\eqn{\bar{r} \times \texttt{delta\_scale}}, where \eqn{\bar{r}} is the
+mean network row sum. If this product exceeds 1 the signal amplifies rather
+than dampens across iterations, which can produce very large deltas that are
+subsequently clipped by the floor. A warning is issued when this condition
+holds so that the user can consider reducing \code{delta\_scale} or enabling
+\code{row\_normalize = TRUE}.
 }

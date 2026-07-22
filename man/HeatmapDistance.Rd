@@ -12,6 +12,8 @@ HeatmapDistance(
   title_original = "Original Assay Cluster Similarity Distance",
   title_perturbed = "Perturbed Assay Cluster Similarity Distance",
   custom_order = NULL,
+  min_val = NULL,
+  max_val = NULL,
   col_fun = NULL
 )
 }
@@ -27,6 +29,14 @@ HeatmapDistance(
 \item{title_perturbed}{The title for the perturbed heatmap. Defaults to "Perturbed Assay Cluster Similarity Distance".}
 
 \item{custom_order}{A character vector specifying the order of clusters for the x and y axes.}
+
+\item{min_val}{Optional numeric minimum for the shared color scale. If \code{NULL},
+the minimum is derived from both distance matrices, or from \code{col_fun}
+when it is supplied.}
+
+\item{max_val}{Optional numeric maximum for the shared color scale. If \code{NULL},
+the maximum is derived from both distance matrices, or from \code{col_fun}
+when it is supplied.}
 
 \item{col_fun}{Optional color mapping function created by \code{circlize::colorRamp2()}.
 If provided, \code{HeatmapDistance()} will derive a shared color scale from the

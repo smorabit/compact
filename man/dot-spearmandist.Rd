@@ -4,7 +4,7 @@
 \alias{.spearmandist}
 \title{spearmandist}
 \usage{
-.spearmandist(seurat_object, groupby, reduction, verbose = TRUE)
+.spearmandist(seurat_object, groupby, reduction, verbose = TRUE, dims = NULL)
 }
 \arguments{
 \item{seurat_object}{A \code{Seurat} object.}
@@ -18,6 +18,9 @@ a geometry-preserving representation; visualization-oriented nonlinear embedding
 (e.g., \code{"umap"}, \code{"tsne"}) are not recommended for distance computation.}
 
 \item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
+
+\item{dims}{Optional integer vector selecting dimensions from \code{reduction}.
+If \code{NULL}, all dimensions are used.}
 }
 \value{
 A symmetric \code{data.frame} (groups \eqn{\times} groups) containing

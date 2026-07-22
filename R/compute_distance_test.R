@@ -31,6 +31,8 @@ library(energy)
 #'   embedding space (matching \code{metric="sqeuclidean"} in some Python implementations).
 #'   If \code{FALSE} (default), uses Euclidean distances.
 #' @param verbose Logical; if \code{TRUE}, prints progress messages.
+#' @param dims Optional integer vector selecting dimensions from \code{reduction}.
+#'   If \code{NULL}, all dimensions are used.
 #'
 #' @return A symmetric \code{data.frame} (groups \eqn{\times} groups) of pairwise
 #'   Energy distances.
@@ -40,7 +42,8 @@ library(energy)
 .edist <- function(seurat_object, groupby, reduction,
                    sample_correct = TRUE,
                    squared = FALSE,
-                   verbose = TRUE) {
+                   verbose = TRUE,
+                   dims = NULL) {
 
   if (!inherits(seurat_object, "Seurat")) {
     stop("The first argument must be a Seurat object.")
@@ -69,6 +72,7 @@ library(energy)
   keep <- !is.na(labels)
   labels <- labels[keep]
   emb <- Seurat::Embeddings(seurat_object, reduction = reduction)[keep, , drop = FALSE]
+  emb <- .distance_select_dims(emb, dims)
 
   groups <- sort(unique(labels))
 
@@ -214,13 +218,16 @@ library(energy)
 #'   a geometry-preserving representation; visualization-oriented nonlinear embeddings
 #'   (e.g., \code{"umap"}, \code{"tsne"}) are not recommended for distance computation.
 #' @param verbose Logical; if \code{TRUE}, prints progress messages.
+#' @param dims Optional integer vector selecting dimensions from \code{reduction}.
+#'   If \code{NULL}, all dimensions are used.
 #'
 #' @return A symmetric \code{data.frame} (groups \eqn{\times} groups) of Euclidean distances
 #'   between group centroids.
 #'
 #' @importFrom Seurat Embeddings
 #' @importFrom stats dist
-.eucldist <- function(seurat_object, groupby, reduction, verbose = TRUE) {
+.eucldist <- function(seurat_object, groupby, reduction, verbose = TRUE,
+                      dims = NULL) {
 
   if (!inherits(seurat_object, "Seurat")) {
     stop("The first argument must be a Seurat object.")
@@ -241,6 +248,7 @@ library(energy)
   labels <- labels[keep]
 
   emb <- Seurat::Embeddings(seurat_object, reduction = reduction)[keep, , drop = FALSE]
+  emb <- .distance_select_dims(emb, dims)
 
   groups <- sort(unique(labels))
 
@@ -284,6 +292,8 @@ library(energy)
 #'   a geometry-preserving representation; visualization-oriented nonlinear embeddings
 #'   (e.g., \code{"umap"}, \code{"tsne"}) are not recommended for distance computation.
 #' @param verbose Logical; if \code{TRUE}, prints progress messages.
+#' @param dims Optional integer vector selecting dimensions from \code{reduction}.
+#'   If \code{NULL}, all dimensions are used.
 #'
 #' @return A symmetric \code{data.frame} (groups \eqn{\times} groups) containing
 #'   pairwise Spearman distances between group centroids.
@@ -291,7 +301,8 @@ library(energy)
 #' @importFrom Seurat Embeddings
 #' @importFrom stats cor
 
-.spearmandist <- function(seurat_object, groupby, reduction, verbose = TRUE) {
+.spearmandist <- function(seurat_object, groupby, reduction, verbose = TRUE,
+                          dims = NULL) {
 
   if (!inherits(seurat_object, "Seurat")) {
     stop("The first argument must be a Seurat object.")
@@ -319,6 +330,7 @@ library(energy)
   keep <- !is.na(labels)
   labels <- labels[keep]
   emb <- Seurat::Embeddings(seurat_object, reduction = reduction)[keep, , drop = FALSE]
+  emb <- .distance_select_dims(emb, dims)
 
   groups <- sort(unique(labels))
 
@@ -379,6 +391,9 @@ library(energy)
 #'   Supported options are \code{"euclidean"}, \code{"edist"} (Energy distance),
 #'   and \code{"spearman"}.
 #' @param verbose Logical; if \code{TRUE}, prints progress messages.
+#' @param dims Optional integer vector selecting dimensions from \code{reduction}.
+#'   If \code{NULL} (default), all stored dimensions are used. Use the same
+#'   dimensions for matrices that will be compared directly.
 #'
 #' @return A symmetric \code{data.frame} (groups \eqn{\times} groups) containing
 #'   pairwise distances between groups.
@@ -400,19 +415,43 @@ library(energy)
 
 ComputeDistance <- function(seurat_object, groupby, reduction,
                             method = c("edist", "euclidean", "spearman"),
-                            verbose = TRUE) {
+                            verbose = TRUE,
+                            dims = NULL) {
 
   method <- match.arg(method)
 
   if (method == "euclidean") {
-    return(.eucldist(seurat_object, groupby, reduction, verbose))
+    return(.eucldist(
+      seurat_object, groupby, reduction, verbose = verbose, dims = dims
+    ))
   }
 
   if (method == "spearman") {
-    return(.spearmandist(seurat_object, groupby, reduction, verbose))
+    return(.spearmandist(
+      seurat_object, groupby, reduction, verbose = verbose, dims = dims
+    ))
   }
 
   if (method == "edist") {
-    return(.edist(seurat_object, groupby, reduction, verbose = verbose))
+    return(.edist(
+      seurat_object, groupby, reduction, verbose = verbose, dims = dims
+    ))
   }
+}
+
+
+.distance_select_dims <- function(embeddings, dims = NULL) {
+  if (is.null(dims)) return(embeddings)
+
+  if (!is.numeric(dims) || length(dims) == 0L || anyNA(dims) ||
+      any(dims %% 1 != 0) || any(dims < 1) ||
+      any(dims > ncol(embeddings)) || anyDuplicated(dims)) {
+    stop(
+      "`dims` must contain unique integer indices between 1 and ",
+      ncol(embeddings), ".",
+      call. = FALSE
+    )
+  }
+
+  embeddings[, as.integer(dims), drop = FALSE]
 }

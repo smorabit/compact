@@ -31,7 +31,7 @@
 #' \deqn{\delta^{(t+1)} = W \cdot \delta^{(t)} \times \texttt{delta\_scale}}
 #' where \eqn{W} is the (optionally row-normalized) network matrix.
 #' The intermediate log-simulated expression for the module genes is
-#' \deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}}
+#' \deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}
 #' and the result is floored at zero before returning, since log-normalized
 #' expression cannot be negative.
 #'
