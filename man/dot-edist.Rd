@@ -10,7 +10,8 @@
   reduction,
   sample_correct = TRUE,
   squared = FALSE,
-  verbose = TRUE
+  verbose = TRUE,
+  dims = NULL
 )
 }
 \arguments{
@@ -34,6 +35,9 @@ embedding space (matching \code{metric="sqeuclidean"} in some Python implementat
 If \code{FALSE} (default), uses Euclidean distances.}
 
 \item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
+
+\item{dims}{Optional integer vector selecting dimensions from \code{reduction}.
+If \code{NULL}, all dimensions are used.}
 }
 \value{
 A symmetric \code{data.frame} (groups \eqn{\times} groups) of pairwise

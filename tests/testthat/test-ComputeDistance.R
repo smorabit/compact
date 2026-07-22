@@ -309,3 +309,25 @@ test_that("verbose=FALSE runs without error for all methods", {
                     reduction = "pca", method = "edist", verbose = FALSE)
   )
 })
+
+# ---------------------------------------------------------------------------
+# 18. dims selects a common subset of reduction dimensions
+# ---------------------------------------------------------------------------
+
+test_that("dims selects dimensions and validates indices", {
+  skip_if_no_data()
+
+  result <- ComputeDistance(
+    seurat_obj, groupby = "branch", reduction = "pca",
+    method = "edist", verbose = FALSE, dims = 1:2
+  )
+  expect_true(is.data.frame(result))
+
+  expect_error(
+    ComputeDistance(
+      seurat_obj, groupby = "branch", reduction = "pca",
+      method = "edist", verbose = FALSE, dims = 9999
+    ),
+    "dims"
+  )
+})

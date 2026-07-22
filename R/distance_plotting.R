@@ -80,7 +80,14 @@
   # Create the heatmap with the specified color palette
   ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value)) +
     geom_tile(color = "white") +
-    scale_fill_gradientn(colors = custom_palette, limits = c(min_val, max_val), na.value = "transparent", name = "Distance", guide = if (show_legend) "colourbar" else "none") +
+    scale_fill_gradientn(
+      colors = custom_palette,
+      limits = c(min_val, max_val),
+      oob = scales::squish,
+      na.value = "transparent",
+      name = "Distance",
+      guide = if (show_legend) "colourbar" else "none"
+    ) +
     theme_minimal() +
     theme(axis.text.x = if (show_x_axis) element_text(angle = 45, vjust = 1, size = 12, hjust = 1) else element_blank(),
           axis.text.y = if (show_y_axis) element_text(size = 12) else element_blank(),
@@ -109,6 +116,12 @@
 #' @param title_original The title for the original heatmap. Defaults to "Original Assay Cluster Similarity Distance".
 #' @param title_perturbed The title for the perturbed heatmap. Defaults to "Perturbed Assay Cluster Similarity Distance".
 #' @param custom_order A character vector specifying the order of clusters for the x and y axes.
+#' @param min_val Optional numeric minimum for the shared color scale. If \code{NULL},
+#'   the minimum is derived from both distance matrices, or from \code{col_fun}
+#'   when it is supplied.
+#' @param max_val Optional numeric maximum for the shared color scale. If \code{NULL},
+#'   the maximum is derived from both distance matrices, or from \code{col_fun}
+#'   when it is supplied.
 #' @param col_fun Optional color mapping function created by \code{circlize::colorRamp2()}.
 #'   If provided, \code{HeatmapDistance()} will derive a shared color scale from the
 #'   \code{breaks} and \code{colors} attributes of \code{col_fun} and apply it to both heatmaps.
@@ -128,10 +141,21 @@ HeatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
                             title_original = "Original Assay Cluster Similarity Distance",
                             title_perturbed = "Perturbed Assay Cluster Similarity Distance",
                             custom_order = NULL,
+                            min_val = NULL,
+                            max_val = NULL,
                             col_fun = NULL) {
   #
   if (is.data.frame(df_original)) df_original <- as.matrix(df_original)
   if (is.data.frame(df_perturbed)) df_perturbed <- as.matrix(df_perturbed)
+
+  if (!is.null(min_val) &&
+      (!is.numeric(min_val) || length(min_val) != 1L || !is.finite(min_val))) {
+    stop("min_val must be NULL or a single finite numeric value.")
+  }
+  if (!is.null(max_val) &&
+      (!is.numeric(max_val) || length(max_val) != 1L || !is.finite(max_val))) {
+    stop("max_val must be NULL or a single finite numeric value.")
+  }
 
   # Check if the dimensions of the matrices match
   if (!all(dim(df_original) == dim(df_perturbed))) {
@@ -184,9 +208,7 @@ HeatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
     df_perturbed <- df_perturbed[custom_order, custom_order]
   }
 
-  # ---- NEW: if col_fun is provided, derive palette + range from it ----
-  # This makes your existing .create_distance_heatmap() work without edits,
-  # as long as it uses scale_fill_gradientn(colors=custom_palette, limits=c(min,max)).
+  # If col_fun is provided, derive the palette and automatic range from it.
   if (!is.null(col_fun)) {
     # Accept either circlize::colorRamp2 function or a list with breaks/colors
     brks <- attr(col_fun, "breaks")
@@ -199,15 +221,22 @@ HeatmapDistance <- function(df_original, df_perturbed, custom_palette = NULL,
     # circlize stores colors with alpha (#RRGGBBAA). ggplot is fine with it, but we can drop AA safely.
     cols <- gsub("^#([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})$", "#\\1", cols)
 
-    # Use these as the palette and shared min/max
+    # Use these as the palette and automatic shared range.
     custom_palette <- cols
-    combined_min <- min(brks, na.rm = TRUE)
-    combined_max <- max(brks, na.rm = TRUE)
+    auto_min <- min(brks, na.rm = TRUE)
+    auto_max <- max(brks, na.rm = TRUE)
 
   } else {
     # Original behavior: linear min/max over both matrices
-    combined_min <- min(min(df_original, na.rm = TRUE), min(df_perturbed, na.rm = TRUE))
-    combined_max <- max(max(df_original, na.rm = TRUE), max(df_perturbed, na.rm = TRUE))
+    auto_min <- min(min(df_original, na.rm = TRUE), min(df_perturbed, na.rm = TRUE))
+    auto_max <- max(max(df_original, na.rm = TRUE), max(df_perturbed, na.rm = TRUE))
+  }
+
+  combined_min <- if (is.null(min_val)) auto_min else min_val
+  combined_max <- if (is.null(max_val)) auto_max else max_val
+
+  if (combined_min >= combined_max) {
+    stop("min_val must be less than max_val.")
   }
   # # Calculate the overall min and max values for the color scale across both matrices
   # combined_min <- min(min(df_original, na.rm = TRUE), min(df_perturbed, na.rm = TRUE))

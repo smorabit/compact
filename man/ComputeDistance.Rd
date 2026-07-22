@@ -9,7 +9,8 @@ ComputeDistance(
   groupby,
   reduction,
   method = c("edist", "euclidean", "spearman"),
-  verbose = TRUE
+  verbose = TRUE,
+  dims = NULL
 )
 }
 \arguments{
@@ -26,6 +27,10 @@ Supported options are \code{"euclidean"}, \code{"edist"} (Energy distance),
 and \code{"spearman"}.}
 
 \item{verbose}{Logical; if \code{TRUE}, prints progress messages.}
+
+\item{dims}{Optional integer vector selecting dimensions from \code{reduction}.
+If \code{NULL} (default), all stored dimensions are used. Use the same
+dimensions for matrices that will be compared directly.}
 }
 \value{
 A symmetric \code{data.frame} (groups \eqn{\times} groups) containing

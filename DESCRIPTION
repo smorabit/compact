@@ -1,6 +1,6 @@
 Package: compact
 Title: compact
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(
     person("Sam", "Morabito", , "smorabit@uci.edu", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-7768-4856")),
@@ -35,6 +35,7 @@ Imports:
     patchwork,
     rdist,
     reshape2,
+    scales,
     rlang,
     S4Vectors,
     energy,
