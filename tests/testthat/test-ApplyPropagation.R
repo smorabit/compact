@@ -353,3 +353,26 @@ test_that("hub gene expression is invariant to n_iters (persistent source proper
       label = paste0("hub result invariant at n_iters=", ni))
   }
 })
+
+# ---------------------------------------------------------------------------
+# 14. Edge case: every gene is a hub gene (empty non-hub subgraph). The
+#    amplification check must not crash on mean(rowSums(<0-row matrix>)),
+#    which would otherwise produce NaN and error inside the if() condition.
+# ---------------------------------------------------------------------------
+
+test_that("amplification check does not error when every gene is a hub gene", {
+  skip_if_no_data()
+
+  # delta_log with every row non-zero: no downstream genes exist
+  all_hub_delta <- delta_log_ki
+  all_hub_delta[non_hub_genes, ] <- 0.1
+
+  result <- NULL
+  expect_no_error(
+    result <- ApplyPropagation(
+      log_obs_mod, all_hub_delta, cur_net,
+      n_iters = 3, delta_scale = 0.5, row_normalize = FALSE
+    )
+  )
+  expect_equal(dim(result), dim(log_obs_mod))
+})

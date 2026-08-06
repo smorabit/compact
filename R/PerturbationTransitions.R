@@ -110,12 +110,33 @@ PerturbationTransitions <- function(
     tp <- exp(cc / corr_sigma) * cell_graph
     tp <- as(tp, 'CsparseMatrix')  # ensure an @x slot we can sanitize
 
+    # A cell whose perturbation delta is exactly zero for every selected
+    # feature has a mathematically undefined correlation (0/0) with every
+    # neighbor. The correlation routine does not reliably return NaN for
+    # this degenerate case -- when a neighbor's own displacement vector is
+    # also degenerate, it can silently return an exact 0 instead of NaN,
+    # which is indistinguishable from a real, meaningful zero correlation
+    # and would otherwise dilute the guaranteed self-transition with a
+    # spurious edge. Zero out every off-diagonal entry for such cells up
+    # front, deterministically, rather than depending on which of NaN or a
+    # spurious 0 the routine happens to produce.
+    zero_delta_cells <- which(Matrix::colSums(delta != 0) == 0)
+    if(length(zero_delta_cells) > 0){
+        warning(length(zero_delta_cells), " cell(s) have an all-zero perturbation delta ",
+                "and therefore an undefined transition to every neighbor; those cells ",
+                "stay in place.")
+        tp[, zero_delta_cells] <- 0
+        tp[cbind(zero_delta_cells, zero_delta_cells)] <- 1  # unconditional self-transition weight
+    }
+
     # A cell whose perturbation delta is all-zero has an undefined cosine
     # correlation (0/0), which colDeltaCor / SparseColDeltaCor return as NaN.
     # Those NaN propagate into tp's neighbor entries; left in place they make the
     # whole column NaN (the column-sum guard below only fixes the SUM, not the
     # entries). Zero the NaN/NA weights so such a cell keeps only its
     # self-connection (diag) and therefore stays in place after normalization.
+    # This also catches undefined correlations from other causes (e.g. a
+    # neighbor's own degenerate displacement) not covered by the check above.
     bad <- is.na(tp@x)  # TRUE for both NaN and NA
     if(any(bad)){
         warning(sum(bad), " undefined transition weight(s) from cell(s) with an ",

@@ -53,21 +53,35 @@ symmetric behavior between up- and down-regulation perturbations.
 }
 \details{
 This function propagates perturbation signal in log-normalized expression
-space. At each iteration the delta matrix is multiplied by the network and
-damped:
-\deqn{\delta^{(t+1)} = W \cdot \delta^{(t)} \times \texttt{delta\_scale}}
-where \eqn{W} is the (optionally row-normalized) network matrix.
+space, treating the directly-perturbed (hub) genes as a \strong{persistent
+signal source} rather than a one-time impulse. This models a constitutive
+perturbation (e.g. a stable CRISPR KO/OE or a sustained stimulus), in which
+the hub genes are held at their new expression level indefinitely while
+downstream genes respond iteratively. Hub genes are identified as the rows
+of \code{delta_log} that are non-zero at input.
+
+At each iteration the delta matrix is multiplied by the network and damped,
+then hub gene rows are reset to their initial value:
+\deqn{\delta^{(t)} = W \cdot \delta^{(t-1)} \times \texttt{delta\_scale},
+  \quad \text{then} \quad \delta^{(t)}_{\mathcal{H}} \leftarrow
+  \delta^{(0)}_{\mathcal{H}}}
+where \eqn{W} is the (optionally row-normalized) network matrix and
+\eqn{\mathcal{H}} is the set of hub gene rows. Without this reset, hub
+genes would be overwritten by the network multiplication like any other
+gene, and their signal would weaken with each iteration rather than persist.
 The intermediate log-simulated expression for the module genes is
 \deqn{\texttt{log\_sim} = \texttt{log\_obs\_mod} + \delta^{(n\_iters)}}
 and the result is floored at zero before returning, since log-normalized
 expression cannot be negative.
 
 \strong{Signal amplification warning}: when \code{row_normalize = FALSE}
-(default), the per-iteration effective multiplier is
-\eqn{\bar{r} \times \texttt{delta\_scale}}, where \eqn{\bar{r}} is the
-mean network row sum. If this product exceeds 1 the signal amplifies rather
-than dampens across iterations, which can produce very large deltas that are
-subsequently clipped by the floor. A warning is issued when this condition
-holds so that the user can consider reducing \code{delta\_scale} or enabling
-\code{row\_normalize = TRUE}.
+(default), the per-iteration effective multiplier for the non-hub
+(downstream) genes is \eqn{\bar{r} \times \texttt{delta\_scale}}, where
+\eqn{\bar{r}} is the mean row sum of the network restricted to non-hub
+rows. If this product exceeds 1 the downstream signal amplifies rather
+than dampens across iterations, which can produce very large deltas that
+are subsequently clipped by the floor. A warning is issued when this
+condition holds so that the user can consider reducing \code{delta\_scale}
+or enabling \code{row\_normalize = TRUE}. Hub rows are excluded from this
+check because they are pinned every iteration and cannot amplify.
 }
