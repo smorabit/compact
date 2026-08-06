@@ -241,3 +241,48 @@ test_that("feature not in observed assay stops with an informative error", {
     label  = "missing feature gives informative error"
   )
 })
+
+# ---------------------------------------------------------------------------
+# 11. Zero-delta cell -> no NaN, cell stays in place (regression for the
+#     undefined-cosine 0/0 edge case seen on sparse real datasets)
+# ---------------------------------------------------------------------------
+
+test_that("a cell with an all-zero perturbation delta yields no NaN and stays in place", {
+  skip_if_no_data()
+
+  # force one cell to have an all-zero delta by making its perturbed expression
+  # identical to its observed expression (cosine of a zero vector is 0/0 = NaN)
+  obj   <- seurat_obj
+  is_v5 <- hdWGCNA::CheckSeurat5()
+  obs <- if (is_v5) GetAssayData(obj, assay = "RNA", layer = "data") else
+                    GetAssayData(obj, assay = "RNA", slot = "data")
+  per <- if (is_v5) GetAssayData(obj, assay = "red_up_tp_test", layer = "data") else
+                    GetAssayData(obj, assay = "red_up_tp_test", slot = "data")
+
+  zc <- 1L  # the zero-delta cell
+  per[, zc] <- obs[rownames(per), zc]
+  obj <- if (is_v5) SetAssayData(obj, assay = "red_up_tp_test", layer = "data", new.data = per) else
+                    SetAssayData(obj, assay = "red_up_tp_test", slot = "data", new.data = per)
+
+  expect_warning(
+    result <- PerturbationTransitions(
+      obj,
+      perturbation_name = "red_up_tp_test",
+      features          = red_genes,
+      graph             = "RNA_nn",
+      use_velocyto      = FALSE
+    ),
+    regexp = "all-zero perturbation delta"
+  )
+
+  tp <- result@graphs[["red_up_tp_test_tp"]]
+  expect_false(any(is.nan(as.numeric(tp))),
+    label = "no NaN in TP graph despite a zero-delta cell")
+
+  # zero-delta cell stays in place: unit self-transition, no outgoing mass
+  col <- tp[, zc]
+  expect_equal(unname(col[zc]), 1, tolerance = 1e-8,
+    label = "zero-delta cell self-transition = 1")
+  expect_equal(sum(col[-zc]), 0, tolerance = 1e-8,
+    label = "zero-delta cell has no transitions to other cells")
+})

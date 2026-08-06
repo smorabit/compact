@@ -25,3 +25,8 @@ We implement this as an R package formatted with roxygen2 and pkgdown for the do
 ## Code style
 - All functions should have detailed docstrings.
 - Inline comments should be lowercase (with the exception of acronyms, function names, etc) and without excessive punctuation. 
+
+## Running code
+- Code should be run within the compact_fresh conda environment.
+- Before running any R code that compiles C++/Rcpp (devtools::document, devtools::check, roxygen2::roxygenise, pkgdown::build_site), first run `module load GCC` to make the system GCC available. Without this, the Rcpp compilation step fails with "unrecognized command line option '-std=c++14'".
+- Correct invocation pattern: `module load GCC && conda run -n compact_fresh Rscript -e "..."`

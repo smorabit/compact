@@ -325,6 +325,20 @@ MacrostateTransitions <- function(
 #' @param group_order Character vector. Order of groups on both axes. Defaults
 #'   to alphabetical order (the order stored in the result). Both the x-axis
 #'   (destination) and the y-axis (source, reversed) follow this order.
+#' @param normalize_offdiag Logical. If \code{TRUE}, the diagonal of Q is set
+#'   to \code{NA} (rendered as grey, controlled by \code{na_color}) and each
+#'   row's off-diagonal values are divided by their sum (\code{1 -
+#'   stability[i]}), converting them to conditional transition probabilities:
+#'   "given that a cell leaves group i, what fraction of outflow goes to group
+#'   j?". This removes the self-transition signal from the color scale, making
+#'   low-probability off-diagonal transitions clearly visible. Under this
+#'   normalization the null expectation for a uniform random walk among the
+#'   off-diagonal states is \code{1 / (K - 1)}. Stability values and the
+#'   diagonal border are still rendered on the grey diagonal tiles.
+#'   Default: \code{FALSE}.
+#' @param na_color Character. Fill color used for diagonal tiles when
+#'   \code{normalize_offdiag = TRUE} (i.e., the \code{na.value} passed to
+#'   \code{scale_fill_gradientn}). Default: \code{"grey85"}.
 #' @param color_scale Character vector. Two or more colors defining the
 #'   low-to-high color gradient, passed to
 #'   \code{ggplot2::scale_fill_gradientn}. Default:
@@ -340,8 +354,11 @@ MacrostateTransitions <- function(
 #'   self-transitions.
 #' @param text_size Numeric. Base text size for axis labels and theme. Default:
 #'   \code{10}.
-#' @param legend_title Character. Title for the fill legend. Default:
-#'   \code{"Transition\nProbability"}.
+#' @param legend_title Character or \code{NULL}. Title for the fill legend.
+#'   When \code{NULL} (default), the title is set automatically:
+#'   \code{"Transition\nProbability"} when \code{normalize_offdiag = FALSE},
+#'   \code{"Conditional\nTransition"} when \code{normalize_offdiag = TRUE}.
+#'   Supply an explicit string to override.
 #' @param title Character. Plot title. Defaults to \code{perturbation_name}.
 #'
 #' @return A \code{ggplot2} object.
@@ -362,15 +379,17 @@ MacrostateTransitions <- function(
 PlotMacrostateTransitions <- function(
     seurat_obj,
     perturbation_name,
-    result_name      = NULL,
-    group_order      = NULL,
-    color_scale      = c("white", "#2166AC"),
-    show_stability   = TRUE,
-    stability_size   = 3,
-    diagonal_border  = TRUE,
-    text_size        = 10,
-    legend_title     = "Transition\nProbability",
-    title            = NULL
+    result_name       = NULL,
+    group_order       = NULL,
+    normalize_offdiag = FALSE,
+    na_color          = "grey85",
+    color_scale       = c("white", "#2166AC"),
+    show_stability    = TRUE,
+    stability_size    = 3,
+    diagonal_border   = TRUE,
+    text_size         = 10,
+    legend_title      = NULL,
+    title             = NULL
 ) {
 
     # -------------------------------------------------------------------------
@@ -427,6 +446,33 @@ PlotMacrostateTransitions <- function(
     }
 
     # -------------------------------------------------------------------------
+    # optional off-diagonal normalization
+    # -------------------------------------------------------------------------
+
+    if (normalize_offdiag) {
+        # off-diagonal row sum = 1 - self-transition probability
+        offdiag_sums <- 1 - diag(Q)
+
+        # guard against degenerate rows (stability == 1 → no outflow at all)
+        # leave them as NA rather than dividing by zero
+        offdiag_sums[offdiag_sums <= 0] <- NA
+
+        # row-wise division: Q_plot[i, j] = Q[i, j] / (1 - stability[i])
+        # sweep with MARGIN = 1 divides each row by the corresponding element
+        Q_plot <- sweep(Q, 1, offdiag_sums, "/")
+
+        # set diagonal to NA so it falls outside the color scale
+        diag(Q_plot) <- NA
+    } else {
+        Q_plot <- Q
+    }
+
+    # auto-set legend title based on normalization mode (user override preserved)
+    if (is.null(legend_title)) {
+        legend_title <- if (normalize_offdiag) "Conditional\nTransition" else "Transition\nProbability"
+    }
+
+    # -------------------------------------------------------------------------
     # reshape Q to long format for ggplot2
     # -------------------------------------------------------------------------
 
@@ -435,7 +481,7 @@ PlotMacrostateTransitions <- function(
         dest   = group_order,
         stringsAsFactors = FALSE
     )
-    df_long$probability <- Q[cbind(df_long$source, df_long$dest)]
+    df_long$probability <- Q_plot[cbind(df_long$source, df_long$dest)]
 
     # enforce factor ordering
     df_long$source <- factor(df_long$source, levels = group_order)
@@ -464,9 +510,10 @@ PlotMacrostateTransitions <- function(
     p <- ggplot2::ggplot(df_long, ggplot2::aes(x = dest, y = source, fill = probability)) +
         ggplot2::geom_tile(color = "grey85", linewidth = 0.3) +
         ggplot2::scale_fill_gradientn(
-            colors = color_scale,
-            limits = c(0, max(Q, na.rm = TRUE)),
-            name   = legend_title
+            colors   = color_scale,
+            limits   = c(0, max(Q_plot, na.rm = TRUE)),
+            na.value = na_color,
+            name     = legend_title
         ) +
         ggplot2::scale_y_discrete(limits = rev(group_order)) +
         ggplot2::scale_x_discrete(limits = group_order) +

@@ -102,22 +102,37 @@ PerturbationTransitions <- function(
         )
     }
 
-    # fill the diagonal with zeros (cells won't transition to self)
+    # fill the diagonal with zeros (self-transition is not driven by correlation;
+    # the self-connection comes from diag(cell_graph) <- 1 above)
     diag(cc) <- 0
 
-    # compute transition probs between cells
+    # compute transition weights between cells
     tp <- exp(cc / corr_sigma) * cell_graph
-    col_sums <- Matrix::colSums(tp)
+    tp <- as(tp, 'CsparseMatrix')  # ensure an @x slot we can sanitize
 
-    # cells with zero or NA column sum (NA arises when SparseColDeltaCor
-    # returns NA for cells whose delta is all-zero) cannot be normalized;
-    # set those entries to 1 so the division leaves the all-zero column as-is
-    zero_cols <- is.na(col_sums) | col_sums == 0
+    # A cell whose perturbation delta is all-zero has an undefined cosine
+    # correlation (0/0), which colDeltaCor / SparseColDeltaCor return as NaN.
+    # Those NaN propagate into tp's neighbor entries; left in place they make the
+    # whole column NaN (the column-sum guard below only fixes the SUM, not the
+    # entries). Zero the NaN/NA weights so such a cell keeps only its
+    # self-connection (diag) and therefore stays in place after normalization.
+    bad <- is.na(tp@x)  # TRUE for both NaN and NA
+    if(any(bad)){
+        warning(sum(bad), " undefined transition weight(s) from cell(s) with an ",
+                "all-zero perturbation delta were set to zero; those cells stay in place.")
+        tp@x[bad] <- 0
+        tp <- Matrix::drop0(tp)
+    }
+
+    # cells with no neighbors after masking have an all-zero column and cannot be
+    # normalized; set their column sum to 1 so the division leaves the all-zero
+    # column intact (these cells have no outgoing transitions)
+    col_sums <- Matrix::colSums(tp)
+    zero_cols <- col_sums == 0
     if(any(zero_cols)){
-        warning(sum(zero_cols), " cell(s) have zero or NA column sum in the transition matrix ",
-                "(no neighbors after masking, or undefined correlation). ",
-                "Their transition probabilities will be set to zero.")
-        col_sums[zero_cols] <- 1  # avoid 0/0 or NA/0; column stays all-zero
+        warning(sum(zero_cols), " cell(s) have no neighbors after masking; ",
+                "their transition probabilities are set to zero.")
+        col_sums[zero_cols] <- 1  # avoid 0/0; column stays all-zero
     }
 
     tp <- t(t(tp) / col_sums)  # tp shows transition from a given column cell to different row cells
