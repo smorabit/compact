@@ -237,3 +237,62 @@ test_that("component count increases as prune.SNN threshold increases on real da
     expect_true(n_comps[2] <= n_comps[3],
         label = "prune=1/10 has <= components than prune=1/5")
 })
+
+# ---------------------------------------------------------------------------
+# matrix mode (issue #24: reused internally by PredictAttractors to check a
+# raw transition matrix for disconnected components before eigensolving)
+# ---------------------------------------------------------------------------
+
+make_toy_adj <- function() {
+    adj <- Matrix(0, 10, 10, sparse = TRUE)
+    for (i in 1:6) for (j in 1:6) if (i != j) adj[i, j] <- 0.5
+    for (i in 7:10) for (j in 7:10) if (i != j) adj[i, j] <- 0.5
+    dimnames(adj) <- list(paste0("Cell", 1:10), paste0("Cell", 1:10))
+    adj
+}
+
+test_that("matrix mode returns a list, not a Seurat object", {
+    result <- FindConnectedComponents(matrix = make_toy_adj(), verbose = FALSE)
+    expect_type(result, "list")
+    expect_false(methods::is(result, "Seurat"))
+    expect_named(result, c("membership", "n_components", "component_sizes"))
+})
+
+test_that("matrix mode detects the correct number and sizes of components", {
+    result <- FindConnectedComponents(matrix = make_toy_adj(), verbose = FALSE)
+    expect_equal(result$n_components, 2)
+    expect_equal(unname(result$component_sizes), c(6, 4))
+})
+
+test_that("matrix mode membership is ranked by size (largest = 1) and named by rownames", {
+    result <- FindConnectedComponents(matrix = make_toy_adj(), verbose = FALSE)
+    expect_equal(unname(result$membership[paste0("Cell", 1:6)]), rep(1, 6))
+    expect_equal(unname(result$membership[paste0("Cell", 7:10)]), rep(2, 4))
+})
+
+test_that("matrix mode accepts a dense matrix and a fully connected matrix yields one component", {
+    adj <- matrix(0.5, 8, 8)
+    diag(adj) <- 0
+    dimnames(adj) <- list(paste0("C", 1:8), paste0("C", 1:8))
+
+    result <- FindConnectedComponents(matrix = adj, verbose = FALSE)
+    expect_equal(result$n_components, 1)
+})
+
+test_that("matrix mode ignores seurat_obj/graph/meta_data_name and does not require them", {
+    result <- FindConnectedComponents(
+        matrix = make_toy_adj(),
+        graph = "nonexistent_graph",
+        meta_data_name = "unused",
+        verbose = FALSE
+    )
+    expect_type(result, "list")
+    expect_equal(result$n_components, 2)
+})
+
+test_that("matrix mode warns when more than one component is found", {
+    expect_warning(
+        FindConnectedComponents(matrix = make_toy_adj(), verbose = TRUE),
+        regexp = "connected components detected"
+    )
+})

@@ -1,4 +1,49 @@
 
+# builds a row-stochastic transition matrix P from a stored '_tp' graph and a
+# KNN mask graph. cells with no valid outgoing transitions after masking are
+# repaired with a unit self-transition (P[i,i] = 1) instead of being left as
+# an all-zero row, which would otherwise make P sub-stochastic (rows summing
+# to 0 instead of 1) and silently corrupt every downstream Markov chain
+# computation (see issue #24 for the eigensolver crash this can cause).
+.BuildRowStochasticTP <- function(seurat_obj, perturbation_name, graph) {
+
+    tp_graph_name <- paste0(perturbation_name, '_tp')
+
+    # get the KNN graph and set diagonal to 1
+    cell_graph <- Graphs(seurat_obj, slot = graph)
+    cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
+    diag(cell_graph) <- 1
+
+    # get the transition probability matrix
+    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
+    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
+    # the correct row-stochastic transition matrix for downstream computations.
+    tp <- Graphs(seurat_obj, slot = tp_graph_name)
+    tp <- Matrix::Matrix(tp, sparse = TRUE)
+    tp[is.na(tp)] <- 0
+    tp <- t(tp)
+
+    # mask transition probabilities with KNN graph
+    tp <- tp * cell_graph
+
+    # repair cells with no valid outgoing transitions after masking: give
+    # them a unit self-transition so they are modeled as "staying in place"
+    # rather than leaving an invalid all-zero row
+    row_sums <- rowSums(tp)
+    zero_rows <- which(row_sums == 0)
+    if (length(zero_rows) > 0) {
+        message(
+            length(zero_rows), " cell(s) had no valid outgoing transitions ",
+            "for perturbation '", perturbation_name, "' after masking with '",
+            graph, "'; adding a self-transition so they remain in place."
+        )
+        tp[cbind(zero_rows, zero_rows)] <- 1
+        row_sums <- rowSums(tp)
+    }
+
+    tp / row_sums
+}
+
 #' Predict Perturbation Pseudotime (Absorbing Markov Chain Hitting Time)
 #'
 #' @description
@@ -102,28 +147,8 @@ PredictPerturbationTime <- function(
     # -------------------------------------------------------------------------
     # prepare matrices
     # -------------------------------------------------------------------------
-    
-    # get the KNN graph and set diagonal to 1
-    cell_graph <- Graphs(seurat_obj, slot = graph)
-    cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
-    diag(cell_graph) <- 1
 
-    # get the transition probability matrix
-    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
-    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
-    # the correct row-stochastic transition matrix for downstream computations.
-    tp <- Graphs(seurat_obj, slot = tp_graph_name)
-    tp <- Matrix::Matrix(tp, sparse = TRUE)
-    tp[is.na(tp)] <- 0
-    tp <- t(tp)
-
-    # mask transition probabilities with KNN graph
-    tp <- tp * cell_graph
-
-    # row-normalize to create Markov transition matrix P
-    row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1
-    P <- tp / row_sums
+    P <- .BuildRowStochasticTP(seurat_obj, perturbation_name, graph)
 
     # -------------------------------------------------------------------------
     # set up absorbing markov chain
@@ -262,28 +287,30 @@ PredictAttractors <- function(
     # -------------------------------------------------------------------------
     # prepare matrices
     # -------------------------------------------------------------------------
-    
-    # get the KNN graph and set diagonal to 1
-    cell_graph <- Graphs(seurat_obj, slot = graph)
-    cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
-    diag(cell_graph) <- 1
 
-    # get the transition probability matrix
-    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
-    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
-    # the correct row-stochastic transition matrix for downstream computations.
-    tp <- Graphs(seurat_obj, slot = tp_graph_name)
-    tp <- Matrix::Matrix(tp, sparse = TRUE)
-    tp[is.na(tp)] <- 0
-    tp <- t(tp)
+    P <- .BuildRowStochasticTP(seurat_obj, perturbation_name, graph)
 
-    # mask transition probabilities with KNN graph
-    tp <- tp * cell_graph
+    # -------------------------------------------------------------------------
+    # check connectivity
+    # -------------------------------------------------------------------------
 
-    # row-normalize to create Markov transition matrix P
-    row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1
-    P <- tp / row_sums
+    # a reducible P (disconnected components) has a repeated dominant
+    # eigenvalue of 1 -- one per component -- which the ARPACK-based
+    # eigensolver below can fail to converge on entirely (see issue #24).
+    # restrict the eigensolve to the largest component; cells outside it
+    # get an attractor_score of 0, since they cannot participate in its
+    # stationary distribution.
+    comp <- FindConnectedComponents(matrix = P, verbose = TRUE)
+    solve_cells <- rownames(P)
+    P_solve <- P
+    if (comp$n_components > 1) {
+        # components are defined by undirected connectivity, so no edges
+        # cross a component boundary in either direction; subsetting to one
+        # component's cells is already exactly row-stochastic, no
+        # renormalization needed
+        solve_cells <- names(comp$membership)[comp$membership == 1]
+        P_solve <- P[solve_cells, solve_cells]
+    }
 
     # -------------------------------------------------------------------------
     # identify attractors
@@ -291,15 +318,29 @@ PredictAttractors <- function(
 
     # calculate the dominant left eigenvector of P (= dominant right eigenvector
     # of t(P)), which gives the stationary distribution of the random walk
-    eig_res <- RSpectra::eigs(t(P), k = 1, which = "LR")
+    eig_res <- RSpectra::eigs(t(P_solve), k = 1, which = "LR")
+
+    if (is.null(eig_res$vectors) || ncol(eig_res$vectors) < 1 ||
+        (!is.null(eig_res$nconv) && eig_res$nconv < 1)) {
+        stop(
+            "The stationary-distribution eigensolver failed to converge for '",
+            perturbation_name, "'. This can happen when the transition graph ",
+            "is highly disconnected or degenerate. Run FindConnectedComponents() ",
+            "on the KNN graph used to build it to diagnose."
+        )
+    }
 
     # extract the real part; take absolute value before normalizing because
     # ARPACK's Lanczos solver can return sign-ambiguous eigenvectors and a
     # reducible P (disconnected graph components) can produce near-zero negative
     # entries that would otherwise yield negative attractor scores
-    stat_dist <- abs(Re(eig_res$vectors[, 1]))
-    stat_dist <- stat_dist / sum(stat_dist)
-    names(stat_dist) <- rownames(P)
+    stat_dist_solve <- abs(Re(eig_res$vectors[, 1]))
+    stat_dist_solve <- stat_dist_solve / sum(stat_dist_solve)
+    names(stat_dist_solve) <- solve_cells
+
+    # cells outside the largest component get an attractor_score of 0
+    stat_dist <- setNames(rep(0, nrow(P)), rownames(P))
+    stat_dist[names(stat_dist_solve)] <- stat_dist_solve
 
     # define the sinks based on the raw stationary distribution (before any transformation)
     threshold <- quantile(stat_dist, quantile_threshold)
@@ -448,28 +489,8 @@ PredictFates <- function(
     # -------------------------------------------------------------------------
     # prepare matrices
     # -------------------------------------------------------------------------
-    
-    # get the KNN graph and set diagonal to 1
-    cell_graph <- Graphs(seurat_obj, slot = graph)
-    cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
-    diag(cell_graph) <- 1
 
-    # get the transition probability matrix
-    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
-    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
-    # the correct row-stochastic transition matrix for downstream computations.
-    tp <- Graphs(seurat_obj, slot = tp_graph_name)
-    tp <- Matrix::Matrix(tp, sparse = TRUE)
-    tp[is.na(tp)] <- 0
-    tp <- t(tp)
-
-    # mask transition probabilities with KNN graph
-    tp <- tp * cell_graph
-
-    # row-normalize to create Markov transition matrix P
-    row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1
-    P <- tp / row_sums
+    P <- .BuildRowStochasticTP(seurat_obj, perturbation_name, graph)
 
     # -------------------------------------------------------------------------
     # perform forward simulation
@@ -622,28 +643,8 @@ PredictCommitment <- function(
     # -------------------------------------------------------------------------
     # prepare matrices
     # -------------------------------------------------------------------------
-    
-    # get the KNN graph and set diagonal to 1
-    cell_graph <- Graphs(seurat_obj, slot = graph)
-    cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
-    diag(cell_graph) <- 1
 
-    # get the transition probability matrix
-    # the stored TP is column-stochastic: tp[i,j] = P(j -> i).
-    # transpose so that tp[i,j] = P(i -> j), then row-normalize to get
-    # the correct row-stochastic transition matrix for downstream computations.
-    tp <- Graphs(seurat_obj, slot = tp_graph_name)
-    tp <- Matrix::Matrix(tp, sparse = TRUE)
-    tp[is.na(tp)] <- 0
-    tp <- t(tp)
-
-    # mask transition probabilities with KNN graph
-    tp <- tp * cell_graph
-
-    # row-normalize to create Markov transition matrix P
-    row_sums <- rowSums(tp)
-    row_sums[row_sums == 0] <- 1
-    P <- tp / row_sums
+    P <- .BuildRowStochasticTP(seurat_obj, perturbation_name, graph)
 
     # -------------------------------------------------------------------------
     # setup markov chain boundary value problem

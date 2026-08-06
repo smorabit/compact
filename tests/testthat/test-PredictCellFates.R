@@ -743,3 +743,131 @@ test_that("PredictCommitment transient mean score is strictly between 0 and 1", 
   expect_gt(mean_transient, 0,   label = "mean transient score > 0")
   expect_lt(mean_transient, 1,   label = "mean transient score < 1")
 })
+
+# ===========================================================================
+# Issue #24 regressions: cells with no valid outgoing transitions after
+# masking used to leave a sub-stochastic (invalid) transition matrix, which
+# silently corrupted PredictFates/PredictPerturbationTime/PredictCommitment
+# and could crash PredictAttractors's eigensolver entirely.
+# ===========================================================================
+
+# helper: force a set of cells to have an all-zero outgoing-transition row.
+# the stored tp graph is column-stochastic (tp[i,j] = P(j -> i)), so zeroing
+# their COLUMNS here is what removes their OUTGOING mass after the t(tp)
+# transpose that happens inside .BuildRowStochasticTP().
+zero_out_transitions <- function(obj, perturbation_name, cells) {
+  tp_name <- paste0(perturbation_name, "_tp")
+  tp <- Graphs(obj, slot = tp_name)
+  tp <- as(tp, "CsparseMatrix")
+  tp[, cells] <- 0
+  obj@graphs[[tp_name]] <- as.Graph(Matrix::drop0(tp))
+  obj
+}
+
+# ---------------------------------------------------------------------------
+# 34. PredictFates conserves probability mass despite zero-outdegree cells
+# ---------------------------------------------------------------------------
+
+test_that("PredictFates conserves total probability mass when some cells have no outgoing transitions", {
+  skip_if_no_data()
+
+  set.seed(1)
+  zero_cells <- sample(colnames(seurat_obj), size = floor(0.1 * n_cells))
+  obj <- zero_out_transitions(seurat_obj, "red_up", zero_cells)
+
+  result <- PredictFates(
+    obj,
+    perturbation_name = "red_up",
+    graph             = "RNA_nn",
+    source_cells      = branch1,
+    rank_transform    = FALSE,
+    return_seurat     = FALSE
+  )
+
+  expect_equal(sum(result$fate_score), 1, tolerance = 1e-6,
+    label = "probability mass conserved despite zero-outdegree cells")
+})
+
+# ---------------------------------------------------------------------------
+# 35. PredictPerturbationTime does not falsely mark disconnected cells as
+#     already arrived (time == 0) at the sink
+# ---------------------------------------------------------------------------
+
+test_that("PredictPerturbationTime does not assign a false time of 0 to disconnected non-sink cells", {
+  skip_if_no_data()
+
+  set.seed(1)
+  zero_cells <- sample(setdiff(colnames(seurat_obj), branch3), size = 50)
+  obj <- zero_out_transitions(seurat_obj, "red_up", zero_cells)
+
+  result <- PredictPerturbationTime(
+    obj,
+    perturbation_name = "red_up",
+    graph             = "RNA_nn",
+    sink_cells        = branch3,
+    max_iter          = 50,
+    return_seurat     = FALSE
+  )
+
+  expect_true(all(result[zero_cells] > 0),
+    label = "disconnected non-sink cells are not reported as already arrived")
+})
+
+# ---------------------------------------------------------------------------
+# 36. PredictAttractors handles disconnected components without crashing,
+#     and assigns a zero score to cells outside the largest component
+# ---------------------------------------------------------------------------
+
+test_that("PredictAttractors runs without error and returns a valid distribution on a disconnected graph", {
+  skip_if_no_data()
+
+  result <- PredictAttractors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    graph             = "RNA_nn",
+    return_seurat     = FALSE
+  )
+
+  expect_equal(sum(result$attractor_score), 1, tolerance = 1e-6)
+  expect_true(all(result$attractor_score >= 0))
+})
+
+test_that("PredictAttractors assigns zero score to cells outside the largest connected component", {
+  skip_if_no_data()
+
+  cell_graph <- Graphs(seurat_obj, slot = "RNA_nn")
+  cell_graph <- Matrix::Matrix(cell_graph, sparse = TRUE)
+  diag(cell_graph) <- 1
+  tp <- Graphs(seurat_obj, slot = "red_up_tp")
+  tp <- Matrix::Matrix(tp, sparse = TRUE)
+  tp[is.na(tp)] <- 0
+  tp <- Matrix::t(tp) * cell_graph
+
+  comp <- FindConnectedComponents(matrix = tp, verbose = FALSE)
+  skip_if(comp$n_components < 2, "fixture graph has no disconnected components to test")
+  excluded_cells <- names(comp$membership)[comp$membership != 1]
+
+  result <- PredictAttractors(
+    seurat_obj,
+    perturbation_name = "red_up",
+    graph             = "RNA_nn",
+    return_seurat     = FALSE
+  )
+
+  expect_true(all(result$attractor_score[excluded_cells] == 0),
+    label = "cells outside the largest component get attractor_score 0")
+})
+
+test_that("PredictAttractors warns when the transition graph is disconnected", {
+  skip_if_no_data()
+
+  expect_warning(
+    PredictAttractors(
+      seurat_obj,
+      perturbation_name = "red_up",
+      graph             = "RNA_nn",
+      return_seurat     = FALSE
+    ),
+    regexp = "connected components detected"
+  )
+})

@@ -5,44 +5,63 @@
 \title{FindConnectedComponents}
 \usage{
 FindConnectedComponents(
-  seurat_obj,
+  seurat_obj = NULL,
   graph = NULL,
+  matrix = NULL,
   meta_data_name = "connected_component",
   verbose = TRUE
 )
 }
 \arguments{
 \item{seurat_obj}{A Seurat object containing at least one graph in
-\code{seurat_obj@graphs}.}
+\code{seurat_obj@graphs}. Ignored if \code{matrix} is provided.}
 
 \item{graph}{Character. Name of the graph in \code{Graphs(seurat_obj)} to
 analyse. If \code{NULL} (default), the function auto-detects a graph whose
 name ends in \code{"_snn"}. When multiple SNN graphs exist the first one is
 used and a message is emitted. If no SNN graph is present the first
-available graph is used instead (with a warning).}
+available graph is used instead (with a warning). Ignored if
+\code{matrix} is provided.}
+
+\item{matrix}{A square adjacency or transition matrix (sparse or dense) to
+analyse directly, bypassing the Seurat object entirely. Row/column names,
+if present, are used as cell identifiers. When supplied, the function
+returns a plain list of component info (see Value) instead of a Seurat
+object, and \code{seurat_obj}/\code{graph}/\code{meta_data_name} are
+ignored.}
 
 \item{meta_data_name}{Character. Name of the new column written to
-\code{seurat_obj@meta.data}. Default \code{"connected_component"}.}
+\code{seurat_obj@meta.data}. Default \code{"connected_component"}.
+Ignored if \code{matrix} is provided.}
 
 \item{verbose}{Logical. Print a summary of the component structure. Default
 \code{TRUE}.}
 }
 \value{
-The Seurat object with a new integer-factor column in
-\code{seurat_obj@meta.data}. Levels are ordered by component size
-(largest component = level 1) so the dominant component always has the
-lowest label.
+If \code{matrix} is \code{NULL} (default), the Seurat object with a
+new integer-factor column in \code{seurat_obj@meta.data}. Levels are
+ordered by component size (largest component = level 1) so the dominant
+component always has the lowest label. If \code{matrix} is supplied
+instead, a list with elements \code{membership} (a named integer vector,
+one entry per row/column of \code{matrix}, ranked the same way),
+\code{n_components}, and \code{component_sizes} (sizes in decreasing
+order).
 }
 \description{
-Inspects an SNN (or any named) graph from a Seurat object and labels each
-cell by its connected component. The result is written to a new column in
-\code{seurat_obj@meta.data}. This is a useful diagnostic before running
-\code{PerturbationTransitions}, because cells that belong to different
-connected components cannot exchange transition probability mass through the
-graph.
+Inspects an SNN (or any named) graph from a Seurat object, or a raw
+adjacency/transition matrix, and labels each cell by its connected
+component. When run on a Seurat object, the result is written to a new
+column in \code{seurat_obj@meta.data}. This is a useful diagnostic before
+running \code{PerturbationTransitions}, because cells that belong to
+different connected components cannot exchange transition probability mass
+through the graph. It is also used internally by \code{PredictAttractors}
+to check the post-masking transition matrix for disconnected components,
+which can otherwise make the dominant eigenvalue non-unique and cause the
+stationary-distribution eigensolver to fail to converge.
 }
 \details{
-The graph is treated as undirected for component finding — any non-zero edge
-weight is interpreted as a connection. The underlying computation uses
+The graph/matrix is treated as undirected for component finding — any
+non-zero edge weight in either direction is interpreted as a connection,
+and the diagonal is ignored. The underlying computation uses
 \code{igraph::components()}, which implements a fast depth-first-search.
 }
