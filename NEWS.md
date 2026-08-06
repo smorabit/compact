@@ -1,3 +1,8 @@
+# 0.1.3 (08-06-2026)
+## Changes
+- Fixed `ApplyPropagation` (and therefore `ModulePerturbation`, `TFPerturbation`, `CustomPerturbation`, `TargetModulePerturbation`) diluting a hub gene's own primary perturbation over successive propagation iterations, since the delta matrix was fully overwritten by the network-propagated version at every step rather than persisting the hub signal ([#27](https://github.com/smorabit/compact/issues/27)). Hub gene rows are now reset to their initial perturbation value after every iteration (the "persistent-source hub model"), modeling a constitutive perturbation that holds hub genes at their new expression level while downstream genes respond. The signal-amplification warning is now correctly scoped to the non-hub subgraph.
+- Fixed a related edge case in `PerturbationTransitions`: cells with an exact all-zero perturbation delta could get a spurious non-NaN transition weight to a specific neighbor (rather than staying in place), depending on internal behavior of the underlying correlation routine on degenerate inputs. Such cells' off-diagonal transition weights are now zeroed deterministically.
+
 # 0.1.2 (08-06-2026)
 ## Changes
 - Fixed a bug in `PredictPerturbationTime`, `PredictAttractors`, `PredictFates`, and `PredictCommitment` where cells with no valid outgoing transitions after graph masking produced an invalid sub-stochastic transition matrix — silently leaking probability mass, reporting false "already arrived" hitting times, and in some cases crashing `PredictAttractors`'s eigensolver on disconnected transition graphs ([#24](https://github.com/smorabit/compact/issues/24)). Zero-outdegree cells are now repaired with a self-transition instead of an invalid all-zero row.
