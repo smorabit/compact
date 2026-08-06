@@ -9,12 +9,14 @@ PlotMacrostateTransitions(
   perturbation_name,
   result_name = NULL,
   group_order = NULL,
+  normalize_offdiag = FALSE,
+  na_color = "grey85",
   color_scale = c("white", "#2166AC"),
   show_stability = TRUE,
   stability_size = 3,
   diagonal_border = TRUE,
   text_size = 10,
-  legend_title = "Transition\\nProbability",
+  legend_title = NULL,
   title = NULL
 )
 }
@@ -33,6 +35,22 @@ Used to look up \code{result_name} in \code{@misc$MacrostateTransitions}.}
 \item{group_order}{Character vector. Order of groups on both axes. Defaults
 to alphabetical order (the order stored in the result). Both the x-axis
 (destination) and the y-axis (source, reversed) follow this order.}
+
+\item{normalize_offdiag}{Logical. If \code{TRUE}, the diagonal of Q is set
+to \code{NA} (rendered as grey, controlled by \code{na_color}) and each
+row's off-diagonal values are divided by their sum (\code{1 -
+  stability[i]}), converting them to conditional transition probabilities:
+"given that a cell leaves group i, what fraction of outflow goes to group
+j?". This removes the self-transition signal from the color scale, making
+low-probability off-diagonal transitions clearly visible. Under this
+normalization the null expectation for a uniform random walk among the
+off-diagonal states is \code{1 / (K - 1)}. Stability values and the
+diagonal border are still rendered on the grey diagonal tiles.
+Default: \code{FALSE}.}
+
+\item{na_color}{Character. Fill color used for diagonal tiles when
+\code{normalize_offdiag = TRUE} (i.e., the \code{na.value} passed to
+\code{scale_fill_gradientn}). Default: \code{"grey85"}.}
 
 \item{color_scale}{Character vector. Two or more colors defining the
 low-to-high color gradient, passed to
@@ -54,8 +72,11 @@ self-transitions.}
 \item{text_size}{Numeric. Base text size for axis labels and theme. Default:
 \code{10}.}
 
-\item{legend_title}{Character. Title for the fill legend. Default:
-\code{"Transition\nProbability"}.}
+\item{legend_title}{Character or \code{NULL}. Title for the fill legend.
+When \code{NULL} (default), the title is set automatically:
+\code{"Transition\nProbability"} when \code{normalize_offdiag = FALSE},
+\code{"Conditional\nTransition"} when \code{normalize_offdiag = TRUE}.
+Supply an explicit string to override.}
 
 \item{title}{Character. Plot title. Defaults to \code{perturbation_name}.}
 }
