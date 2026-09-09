@@ -11,28 +11,63 @@ To get started, please install the package and then visit the [co-expression mod
 
 ## Installation
 
-Follow these steps to create an R [conda environment](https://docs.conda.io/en/latest/) environment for `compact`. 
+Follow these steps to create an R [conda environment](https://docs.conda.io/en/latest/) for `compact`. Pick **one** track below — mamba or plain conda — then run the shared R steps.
+
+We recommend **mamba**. It is a drop-in replacement for conda's dependency solver, written in C++, so it resolves and installs the many Bioconductor and CRAN dependencies far faster than conda and is much less likely to stall on the environment solve step. If you already have mamba or prefer not to install it, the plain conda track produces the same environment.
+
+<details>
+<summary><b>Option A — mamba (recommended)</b></summary>
 
 ```bash
-# Create a new conda environment, and activate it
+# Create a new conda environment (with mamba), and activate it
 conda create -n compact -c conda-forge -c bioconda r-base=4.4 mamba
 conda activate compact
 
-# Install Key packages via conda-forge
+# Install key packages via conda-forge / bioconda
 mamba install -c conda-forge -c bioconda \
   r-seurat \
-  r-velocyto.r \
   bioconductor-singlecellexperiment \
   bioconductor-pcamethods \
   r-hdf5r
 
-# Install additional required packages
+# Install additional required packages (dev tools, modeling, plotting)
 mamba install -c conda-forge \
-  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest r-ggrastr
+  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo \
+  r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest r-ggrastr
 
+# Install energy-statistics packages
+mamba install -c conda-forge gsl r-gsl r-energy
 ```
 
-Next, install the required packages inside of R.
+</details>
+
+<details>
+<summary><b>Option B — conda</b></summary>
+
+```bash
+# Create a new conda environment, and activate it
+conda create -n compact -c conda-forge -c bioconda r-base=4.4
+conda activate compact
+
+# Install key packages via conda-forge / bioconda
+conda install -c conda-forge -c bioconda \
+  r-seurat \
+  bioconductor-singlecellexperiment \
+  bioconductor-pcamethods \
+  r-hdf5r
+
+# Install additional required packages (dev tools, modeling, plotting)
+conda install -c conda-forge \
+  r-devtools r-remotes r-tidyverse r-patchwork r-matrix r-rcpparmadillo \
+  r-ggpubr r-lme4 r-nloptr r-rstatix r-car r-pbkrtest r-ggrastr
+
+# Install energy-statistics packages
+conda install -c conda-forge gsl r-gsl r-energy
+```
+
+</details>
+
+### Then, inside R (both options)
 
 ```r
 # install BiocManager 
@@ -43,20 +78,39 @@ BiocManager::install(c("WGCNA", "UCell", "GenomicRanges", "GeneOverlap"))
 devtools::install_github('smorabit/hdWGCNA', ref='dev')
 
 # finally, install compact
-devtools::install_github("velocyto-team/velocyto.R")
 devtools::install_github('smorabit/compact')
 ```
 
-Install additional packages for Transcription Factor network analysis.
+### Optional — RNA velocity (velocyto.R)
+
+`velocyto.R` is **not** required by `compact` itself — only install it if you plan to run the RNA-velocity tutorials. Install the pre-built conda package rather than compiling from source:
 
 ```bash
+# mamba
+mamba install -c conda-forge -c bioconda r-velocyto.r
 
-mamba install -c conda-forge -c bioconda bioconductor-tfbstools bioconductor-rtracklayer bioconductor-genomicranges bioconductor-motifmatchr
-
+# or conda
+conda install -c conda-forge -c bioconda r-velocyto.r
 ```
 
-Within R:
-```r 
+### Optional — Transcription Factor network analysis
+
+<details>
+<summary><b>TF network analysis packages</b></summary>
+
+```bash
+# mamba
+mamba install -c conda-forge -c bioconda \
+  bioconductor-tfbstools bioconductor-rtracklayer \
+  bioconductor-genomicranges bioconductor-motifmatchr
+
+# or conda
+conda install -c conda-forge -c bioconda \
+  bioconductor-tfbstools bioconductor-rtracklayer \
+  bioconductor-genomicranges bioconductor-motifmatchr
+```
+
+```r
 BiocManager::install(c(
   'EnsDb.Hsapiens.v86',
   'BSgenome.Hsapiens.UCSC.hg38',
@@ -64,5 +118,7 @@ BiocManager::install(c(
   'JASPAR2024'
 )) 
 ```
+
+</details>
 
 ![](man/figures/COMPACT_Pipeline.png)
