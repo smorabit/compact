@@ -11,6 +11,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
+  eval      = FALSE,
   collapse  = TRUE,
   comment   = "#>",
   message   = FALSE,
@@ -154,7 +155,7 @@ set.seed(12345)
 
 Load the simulated linear-trajectory dataset. This object has been processed through Seurat (normalization, PCA, UMAP) and hdWGCNA (co-expression network, module identification). The co-expression network (TOM) is stored as a separate file; update the path below if your working directory differs.
 
-```{r load-data, eval=TRUE}
+```{r load-data, eval = FALSE}
 # TODO: update this block once this Seurat object is included in the package
 seurat_obj <- readRDS('/home/groups/singlecell/smorabito/analysis/COMPACT/data/simulation_linear.rds')
 
@@ -166,7 +167,7 @@ seurat_obj <- SetNetworkData(seurat_obj, net)
 
 To better understand the dataset, we first visualize the different cell clusters on the PCA embedding. In principle, we used **splatter** to generate five clusters ordered along a single linear "differentiation" trajectory.
 
-```{r dimplot, eval=TRUE, fig.width=6, fig.height=5}
+```{r dimplot, eval = FALSE, fig.width=6, fig.height=5}
 DimPlot(
   seurat_obj,
   reduction = 'pca',
@@ -178,7 +179,7 @@ DimPlot(
 
 To see which region of the embedding each co-expression module is active in, we plot the module eigengenes (MEs, the summary expression level of each module) in the same embedding:
 
-```{r module-featureplot, eval=TRUE, fig.width=9, fig.height=3}
+```{r module-featureplot, eval = FALSE, fig.width=9, fig.height=3}
 plot_list <- ModuleFeaturePlot(
   seurat_obj,
   reduction = 'pca',
@@ -196,7 +197,7 @@ Here we see two modules which represent the extreme ends of the linear trajector
 
 compact requires a cell-cell neighborhood graph to compute transition probabilities: critically, transition probabilities are only evaluated between neighboring cells. `FindNeighbors` only needs to be called once, and all subsequent `ModulePerturbation` calls reuse the same graph.
 
-```{r find-neighbors, eval=TRUE}
+```{r find-neighbors, eval = FALSE}
 seurat_obj <- FindNeighbors(
   seurat_obj,
   reduction    = 'pca',
@@ -222,7 +223,7 @@ seurat_obj <- FindNeighbors(
 
 Here we knock down the **blue** module using `perturb_dir = -1`. The result is stored as a new assay and a new transition probability graph inside the Seurat object.
 
-```{r run-perturbation, eval=TRUE}
+```{r run-perturbation, eval = FALSE}
 seurat_obj <- ModulePerturbation(
   seurat_obj,
   mod = 'blue',   
@@ -254,7 +255,7 @@ seurat_obj <- ModulePerturbation(
 
 `PlotTransitionVectors` projects the cell-cell transition probabilities onto the 2D embedding as a vector field analogous to an RNA velocity plot. Here we plot one arrow per cell, showing the local direction of transitions induced by the in-silico knockdown of the blue module.
 
-```{r plot-vectors, eval=TRUE, fig.width=6, fig.height=5}
+```{r plot-vectors, eval = FALSE, fig.width=6, fig.height=5}
 PlotTransitionVectors(
   seurat_obj,
   perturbation_name = 'blue_down',
@@ -286,7 +287,7 @@ This quickstart covers the absolute minimal compact workflow. We encourage you t
 <details>
 <summary>**Session information (click to expand)**</summary>
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 sessionInfo()
 ```
 

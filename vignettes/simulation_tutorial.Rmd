@@ -12,6 +12,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE,
   collapse  = TRUE,
   comment   = "#>",
   message   = FALSE,
@@ -179,7 +180,7 @@ saveRDS(seurat_obj, file = file.path(data_dir, 'simulation_branch.rds'))
 
 Start by loading the required libraries:
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 library(Seurat)
 library(tidyverse)
 library(cowplot)
@@ -211,7 +212,7 @@ net$TOMFiles <- file.path(data_dir, 'sim_TOM.rda')
 seurat_obj <- SetNetworkData(seurat_obj, net)
 ```
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval = FALSE, echo=FALSE}
 # we load this internally only, not shown in the tutorial
 seurat_obj <- readRDS('/home/groups/singlecell/smorabito/analysis/COMPACT/data/simulation_branch_compact.rds')
 cur_mod <- 'turquoise'
@@ -227,7 +228,7 @@ seurat_obj <- SetNetworkData(seurat_obj, net)
 
 We familiarize ourselves with the dataset by plotting the different groups as a PCA dimensional reduction plot. 
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 cp <- c(
     rev(brewer.pal(5, "Oranges")[2:5]),  # Branch 1: B1-1, B1-2, B1-3, B1-4
     brewer.pal(5, "Greens")[2:5],        # Branch 2: B2-1, B2-2, B2-3, B2-4
@@ -253,7 +254,7 @@ DimPlot(
 
 We next inspect the expression level of each gene co-expression module identified by hdWGCNA.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 plot_list <- ModuleFeaturePlot(
     seurat_obj,
     reduction = 'pca',
@@ -302,7 +303,7 @@ The choice of `k.param` has the largest effect on connectivity. Too few neighbor
 
 `compact` provides `FindConnectedComponents` to detect this condition. It labels each cell by its connected component and warns you if more than one is found. Below we run `FindNeighbors` with four representative `k.param` values and save the component labels from each run under a unique column name, allowing us to compare all four results side-by-side:
 
-```{r eval=TRUE, message=FALSE}
+```{r eval = FALSE, message=FALSE}
 param_sets <- list(
     list(k = 2,  label = 'k2'),
     list(k = 10, label = 'k10'),
@@ -330,7 +331,7 @@ for (ps in param_sets) {
 
 We can now visualize the results side-by-side. 
 
-```{r eval=TRUE, fig.width=10, fig.height=9}
+```{r eval = FALSE, fig.width=10, fig.height=9}
 plot_list <- lapply(param_sets, function(ps) {
     col_name <- paste0('cc_', ps$label)
     n_comp   <- nlevels(seurat_obj@meta.data[[col_name]])
@@ -356,7 +357,7 @@ In this example, `k.param = 2` was the only tested value that yielded more than 
 
 For this dataset, we proceed with `k.param = 20`.
 
-```{r eval=TRUE, message=FALSE}
+```{r eval = FALSE, message=FALSE}
 seurat_obj <- FindNeighbors(
     seurat_obj,
     reduction    = 'pca',
@@ -386,7 +387,7 @@ The results are stored back into the Seurat object as a new assay (the perturbed
 
 `compact` defaults to ZINB mode (`perturb_mode = "zinb"`), which models each hub gene's baseline expression with a Zero-Inflated Negative Binomial distribution and adds (knock-in) or subtracts (knock-down) a sample from that distribution. For knock-down, set `perturb_dir = -1`; for knock-in, set `perturb_dir = 1`; for knock-out (force expression to zero), set `perturb_dir = 0`.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 cur_mod <- 'turquoise'
 
 seurat_obj <- ModulePerturbation(
@@ -408,7 +409,7 @@ seurat_obj <- ModulePerturbation(
 
 We set `perturb_dir = 1` to simulate over-expression of the module, holding all other parameters the same as the down-regulation case.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 seurat_obj <- ModulePerturbation(
     seurat_obj,
     mod = cur_mod,
@@ -547,7 +548,7 @@ Before examining cell-state transitions, it is good practice to verify that the 
 
 We compare a top hub gene and a secondary module gene across the three conditions (observed, knock-down, knock-in), faceted by branch. Each column is a gene; each row is a branch. Significance brackets from a Wilcoxon test show whether knock-down and knock-in differ from the observed baseline within each branch.
 
-```{r eval=TRUE, fig.width=8, fig.height=9}
+```{r eval = FALSE, fig.width=8, fig.height=9}
 library(ggpubr)
 
 # get the top hub gene and a secondary gene
@@ -631,7 +632,7 @@ Hub genes (left column) should show the largest effect sizes — they are the pr
 
 `PerturbationLog2FC` computes the log2 fold change for all genes in a module, comparing the perturbed assay to the baseline. Here we simply show how to access this information using the `compact` function `PerturbationLog2FC`.
 
-```{r eval=TRUE, fig.width=8, fig.height=4}
+```{r eval = FALSE, fig.width=8, fig.height=4}
 library(ggrepel)
 
 lfc_down <- PerturbationLog2FC(
@@ -659,7 +660,7 @@ knitr::kable(
 
 The points are colored by the turquoise module eigengene, so you can see where turquoise module is expressed at baseline relative to where the arrows are pointing.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 # extract the module color for turquoise
 modules <- GetModules(seurat_obj)
 mod_colors <- dplyr::select(modules, module, color) %>% dplyr::distinct()
@@ -722,7 +723,7 @@ Two-dimensional embeddings like UMAP invariably introduce global distortions in 
 
 High coherence in a region means the perturbation consistently pushes cells in the same direction there. Low coherence may indicate cells with low module expression or cells in a transition zone between two cell states.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 seurat_obj$coherence_down <- VectorFieldCoherence(
     seurat_obj,
     perturbation_name = 'turquoise_down',
@@ -742,7 +743,7 @@ seurat_obj$coherence_up <- VectorFieldCoherence(
 
 We can visualize coherence directly on the embedding, but here we plot the distributions of these values by group and branch:
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 
 plot_df <- as.data.frame(Reductions(seurat_obj, 'pca')@cell.embeddings[, 1:2])
 plot_df$coherence <- seurat_obj$coherence_down
@@ -795,7 +796,7 @@ The result is a matrix **Q** where each entry Q[source, destination] is the mean
 
 ## Run `MacrostateTransitions`
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 # down-regulation
 seurat_obj <- MacrostateTransitions(
     seurat_obj,
@@ -812,7 +813,7 @@ seurat_obj <- MacrostateTransitions(
 )
 ```
 
-```{r eval=TRUE, fig.width=7, fig.height=6}
+```{r eval = FALSE, fig.width=7, fig.height=6}
 # arrange groups in trajectory order so the heatmap reads root → tip left-to-right
 group_order <- c(
     'B1-1', 'B1-2', 'B1-3', 'B1-4',
@@ -904,7 +905,7 @@ In general, these functions provide cell-level outputs which we can then visuali
 
 For several of the analyses below, we must specify **sink cells**, a set of cells that serve as absorbing states in the Markov chain. We define them simply as all cells in the earliest pseudotime group, `B1-1`, which sits at the shared root region of the trajectory:
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 perturb_name <- 'turquoise_down'
 
 # define sink cells by group membership (root of the trajectory)
@@ -917,7 +918,7 @@ sink_cells <- colnames(seurat_obj)[seurat_obj$Group == 'B1-4']
 
 Setting `return_seurat = FALSE` returns a list with both the continuous stationary-distribution scores and the binary sink-cell membership. We then compute the ECDF transformation manually so we can store both the raw and the rank-normalized scores for comparison.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 # return_seurat=FALSE gives us both the raw scores and the identified sink cells
 attr_result <- PredictAttractors(
     seurat_obj,
@@ -951,7 +952,7 @@ seurat_obj$attractor_state <- factor(
 
 Plotting the raw score alongside the ECDF-normalized version makes the benefit of the rank transformation visible: the raw stationary distribution has a heavy right tail concentrated on a handful of cells, while ECDF spreading stretches the color scale across the full manifold.
 
-```{r eval=TRUE, fig.width=12, fig.height=5}
+```{r eval = FALSE, fig.width=12, fig.height=5}
 p_raw <- PlotMarkovEmbedding(
     seurat_obj,
     feature      = 'attractor_score_raw',
@@ -997,7 +998,7 @@ Terminal states on the branches that the perturbation drives cells toward should
 
 `PredictPerturbationTime` sets up an **absorbing Markov chain** with the sink cells as absorbing states and computes the expected number of steps each cell needs to reach the sink. This is analogous to RNA velocity pseudotime, but derived from in-silico perturbation transition probabilities. Sink cells receive a "perturbation pseudotime" of 0; cells that never reach the sink within `max_iter` steps (default 10,000) are flagged as unconverged.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 seurat_obj <- PredictPerturbationTime(
     seurat_obj,
     sink_cells = sink_cells,
@@ -1008,7 +1009,7 @@ seurat_obj <- PredictPerturbationTime(
 
 Visualize on the embedding with `PlotMarkovEmbedding`. We pass `sink_cells` so the absorbing state (B1-1) is marked with a centroid diamond, and we grey out any unconverged cells so they do not distort the color scale:
 
-```{r eval=TRUE, fig.width=6, fig.height=5}
+```{r eval = FALSE, fig.width=6, fig.height=5}
 # cells that hit max_iter are unconverged — grey them out rather than color them
 unconverged_cells <- colnames(seurat_obj)[seurat_obj$perturbation_pseudotime >= 10000]
 
@@ -1036,7 +1037,7 @@ Cells far from the sink in transition probability space will have high pseudotim
 
 In this example, we use this function to calculate the probability that each cell ends up in the B1-4 group.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 seurat_obj <- PredictFates(
     seurat_obj,
     perturbation_name = perturb_name,
@@ -1048,7 +1049,7 @@ seurat_obj <- PredictFates(
 
 We mark the B1-4 target cells with a centroid diamond so their position on the embedding is unambiguous:
 
-```{r eval=TRUE, fig.width=6, fig.height=5}
+```{r eval = FALSE, fig.width=6, fig.height=5}
 fate_target_cells <- colnames(seurat_obj)[seurat_obj$Group == 'B1-4']
 
 p_fates <- PlotMarkovEmbedding(
@@ -1072,7 +1073,7 @@ Cells on Branch 1 should have high fate probability toward `B1-4`. If turquoise 
 
 `PredictCommitment` computes the committor probability **between two specified groups**. In general it quantifies how committed each cell is to transitioning from the source state toward the sink state, but the same function could also be used equivalently to study the whether a cell will commit to one of two terminal states.
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 seurat_obj <- PredictCommitment(
     seurat_obj,
     perturbation_name = perturb_name,
@@ -1085,7 +1086,7 @@ seurat_obj <- PredictCommitment(
 
 Both boundary populations are marked with labeled centroid diamonds, anchoring the gradient so the reader immediately sees where the 0 and 1 ends lie:
 
-```{r eval=TRUE, fig.width=6, fig.height=5}
+```{r eval = FALSE, fig.width=6, fig.height=5}
 p_commitment <- PlotMarkovEmbedding(
     seurat_obj,
     feature       = 'commitment_score',
@@ -1112,7 +1113,7 @@ Cells along the Branch 1 trajectory should show a gradient from 0 (at `B1-1`, th
 
 With all four scores computed, we can display them together in a single 2 × 2 panel:
 
-```{r eval=TRUE, fig.width=12, fig.height=10}
+```{r eval = FALSE, fig.width=12, fig.height=10}
 wrap_plots(
     p_attractors, p_pseudotime,
     p_fates,      p_commitment,
@@ -1126,7 +1127,7 @@ Individual embedding plots show where each score is high or low across the manif
 
 **Module eigengene vs. commitment score** — turquoise expression should predict commitment to B1-4, since the module is enriched at that branch tip. The dashed reference line at 0.5 marks the threshold above which a cell is more likely to reach B1-4 than to return to B1-1.
 
-```{r eval=TRUE, fig.width=6, fig.height=5}
+```{r eval = FALSE, fig.width=6, fig.height=5}
 PlotMarkovScatter(
     seurat_obj,
     x_feature     = cur_mod,
@@ -1141,7 +1142,7 @@ PlotMarkovScatter(
 
 **Attractor score vs. perturbation pseudotime** — attractor cells are where the random walk converges; they should cluster at low pseudotime values (close to the root sink in transition space) or at particular branch tips depending on the perturbation direction.
 
-```{r eval=TRUE, fig.width=6, fig.height=5}
+```{r eval = FALSE, fig.width=6, fig.height=5}
 PlotMarkovScatter(
     seurat_obj,
     x_feature = 'attractor_score',
@@ -1177,7 +1178,7 @@ For transcription factor–based perturbations using `TFPerturbation`, see the *
 <details>
 <summary>**Session information (click to expand)**</summary>
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 sessionInfo()
 ```
 

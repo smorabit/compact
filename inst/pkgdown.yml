@@ -1,11 +1,12 @@
-pandoc: 3.9.0.2
-pkgdown: 2.2.0
+pandoc: '3.8'
+pkgdown: 2.1.3
 pkgdown_sha: ~
 articles:
   advanced_NSCLC: advanced_NSCLC.html
+  distance_assessment: distance_assessment.html
   quickstart: quickstart.html
   simulation_tutorial: simulation_tutorial.html
-last_built: 2026-05-20T10:36Z
+last_built: 2026-09-10T23:34Z
 urls:
   reference: https://smorabit.github.io/compact/reference
   article: https://smorabit.github.io/compact/articles

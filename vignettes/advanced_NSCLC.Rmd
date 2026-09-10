@@ -13,6 +13,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
+  eval = FALSE,
   collapse  = TRUE,
   comment   = "#>",
   message   = FALSE,
@@ -58,7 +59,7 @@ After completing this tutorial you will also be well-prepared for the `CustomPer
 
 ## Libraries
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 library(Seurat)
 library(tidyverse)
 library(cowplot)
@@ -105,7 +106,7 @@ seurat_obj@meta.data[shared_cells, colnames(tcat_scores)] <-
 
 > This vignette renders using a pre-processed subset of responders at the pre-treatment timepoint, with the exhaustion perturbation already computed.
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval = FALSE, echo=FALSE}
 # internal loading: pre-computed perturbed object (responders, pre-treatment)
 seurat_obj <- readRDS(
     '/home/groups/singlecell/smorabito/analysis/COMPACT/immunotherapy/NSCLC/data/compact/responders_Pre_perturbed.rds'
@@ -129,7 +130,7 @@ for (prog in c('Exhaustion', 'Cytotoxic', 'CD8.EM', 'CD8.Trm', 'TEMRA')) {
 
 We begin by orienting ourselves in the data. Cells are colored by their TCAT cell-type label.
 
-```{r eval=TRUE, fig.width=8, fig.height=5}
+```{r eval = FALSE, fig.width=8, fig.height=5}
 DimPlot(
     seurat_obj,
     reduction = 'umap',
@@ -147,7 +148,7 @@ DimPlot(
 
 The Exhaustion TCAT program score reveals where exhausted cells sit in this landscape:
 
-```{r eval=TRUE, fig.width=7, fig.height=5}
+```{r eval = FALSE, fig.width=7, fig.height=5}
 # order cells so high Exhaustion scores plot on top
 plot_df <- as.data.frame(Reductions(seurat_obj, 'umap')@cell.embeddings[, 1:2])
 plot_df$Exhaustion <- seurat_obj$Exhaustion
@@ -162,7 +163,7 @@ plot_df %>%
     ggtitle('TCAT Exhaustion score')
 ```
 
-```{r eval=TRUE, fig.width=8, fig.height=4}
+```{r eval = FALSE, fig.width=8, fig.height=4}
 # distribution of Exhaustion scores across cell types
 seurat_obj@meta.data %>%
     ggplot(aes(x = Exhaustion, y = reorder(celltype, Exhaustion, median), color = celltype)) +
@@ -232,7 +233,7 @@ hub_genes    <- head(exhaustion_weights$gene_name, 10)
 module_genes <- exhaustion_weights$gene_name
 ```
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval = FALSE, echo=FALSE}
 # internal: reconstruct exhaustion gene set from the cached TCAT reference
 tcat_ref <- read.csv(
     '/home/groups/singlecell/smorabito/analysis/COMPACT/data/TCAT_reference_weights.csv',
@@ -250,7 +251,7 @@ hub_genes    <- head(exhaustion_weights$gene_name, 10)
 module_genes <- exhaustion_weights$gene_name
 ```
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 # top 10 hub genes (primary perturbation targets)
 knitr::kable(
     head(exhaustion_weights, 10),
@@ -334,7 +335,7 @@ exp_per <- ApplyPerturbation(
 
 The violin plots below confirm that hub genes have reduced expression in the perturbed assay (rendered using the pre-computed `Exhaustion_down` perturbation):
 
-```{r eval=TRUE, fig.width=9, fig.height=6}
+```{r eval = FALSE, fig.width=9, fig.height=6}
 hub_genes_plot <- head(hub_genes, 3)
 
 p_list <- lapply(hub_genes_plot, function(gene) {
@@ -409,7 +410,7 @@ log_simulated_mod <- ApplyPropagation(
 
 The scatter below shows the relationship between a gene's log2FC (comparing observed vs the propagated `Exhaustion_down` assay) and its TCAT program weight — genes more central to the exhaustion program should show the largest change:
 
-```{r eval=TRUE, fig.width=7, fig.height=5}
+```{r eval = FALSE, fig.width=7, fig.height=5}
 lfc <- PerturbationLog2FC(
     seurat_obj,
     perturbation_name = 'Exhaustion_down',
@@ -500,7 +501,7 @@ After this call, the Seurat object contains a new sparse matrix at `seurat_obj@g
 
 `PlotTransitionVectors` projects the cell-cell transition probabilities onto the UMAP as a vector field. Cells are colored by their TCAT Exhaustion score; arrow direction and magnitude reflect the net predicted transition direction under the knock-down.
 
-```{r eval=TRUE, fig.width=7, fig.height=6}
+```{r eval = FALSE, fig.width=7, fig.height=6}
 PlotTransitionVectors(
     seurat_obj,
     perturbation_name = 'Exhaustion_down',
@@ -526,7 +527,7 @@ Cells with high Exhaustion scores (dark red) show coherent arrows pointing away 
 
 `VectorFieldCoherence` quantifies how locally consistent the vector field is for each cell: high coherence means a cell's transition vector aligns with those of its neighbors, indicating a strong and regionally consistent perturbation response.
 
-```{r eval=TRUE, fig.width=12, fig.height=5}
+```{r eval = FALSE, fig.width=12, fig.height=5}
 coherence <- VectorFieldCoherence(
     seurat_obj,
     perturbation_name = 'Exhaustion_down',
@@ -625,7 +626,7 @@ When `custom_weights` is supplied, `CustomPerturbation` picks the top `n_connect
 
 The two approaches produce identical results. The vector field below is rendered from the pre-computed `Exhaustion_down` assay; `Exhaustion_down_custom` would be pixel-identical:
 
-```{r eval=TRUE, fig.width=12, fig.height=5}
+```{r eval = FALSE, fig.width=12, fig.height=5}
 # side-by-side: step-by-step (Section 1) vs CustomPerturbation (Section 2)
 # Both use identical network, gene set, and parameters; outputs are identical.
 p_manual <- PlotTransitionVectors(
@@ -748,7 +749,7 @@ seurat_obj <- CustomPerturbation(
 )
 ```
 
-```{r eval=TRUE, echo=FALSE}
+```{r eval = FALSE, echo=FALSE}
 # internal: reconstruct cytotoxic gene set from the cached TCAT reference
 cytotoxic_weights <- tcat_ref['Cytotoxic', ] %>%
     t() %>%
@@ -761,7 +762,7 @@ cytotoxic_weights <- tcat_ref['Cytotoxic', ] %>%
 cytotoxic_hubs <- head(cytotoxic_weights$gene_name, 10)
 ```
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 knitr::kable(
     head(cytotoxic_weights, 10),
     col.names = c('Gene', 'TCAT weight'),
@@ -774,7 +775,7 @@ Canonical effector markers — GZMB (granzyme B), PRF1 (perforin), GNLY (granuly
 
 Side-by-side, the two perturbations reveal their complementarity:
 
-```{r eval=TRUE, fig.width=12, fig.height=5}
+```{r eval = FALSE, fig.width=12, fig.height=5}
 p_exh <- PlotTransitionVectors(
     seurat_obj,
     perturbation_name = 'Exhaustion_down',
@@ -868,7 +869,7 @@ seurat_obj <- PerturbationTransitions(
 
 A three-panel comparison shows each perturbation individually alongside their combination:
 
-```{r eval=TRUE, fig.width=15, fig.height=5}
+```{r eval = FALSE, fig.width=15, fig.height=5}
 make_vf <- function(pert_name, title, show_legend = FALSE) {
     p <- PlotTransitionVectors(
         seurat_obj,
@@ -900,7 +901,7 @@ make_vf('Exhaustion_down', 'Combined (Exh↓ + Cyt↑)', show_legend = TRUE)
 
 `VectorFieldCoherence` provides a quantitative comparison across perturbations:
 
-```{r eval=TRUE, fig.width=9, fig.height=4}
+```{r eval = FALSE, fig.width=9, fig.height=4}
 pert_ids    <- c('Exhaustion_down', 'Cytotoxic_up', 'Exhaustion_down')
 pert_labels <- c('Exh knock-down',  'Cyt knock-in', 'Combined')
 
@@ -978,7 +979,7 @@ The same workflow applies to any gene set and any network — SCENIC regulons, N
 <details>
 <summary>**Session information (click to expand)**</summary>
 
-```{r eval=TRUE}
+```{r eval = FALSE}
 sessionInfo()
 ```
 
