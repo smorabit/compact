@@ -2,7 +2,7 @@
 % Please edit documentation in R/AlertHeatmap.R
 \name{AlertHeatmap}
 \alias{AlertHeatmap}
-\title{Plot sensitivity-oriented AlertSystem pathway results}
+\title{Plot paired Alert System pathway responses}
 \usage{
 AlertHeatmap(
   seurat_obj,
@@ -25,45 +25,49 @@ AlertHeatmap(
 \arguments{
 \item{seurat_obj}{Seurat object processed by \code{AlertSystemScore()}.}
 
-\item{misc_name}{Misc slot containing  results.}
+\item{misc_name}{Name of the Alert System state in \code{seurat_obj@misc}.}
 
 \item{score_method}{Score channel: \code{"expression"} or \code{"ucell"}.}
 
-\item{top_n}{Number of pathways selected per effect side.}
+\item{top_n}{Number of pathways selected separately from each requested
+effect side.}
 
 \item{side}{One of \code{"both"}, \code{"positive"}, or \code{"negative"}.}
 
-\item{select_by}{Selection metric. Defaults to
-\code{"widespread_priority"}; alternatives are \code{"focal_priority"},
-\code{"abs_effect"}, \code{"null_z"}, \code{"robust_fraction"}, and
-\code{"response_rate"}.}
+\item{select_by}{Ranking metric: \code{"widespread_priority"},
+\code{"focal_priority"}, \code{"abs_effect"}, \code{"null_z"},
+\code{"robust_fraction"}, or \code{"response_rate"}.}
 
-\item{fill_by}{Tile fill metric: raw paired \code{"effect"} or
-\code{"null_z"}.}
+\item{fill_by}{Tile fill: raw \code{"effect"} or calibrated \code{"null_z"}.}
 
-\item{reorder_by}{Order selected pathways by \code{"effect"} or selection
-priority.}
+\item{reorder_by}{Order selected pathways by mean effect or selection score.}
 
-\item{scale_mode}{Use raw values or divide by a robust global magnitude.}
+\item{scale_mode}{\code{"none"} retains the native response scale; \code{"unit"}
+divides by a robust magnitude and clips display values to \verb{[-1, 1]}.}
 
-\item{unit_q}{Quantile used for unit scaling.}
+\item{unit_q}{Quantile of absolute displayed values used by unit scaling.}
 
-\item{show_annotations}{Show response and consistency text.}
+\item{show_annotations}{Display \code{r} and \code{c} in each tile.}
 
-\item{show_fdr}{Add an FDR symbol when calibrated FDR is available.}
+\item{show_fdr}{Display \code{*} when FDR is at or below \code{fdr_cutoff}.}
 
 \item{fdr_cutoff}{FDR threshold for the symbol.}
 
-\item{fill_limits}{Optional explicit fill limits.}
+\item{fill_limits}{Optional explicit symmetric or asymmetric fill limits.}
 }
 \value{
-A ggplot object. Selected pathway names and selection statistics are
-attached as \code{"selected_pathways"} and \code{"selection_stats"}.
+A ggplot object. Selection data and display metadata are attached as
+attributes: \code{selected_pathways}, \code{selection_stats}, \code{change_measure},
+\code{response_threshold}, and \code{fill_limits}.
 }
 \description{
-Selects pathways independently on the positive and negative sides using an
-evidence-aware priority metric. Tile color shows either the paired pathway
-effect or its null-standardized value. Text annotations keep response
-prevalence and consistency visible so small but reproducible changes are not
-confused with numerical noise.
+Pathways are selected independently on the positive and negative sides using
+an evidence-aware priority metric. Tile color displays either the raw paired
+pathway effect or its null-standardized value. Text annotations display
+response prevalence (\code{r}) and directional consistency (\code{c}).
+}
+\details{
+UPDATED: UCell difference and UCell log2-ratio results are labeled
+explicitly, and mixed transformations are rejected rather than silently
+plotted together.
 }

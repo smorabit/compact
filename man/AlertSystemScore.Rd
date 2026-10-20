@@ -2,7 +2,7 @@
 % Please edit documentation in R/AlertSystemScore.R
 \name{AlertSystemScore}
 \alias{AlertSystemScore}
-\title{Score subtle pathway responses after an in-silico perturbation}
+\title{Score paired pathway responses after an in-silico perturbation}
 \usage{
 AlertSystemScore(
   seurat_obj,
@@ -14,93 +14,106 @@ AlertSystemScore(
   layer = "data",
   min_genes = 5L,
   score_methods = c("expression", "ucell"),
+  ucell_change = c("difference", "log2_ratio"),
+  ucell_pseudocount = 1e-04,
   summary_fun = c("trimmed_mean", "median", "mean"),
   trim = 0.1,
   expression_response_threshold = 0.01,
-  ucell_response_threshold = 0.005,
+  ucell_response_threshold = NULL,
   null_unit = c("auto", "sample", "cell", "none"),
   n_permutations = 1000L,
   seed = 1L,
   leading_n = 5L,
   gene_change_tolerance = 1e-08,
   misc_name = "AlertSystem",
+  out_dir = NULL,
+  output_prefix = NULL,
+  overwrite_outputs = FALSE,
   return_details = FALSE,
   verbose = TRUE
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object containing baseline and perturbation
-assays.}
+\item{seurat_obj}{Seurat object containing baseline and perturbation assays.}
 
 \item{gene_sets}{Named list of pathway gene vectors.}
 
-\item{perturbation_name}{Perturbation assay name.}
+\item{perturbation_name}{Name of the virtually perturbed assay.}
 
-\item{baseline_assay}{Baseline assay name. Default \code{"RNA"}.}
+\item{baseline_assay}{Name of the baseline assay; default \code{"RNA"}.}
 
-\item{group.by}{Optional metadata column for cell-type/state summaries.}
+\item{group.by}{Optional metadata column defining cell groups. When \code{NULL},
+all cells form the \code{"all_cells"} group.}
 
 \item{sample.by}{Optional metadata column identifying biological samples.
-Strongly recommended when inferential calibration is desired.}
+Strongly recommended for inferential calibration.}
 
-\item{layer}{Log-normalized layer used by the expression score.}
+\item{layer}{Log-normalized layer used by expression scoring.}
 
-\item{min_genes}{Minimum detected genes required for a pathway.}
+\item{min_genes}{Minimum retained genes required for a pathway.}
 
-\item{score_methods}{Any of \code{c("expression", "ucell")}. If UCell is
-unavailable, the expression channel is retained and a warning is issued.}
+\item{score_methods}{Any of \code{c("expression", "ucell")}.}
 
-\item{summary_fun}{Primary within-group summary: \code{"median"},
-\code{"trimmed_mean"}, or \code{"mean"}.}
+\item{ucell_change}{UCell response transformation. \code{"difference"} computes
+\code{post - pre}; \code{"log2_ratio"} computes
+\code{log2((post + ucell_pseudocount)/(pre + ucell_pseudocount))}.}
 
-\item{trim}{Fraction trimmed from each tail for \code{"trimmed_mean"}.}
+\item{ucell_pseudocount}{Positive pseudocount used only for \code{"log2_ratio"}.}
 
-\item{expression_response_threshold}{Minimum absolute expression delta used
-to define a responding cell.}
+\item{summary_fun}{Group-level effect summary: \code{"trimmed_mean"}, \code{"median"},
+or \code{"mean"}.}
 
-\item{ucell_response_threshold}{Minimum absolute UCell delta used to define
-a responding cell.}
+\item{trim}{Fraction removed from each tail by the trimmed mean.}
 
-\item{null_unit}{One of \code{"auto"}, \code{"sample"}, \code{"cell"}, or
-\code{"none"}. \code{"auto"} uses samples when \code{sample.by} is set
-and otherwise reports descriptive metrics without inferential P values.}
+\item{expression_response_threshold}{Absolute expression-delta threshold.}
 
-\item{n_permutations}{Number of sign-flip null draws.}
+\item{ucell_response_threshold}{Absolute UCell-response threshold. When
+\code{NULL}, defaults to \code{0.005} for differences and \code{0.1} for log2 ratios.}
 
-\item{seed}{Random seed for null calibration.}
+\item{null_unit}{\code{"auto"}, \code{"sample"}, \code{"cell"}, or \code{"none"}. \code{"auto"}
+uses samples when \code{sample.by} is supplied and otherwise disables null
+calibration.}
 
-\item{leading_n}{Number of genes reported as leading contributors.}
+\item{n_permutations}{Number of sign-flip permutations.}
 
-\item{gene_change_tolerance}{Tolerance for inferring directly changed counts
-and propagated data-layer genes.}
+\item{seed}{Random seed for null calibration and temporary UCell column names.}
 
-\item{misc_name}{Misc slot used for storing results.}
+\item{leading_n}{Number of leading genes recorded per pathway/group.}
+
+\item{gene_change_tolerance}{Numeric tolerance used to classify directly and
+propagation-only changed genes.}
+
+\item{misc_name}{Name used under \code{seurat_obj@misc}.}
+
+\item{out_dir}{Optional output directory. UPDATED: when supplied, the complete
+state is saved as RDS and metrics are exported as CSV.}
+
+\item{output_prefix}{Optional filename prefix. Defaults to a sanitized
+perturbation-based prefix.}
+
+\item{overwrite_outputs}{Whether existing RDS/CSV outputs may be replaced.}
 
 \item{return_details}{Return a result list instead of only the Seurat object.}
 
 \item{verbose}{Emit progress messages.}
 }
 \value{
-A Seurat object, or a list containing \code{seurat},
-\code{per_cell}, \code{metrics}, \code{gene_sets}, and \code{params}.
+A Seurat object, or a list containing \code{seurat}, \code{per_cell}, \code{metrics},
+\code{gene_sets}, \code{params}, \code{info_file}, and \code{metrics_file}.
 }
 \description{
-\code{AlertSystemScore()} is an experimental, paired redesign of
-\code{AlertSystemScore()}. It compares every cell with itself and supports
-two complementary score channels:
-\itemize{
-\item \code{"expression"}: the mean post-minus-pre log-expression across
-genes in a pathway. This is sensitive to coordinated changes that do
-not alter within-cell gene ranks.
-\item \code{"ucell"}: the post-minus-pre UCell score. This is more robust
-to expression scale but less sensitive to small rank-preserving
-changes.
-}
+\code{AlertSystemScore()} compares each cell with itself between a baseline assay
+and a virtually perturbed assay. It supports two complementary channels:
 }
 \details{
-The primary \code{effect} is a paired difference, not a ratio. Response
-prevalence and directional consistency are reported separately. When
-\code{sample.by} is supplied, sample-level sign-flip calibration produces
-an empirical P value, null-standardized effect, and FDR without treating
-every cell as an independent biological replicate.
+\itemize{
+\item \code{expression}: mean post-minus-pre log-normalized expression over retained
+pathway genes.
+\item \code{ucell}: either post-minus-pre UCell score (\code{"difference"}) or the legacy
+log2 ratio of post and pre UCell scores (\code{"log2_ratio"}).
+}
+
+The cell-level pathway responses are summarized within cell groups. Response
+prevalence, directionality, leading genes, and optional sample-level
+sign-flip calibration are reported separately.
 }
