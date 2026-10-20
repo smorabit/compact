@@ -51,8 +51,16 @@ creates a bar plot of the top \code{n} genes, and saves it to disk as a PNG or P
 }
 \examples{
 # After running FindShapKeyDriver():
+\dontrun{
+# Requires a Seurat object processed with FindShapKeyDriver().
 BarplotShap(seurat_obj, top_n = 30)
 
 # Save as a PDF with a custom color
-BarplotShap(seurat_obj,save_plot = TRUE,filename = "barplot_top_shap_DriverGenes.pdf", bar_color = "#F96815")
+BarplotShap(
+  seurat_obj,
+  save_plot = TRUE,
+  filename = "barplot_top_shap_DriverGenes.pdf",
+  bar_color = "#F96815"
+)
+}
 }

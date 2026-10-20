@@ -2,151 +2,116 @@
 % Please edit documentation in R/CombinePerturbAssays.R
 \name{CombinePerturbAssays}
 \alias{CombinePerturbAssays}
-\title{CombinePerturbAssays: create a composite perturb assay by delta superposition (sparse-safe; COUNTS-only)}
+\title{Combine perturbation assays created by the mixed-layer workflow}
 \usage{
 CombinePerturbAssays(
   seurat_obj,
   perturb_assays,
   baseline_assay = "RNA",
-  new_assay = paste(perturb_assays, collapse = "_"),
+  new_assay = paste0(paste(perturb_assays, collapse = "_"), "_combined"),
+  scale.factor = 10000,
+  direct_tolerance = 0,
+  check_provenance = TRUE,
   require_provenance = FALSE,
   strict_provenance_check = TRUE,
-  run_consistency_check_if_missing = TRUE,
-  strict_consistency_check = FALSE,
-  eps = 0.001,
-  max_frac_changed = 0.35,
-  max_abs_median = 0.05,
-  max_abs_mean = 0.05,
-  allow_unverified = TRUE,
+  floor_counts = TRUE,
+  floor_data = TRUE,
   allow_dense = FALSE,
-  normalize_method = "LogNormalize",
-  scale.factor = 10000,
+  overwrite = FALSE,
   verbose = TRUE
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object containing baseline and perturbation assays.}
+\item{seurat_obj}{A Seurat object containing the baseline and perturbation
+assays.}
 
-\item{perturb_assays}{Character vector of perturbation assay names to combine.}
+\item{perturb_assays}{Character vector naming the perturbation assays.}
 
-\item{baseline_assay}{Character; baseline assay name (default \code{"RNA"}).}
+\item{baseline_assay}{Name of the assay from which the perturbations were
+generated. Default is \code{"RNA"}.}
 
-\item{new_assay}{Character; name of the new composite assay.}
+\item{new_assay}{Name for the combined assay.}
 
-\item{require_provenance}{Logical; if TRUE, missing provenance triggers stop/warn.}
+\item{scale.factor}{Scale factor used by the perturbation workflow's
+log-normalization. Default is \code{1e4}.}
 
-\item{strict_provenance_check}{Logical; if TRUE, stop on provenance mismatch; else warn.}
+\item{direct_tolerance}{Non-negative numeric tolerance used to infer direct
+genes from count-space deltas. A gene is direct for an assay when any cell
+has \code{abs(perturbed_count - baseline_count) > direct_tolerance}.}
 
-\item{run_consistency_check_if_missing}{Logical; if TRUE, run heuristic checks when provenance missing.}
+\item{check_provenance}{Logical; inspect \code{assay@misc$COMPACT} metadata
+written by \code{StampPerturbProvenance()} and verify that every available
+stamp names \code{baseline_assay} and includes the \code{"counts"} layer.
+Missing stamps warn but do not stop unless \code{require_provenance = TRUE}.
+Default is \code{TRUE}.}
 
-\item{strict_consistency_check}{Logical; if TRUE, stop on suspicious heuristic results; else warn.}
+\item{require_provenance}{Logical; require complete provenance metadata for
+every perturbation assay. Default is \code{FALSE}, allowing older or
+unstamped assays to be combined after a warning.}
 
-\item{eps, max_frac_changed, max_abs_median, max_abs_mean}{Thresholds for heuristic checks.}
+\item{strict_provenance_check}{Logical; stop when an available provenance
+stamp conflicts with \code{baseline_assay} or does not include
+\code{"counts"}. If \code{FALSE}, issue a warning and continue. Default is
+\code{TRUE}.}
 
-\item{allow_unverified}{Logical; if provenance missing and heuristic checks disabled, proceed only if TRUE.}
+\item{floor_counts}{Logical; floor negative combined counts at zero. This can
+be needed when several knock-down deltas affect the same gene. Default is
+\code{TRUE}.}
 
-\item{allow_dense}{Logical; if FALSE (default), stop when any requested layer
-returns a dense matrix (to avoid RAM blow-ups).}
+\item{floor_data}{Logical; floor negative combined log-expression at zero,
+matching \code{ApplyPropagation()}. Default is \code{TRUE}.}
 
-\item{normalize_method}{Deprecated/ignored. The composite \code{data} layer is
-always produced via \code{log_normalize()} (LogNormalize / \code{log1p})
-to match \code{ModulePerturbation()}. Kept only for backward compatibility.}
+\item{allow_dense}{Logical; permit dense input matrices. Default is
+\code{FALSE} to protect against accidental memory expansion.}
 
-\item{scale.factor}{Scale factor passed to the internal \code{log_normalize()}
-helper (default \code{1e4}). Should match the value used when the input
-perturb assays were generated.}
+\item{overwrite}{Logical; replace an existing assay named \code{new_assay}.
+Default is \code{FALSE}.}
+
+\item{verbose}{Logical; emit progress messages.}
 }
 \value{
-A Seurat object with a new composite perturbation assay.
+The Seurat object with the new combined assay.
 }
 \description{
-This function combines multiple perturbation assays into a single composite
-assay using additive superposition of perturbation deltas relative to a shared
-baseline on the \code{counts} layer:
-\deqn{P_{\mathrm{combined}} = B + \sum_i (P_i - B)}
+Experimental replacement for \code{CombinePerturbAssays()}. This function is
+designed for perturbation assays in which direct targets (hub genes or
+user-selected genes) are changed in the \code{counts} layer and secondary
+genes are changed by network propagation in the log-normalized \code{data}
+layer.
 }
 \details{
-Implementation note: this function avoids creating a large dense expanded
-matrix. It combines perturbations strictly on the baseline feature space
-(rows = \code{rownames(baseline)}). Features present in a perturb assay but
-absent from baseline are dropped with a warning.
-
-Baseline safety logic:
-\itemize{
-\item If all input assays have provenance (via \code{StampPerturbProvenance()}),
-the function verifies recorded \code{baseline_assay} and
-\code{baseline_layers} include \code{"counts"}.
-\item If provenance is missing for any assay, the function emits a warning banner.
-Optionally, it runs heuristic numeric checks on the \code{counts} layer
-via \code{.CheckPerturbBaselineConsistency()} for the unstamped assays
-(not a proof; may be less informative than checks on normalized data).
+Direct and propagated effects are deliberately combined differently:
+\enumerate{
+\item Count-space deltas are added to the baseline counts.
+\item The combined counts are log-normalized with the baseline library
+sizes, reproducing the primary/direct component in data space.
+\item For each input assay, its data-space delta is added only for genes
+that were not directly changed in that assay. These are the
+secondary effects produced by propagation.
 }
 
-Data layer handling:
-After combining \code{counts}, the function generates the composite assay's
-\code{data} layer by calling the package-internal \code{log_normalize()} helper
-(the same one used by \code{ModulePerturbation()}) with \code{col_sums} taken
-from the BASELINE counts (\code{colSums(base_counts)}), not from the composite
-counts. This preserves the per-cell denominator across the baseline assay and
-all perturb / composite assays, so their \code{data} layers remain directly
-comparable. \code{Seurat::NormalizeData()} is intentionally NOT used here
-because it would recompute library sizes from the composite counts, breaking
-that comparability.
+In symbols, for input assay \eqn{i}, baseline counts \eqn{B}, reconstructed
+baseline log-expression \eqn{L}, perturbed counts \eqn{P_i}, perturbed data
+\eqn{D_i}, and direct-gene set \eqn{H_i} inferred from \eqn{P_i-B}:
+\deqn{C = max(0, B + sum_i(P_i-B))}
+\deqn{E = max(0, logNorm(C; colSums(B)) +
+                  sum_i 1[g not in H_i](D_i-L))}
 
-Combine by delta-superposition (counts only):
-\itemize{
-\item \code{comp_counts = base_counts + \sum_i (pert_counts_i - base_counts)}
-}
+This component-wise exclusion is important. If a gene is a direct target in
+one assay but a secondary target in another, its secondary effect from the
+other assay is retained.
 
-Requirements:
-\itemize{
-\item baseline assay must have layer \code{counts}
-\item each perturb assay must have layer \code{counts}
-\item all assays must share identical cell columns
-}
+The function is intentionally kept under a new name so the existing
+\code{CombinePerturbAssays()} implementation remains available for comparison.
 }
 \examples{
 \dontrun{
-# After creating perturb assays:
-seurat_obj_perturb <- ModulePerturbation(
-  seurat_obj_perturb,
-  mod = "CBh-M6",
-  perturb_dir = 5,
-  perturbation_name = "M6_up",
-  graph = "RNA_nn",
-  n_hubs = 10
-)
-
-seurat_obj_perturb <- ModulePerturbation(
-  seurat_obj_perturb,
-  mod = "CBh-M2",
-  perturb_dir = -2,
-  perturbation_name = "M2_down",
-  graph = "RNA_nn",
-  n_hubs = 10
-)
-
-# Optional: stamp provenance (recommended)
-seurat_obj_perturb <- StampPerturbProvenance(
-  seurat_obj_perturb,
-  perturb_assay = "M6_up",
-  baseline_assay = "RNA"
-)
-
-seurat_obj_perturb <- StampPerturbProvenance(
-  seurat_obj_perturb,
-  perturb_assay = "M2_down",
-  baseline_assay = "RNA"
-)
-
-seurat_obj_perturb <- CombinePerturbAssays(
-  seurat_obj_perturb,
+object <- CombinePerturbAssays(
+  object,
   perturb_assays = c("M6_up", "M2_down"),
   baseline_assay = "RNA",
-  new_assay = "M6up_M2down",
-  require_provenance = FALSE,
-  run_consistency_check_if_missing = FALSE,
-  allow_unverified = TRUE
+  new_assay = "M6up_M2down_"
 )
 }
+
 }

@@ -42,7 +42,10 @@ Imports:
     RSpectra,
     Rcpp,
     igraph,
-    MASS
+    MASS,
+    dplyr,
+    methods,
+    utils
 LinkingTo: 
     Rcpp,
     RcppArmadillo

@@ -2,105 +2,68 @@
 % Please edit documentation in R/AlertHeatmap.R
 \name{AlertHeatmap}
 \alias{AlertHeatmap}
-\title{AlertHeatmap: visualize pathway-level perturbation metrics as a heatmap}
+\title{Plot sensitivity-oriented AlertSystem pathway results}
 \usage{
 AlertHeatmap(
   seurat_obj,
   misc_name = "AlertSystem",
-  top_n = 5,
+  score_method = c("expression", "ucell"),
+  top_n = 5L,
   side = c("both", "positive", "negative"),
-  scale_mode = c("none", "unit", "zscale"),
-  unit_mode = c("max", "robust"),
-  select_by = c("concordance", "effect", "abs_effect"),
+  select_by = c("widespread_priority", "focal_priority", "abs_effect", "null_z",
+    "robust_fraction", "response_rate"),
+  fill_by = c("effect", "null_z"),
   reorder_by = c("effect", "select"),
+  scale_mode = c("none", "unit"),
   unit_q = 0.9,
-  reorder = TRUE,
-  fill_limits = NULL,
-  show_concordance = TRUE,
-  show_robustness = FALSE
+  show_annotations = TRUE,
+  show_fdr = TRUE,
+  fdr_cutoff = 0.05,
+  fill_limits = NULL
 )
 }
 \arguments{
-\item{seurat_obj}{A Seurat object that has been processed with
-\code{AlertSystemScore()} and contains a metrics table in
-\code{seurat_obj@misc$AlertSystem$metrics}. This can be either from
-a fresh run of \code{AlertSystemScore()} or after re-attaching a
-previously saved AlertSystem state (e.g. via \code{LoadAlertSystem()}
-or \code{readRDS("..._AlertSystem_info.rds")}).}
+\item{seurat_obj}{Seurat object processed by \code{AlertSystemScore()}.}
 
-\item{misc_name}{Name of the misc slot where AlertSystem results are stored.
-Default is \code{"AlertSystem"}.}
+\item{misc_name}{Misc slot containing  results.}
 
-\item{top_n}{Integer; number of top pathways to select per side (positive
-and/or negative). For example, \code{top_n = 5} and \code{side = "both"}
-can yield up to 10 pathways (5 most positive, 5 most negative).}
+\item{score_method}{Score channel: \code{"expression"} or \code{"ucell"}.}
 
-\item{side}{Character string indicating which side(s) of the effect
-distribution to use. One of \code{"both"}, \code{"positive"}, or
-\code{"negative"}. Default is \code{"both"}.}
+\item{top_n}{Number of pathways selected per effect side.}
 
-\item{scale_mode}{Character; one of:
-\describe{
-\item{"none"}{Use raw effect values (default).}
-\item{"unit"}{Scale effect into approximately \code{c(-1, 1)} by dividing by a
-global magnitude (see \code{unit_mode}, \code{unit_q}).}
-\item{"zscale"}{Z-score effect values within each pathway across groups:
-\eqn{z = (x - \mu)/\sigma}. If there is only one group, this mode
-automatically falls back to \code{"none"}.}
-}}
+\item{side}{One of \code{"both"}, \code{"positive"}, or \code{"negative"}.}
 
-\item{unit_mode}{Character; only used when \code{scale_mode = "unit"}.
-One of:
-\describe{
-\item{"max"}{Divide by the maximum absolute effect across all selected
-pathway/group combinations. This makes the most extreme value exactly
-±1.}
-\item{"robust"}{Divide by a high quantile (see \code{unit_q}) of the
-absolute effect distribution, which reduces the influence of extreme
-outliers and improves contrast among moderately changed pathways.}
-}}
+\item{select_by}{Selection metric. Defaults to
+\code{"widespread_priority"}; alternatives are \code{"focal_priority"},
+\code{"abs_effect"}, \code{"null_z"}, \code{"robust_fraction"}, and
+\code{"response_rate"}.}
 
-\item{select_by}{Character; metric used to rank pathways for inclusion
-within each side of the mean \code{effect} distribution. One of
-\code{"concordance"} (default), \code{"effect"}, or \code{"abs_effect"}.}
+\item{fill_by}{Tile fill metric: raw paired \code{"effect"} or
+\code{"null_z"}.}
 
-\item{reorder_by}{Character; if \code{reorder = TRUE}, controls how pathways
-are ordered on the y-axis. One of \code{"effect"} (default; negative to
-positive mean effect) or \code{"select"} (order by the selection rank).}
+\item{reorder_by}{Order selected pathways by \code{"effect"} or selection
+priority.}
 
-\item{unit_q}{Numeric between 0 and 1; quantile of \code{|effect|} used as
-the scaling factor when \code{unit_mode = "robust"}. Default is 0.9.}
+\item{scale_mode}{Use raw values or divide by a robust global magnitude.}
 
-\item{reorder}{Logical; if \code{TRUE} (default), reorder pathways on the
-y-axis by their mean effect (from most negative to most positive).}
+\item{unit_q}{Quantile used for unit scaling.}
 
-\item{fill_limits}{Optional numeric vector of length 2 giving limits for
-the fill scale. If \code{NULL}, limits are set automatically depending
-on \code{scale_mode}.}
+\item{show_annotations}{Show response and consistency text.}
 
-\item{show_concordance}{Logical; if TRUE (default), show the concordance
-metric as text labels when available.}
+\item{show_fdr}{Add an FDR symbol when calibrated FDR is available.}
 
-\item{show_robustness}{Logical; if TRUE, show the robustness metric
-(column \code{robust_gt_thresh}) as text labels when available. Default
-is FALSE, so robustness is not shown even if computed, unless
-explicitly requested.}
+\item{fdr_cutoff}{FDR threshold for the symbol.}
+
+\item{fill_limits}{Optional explicit fill limits.}
 }
 \value{
-A ggplot2 heatmap object.
+A ggplot object. Selected pathway names and selection statistics are
+attached as \code{"selected_pathways"} and \code{"selection_stats"}.
 }
 \description{
-This function visualizes the AlertSystem metrics stored in
-\code{seurat_obj@misc$AlertSystem$metrics} as a pathways-by-group heatmap.
-It selects the top N most positively and/or negatively changed pathways
-based on the mean \code{effect} (summarized logFC) across groups, and can
-optionally rescale values for visualization.
-}
-\details{
-Tiles are filled by the \code{effect} column, while additional metrics
-such as \code{concordance} and the robustness score
-(\code{robust_gt_thresh}, fraction of strong, sign-consistent cells among
-all cells in a group) are displayed as text overlays (labels) if present
-and non-missing. In the plot, this robustness is shown simply as
-\code{"robustness"}.
+Selects pathways independently on the positive and negative sides using an
+evidence-aware priority metric. Tile color shows either the paired pathway
+effect or its null-standardized value. Text annotations keep response
+prevalence and consistency visible so small but reproducible changes are not
+confused with numerical noise.
 }

@@ -7,7 +7,7 @@
     xgboost = "1.7.11.1",
     SHAPforxgboost = "0.1.3"
   )
-  
+
   # Enforce versions (fail fast, no auto-install)
   for (pkg in names(pinned_pkgs)) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -20,8 +20,8 @@
         pkg, pinned_pkgs[[pkg]]
       ))
     }
-    
-    installed <- as.character(packageVersion(pkg))
+
+    installed <- as.character(utils::packageVersion(pkg))
     if (!identical(installed, pinned_pkgs[[pkg]])) {
       warning(sprintf(
         "Package version mismatch for '%s': required %s but found %s.\nPlease install the exact version.",
@@ -29,6 +29,6 @@
       ))
     }
   }
-  
+
   packageStartupMessage("Version checks passed: xgboost 1.7.11.1, SHAPforxgboost 0.1.3")
 }
