@@ -51,6 +51,23 @@
 #'   \code{feature}.
 #' @param title Character or NULL. Plot title. If NULL, defaults to
 #'   \code{feature}.
+#' @param color_values Numeric vector or NULL. Positions of the colors in
+#'   \code{color_scale}, on a normalized 0--1 scale. Must have one position per
+#'   color, in strictly increasing order. NULL spaces colors evenly.
+#' @param color_limits Numeric vector of length two or NULL. Increasing finite
+#'   limits for the color scale. NULL uses the converged cells' score range.
+#' @param color_breaks Numeric vector or NULL. Optional legend tick positions
+#'   in score units. NULL uses automatic breaks.
+#' @param color_oob Function. Handles scores outside the color limits.
+#'   Default: \code{scales::censor}; use \code{scales::squish} to clamp them.
+#' @param order_by_score Logical. If TRUE (default), draw converged cells in
+#'   ascending score order so high scores appear on top. If FALSE, draw them
+#'   in random order. Use \code{seed} for reproducible random ordering.
+#' @param seed Integer-valued numeric scalar or NULL. Optional random seed used
+#'   only when \code{order_by_score = FALSE}. When supplied, random ordering
+#'   uses \code{withr::with_seed()}, preserving the caller's random state.
+#'   NULL (default) uses the current random state; an external
+#'   \code{set.seed()} can also be used.
 #' @param ... Additional arguments (currently unused; reserved for future use).
 #'
 #' @return A \code{ggplot2} object.
@@ -94,8 +111,41 @@ PlotMarkovEmbedding <- function(
     alpha             = 0.8,
     legend_title      = NULL,
     title             = NULL,
+    color_values      = NULL,
+    color_limits      = NULL,
+    color_breaks      = NULL,
+    color_oob         = scales::censor,
+    order_by_score    = TRUE,
+    seed              = NULL,
     ...
 ) {
+    # Validate optional gradient settings. Positions are normalized, not score units.
+    if (!is.null(color_values) &&
+        (!is.numeric(color_values) || length(color_values) != length(color_scale) ||
+         any(!is.finite(color_values)) || any(color_values < 0 | color_values > 1) ||
+         any(diff(color_values) <= 0))) {
+        stop("color_values must contain one finite, strictly increasing position in [0, 1] per color.")
+    }
+    if (!is.null(color_limits) &&
+        (!is.numeric(color_limits) || length(color_limits) != 2L ||
+         any(!is.finite(color_limits)) || color_limits[1] >= color_limits[2])) {
+        stop("color_limits must contain two finite numbers in increasing order.")
+    }
+    if (!is.function(color_oob)) {
+        stop("color_oob must be a function, e.g. scales::squish.")
+    }
+
+    if (!is.logical(order_by_score) || length(order_by_score) != 1L ||
+        is.na(order_by_score)) {
+        stop("order_by_score must be TRUE or FALSE.")
+    }
+
+    if (!is.null(seed) &&
+        (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed) ||
+         abs(seed) > .Machine$integer.max || seed != trunc(seed))) {
+        stop("seed must be NULL or a single finite integer within R's integer range.")
+    }
+
     # validate feature
     if (!feature %in% colnames(seurat_obj@meta.data)) {
         stop(sprintf(
@@ -131,7 +181,11 @@ PlotMarkovEmbedding <- function(
     }
 
     # color scale limits exclude unconverged cells
-    score_limits <- range(emb_converged$score, na.rm = TRUE)
+    score_limits <- if (is.null(color_limits)) {
+        range(emb_converged$score, na.rm = TRUE)
+    } else {
+        color_limits
+    }
 
     # base plot — no data yet so we can add layers in the correct order
     p <- ggplot2::ggplot()
@@ -147,8 +201,15 @@ PlotMarkovEmbedding <- function(
         )
     }
 
-    # layer 2: converged cells colored by score — sorted so high-value cells render on top
-    emb_converged <- emb_converged[order(emb_converged$score, na.last = FALSE), ]
+    # Layer 2: choose the drawing order for converged cells.
+    point_order <- if (order_by_score) {
+        order(emb_converged$score, na.last = FALSE)
+    } else if (!is.null(seed)) {
+        withr::with_seed(seed, sample.int(nrow(emb_converged)))
+    } else {
+        sample.int(nrow(emb_converged))
+    }
+    emb_converged <- emb_converged[point_order, , drop = FALSE]
 
     p <- p +
         ggplot2::geom_point(
@@ -159,7 +220,10 @@ PlotMarkovEmbedding <- function(
         ) +
         ggplot2::scale_color_gradientn(
             colors = color_scale,
+            values = color_values,
             limits = score_limits,
+            breaks = if (is.null(color_breaks)) ggplot2::waiver() else color_breaks,
+            oob    = color_oob,
             name   = legend_title
         )
 

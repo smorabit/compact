@@ -23,6 +23,12 @@ PlotMarkovEmbedding(
   alpha = 0.8,
   legend_title = NULL,
   title = NULL,
+  color_values = NULL,
+  color_limits = NULL,
+  color_breaks = NULL,
+  color_oob = scales::censor,
+  order_by_score = TRUE,
+  seed = NULL,
   ...
 )
 }
@@ -87,6 +93,29 @@ Default: \code{c("lightgrey", "#2166AC")}.}
 
 \item{title}{Character or NULL. Plot title. If NULL, defaults to
 \code{feature}.}
+
+\item{color_values}{Numeric vector or NULL. Positions of the colors in
+\code{color_scale}, on a normalized 0--1 scale. Must have one position per
+color, in strictly increasing order. NULL spaces colors evenly.}
+
+\item{color_limits}{Numeric vector of length two or NULL. Increasing finite
+limits for the color scale. NULL uses the converged cells' score range.}
+
+\item{color_breaks}{Numeric vector or NULL. Optional legend tick positions
+in score units. NULL uses automatic breaks.}
+
+\item{color_oob}{Function. Handles scores outside the color limits.
+Default: \code{scales::censor}; use \code{scales::squish} to clamp them.}
+
+\item{order_by_score}{Logical. If TRUE (default), draw converged cells in
+ascending score order so high scores appear on top. If FALSE, draw them
+in random order. Use \code{seed} for reproducible random ordering.}
+
+\item{seed}{Integer-valued numeric scalar or NULL. Optional random seed used
+only when \code{order_by_score = FALSE}. When supplied, random ordering
+uses \code{withr::with_seed()}, preserving the caller's random state.
+NULL (default) uses the current random state; an external
+\code{set.seed()} can also be used.}
 
 \item{...}{Additional arguments (currently unused; reserved for future use).}
 }
