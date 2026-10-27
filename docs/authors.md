@@ -5,14 +5,14 @@
 - **[Sam Morabito](https://smorabit.github.io)**. Author, maintainer.
   [](https://orcid.org/0000-0002-7768-4856)
 
-- **[Zechuan Shi](https://github.com/rootze)**. Author.
+- **[Zechuan Shi](https://github.com/rootze)**. Author, maintainer.
   [](https://orcid.org/0000-0002-2844-5816)
 
 - **[Swarup Lab](https://swaruplab.bio.uci.edu/)**. Funder.
 
 ## Citation
 
-Morabito S, Shi Z (2026). *compact: compact*. R package version 0.1.0,
+Morabito S, Shi Z (2026). *compact: compact*. R package version 0.1.4,
 <https://smorabit.github.io/COMPACT/>.
 
     @Manual{,

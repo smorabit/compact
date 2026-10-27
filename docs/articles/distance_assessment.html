@@ -24,7 +24,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">compact</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,6 +42,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Perturbation Assessment</h6></li>
     <li><a class="dropdown-item" href="../articles/distance_assessment.html">Distance-based State Similarity</a></li>
+    <li><a class="dropdown-item" href="../articles/shap_key_drivers.html">SHAP Key Driver Genes</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -73,7 +74,7 @@
 
     
     
-<p>Compiled: 2026-09-10</p>
+<p>Compiled: 2026-10-26</p>
 <p>Source: <code>vignettes/distance_assessment.Rmd</code></p>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
@@ -393,7 +394,7 @@ and only those.</p>
 <code class="sourceCode R"><span><span class="va">pert_name</span> <span class="op">&lt;-</span> <span class="st">"HuMicA.M2_down"</span></span>
 <span><span class="va">cur_mod</span>   <span class="op">&lt;-</span> <span class="st">"M2"</span></span>
 <span></span>
-<span><span class="va">modules</span>   <span class="op">&lt;-</span> <span class="fu">GetModules</span><span class="op">(</span><span class="va">seurat_mg</span><span class="op">)</span></span>
+<span><span class="va">modules</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://smorabit.github.io/hdWGCNA/reference/GetModules.html" class="external-link">GetModules</a></span><span class="op">(</span><span class="va">seurat_mg</span><span class="op">)</span></span>
 <span><span class="va">mod_genes</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://generics.r-lib.org/reference/setops.html" class="external-link">intersect</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">modules</span>, <span class="va">module</span> <span class="op">==</span> <span class="va">cur_mod</span><span class="op">)</span><span class="op">$</span><span class="va">gene_name</span>,</span>
 <span>                       <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">seurat_mg</span><span class="op">[[</span><span class="st">"RNA"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>

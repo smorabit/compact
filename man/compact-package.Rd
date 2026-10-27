@@ -18,11 +18,6 @@ Useful links:
 \author{
 \strong{Maintainer}: Sam Morabito \email{smorabit@uci.edu} (\href{https://orcid.org/0000-0002-7768-4856}{ORCID})
 
-Authors:
-\itemize{
-  \item Zechuan Shi \email{zechuas@uci.edu} (\href{https://orcid.org/0000-0002-2844-5816}{ORCID})
-}
-
 Other contributors:
 \itemize{
   \item Swarup Lab [funder]

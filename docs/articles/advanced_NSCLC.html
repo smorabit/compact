@@ -24,7 +24,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">compact</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -42,6 +42,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Perturbation Assessment</h6></li>
     <li><a class="dropdown-item" href="../articles/distance_assessment.html">Distance-based State Similarity</a></li>
+    <li><a class="dropdown-item" href="../articles/shap_key_drivers.html">SHAP Key Driver Genes</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -73,7 +74,7 @@
 
     
     
-<p>Compiled: 2026-09-10</p>
+<p>Compiled: 2026-10-26</p>
 <p>Source: <code>vignettes/advanced_NSCLC.Rmd</code></p>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
@@ -1075,7 +1076,7 @@ interactions are captured.</p>
 <p><code>CombinePerturbAssays</code> requires a baseline assay
 (<code>RNA</code>) and two or more perturbation assays derived from that
 baseline. Here we disable the strict provenance check for simplicity;
-see <code><a href="../reference/StampPerturbProvenance.html">?StampPerturbProvenance</a></code> for the recommended workflow in
+see <code>?StampPerturbProvenance</code> for the recommended workflow in
 production analyses:</p>
 <div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">seurat_obj</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/CombinePerturbAssays.html">CombinePerturbAssays</a></span><span class="op">(</span></span>

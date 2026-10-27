@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">compact</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -23,6 +23,7 @@
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Perturbation Assessment</h6></li>
     <li><a class="dropdown-item" href="../articles/distance_assessment.html">Distance-based State Similarity</a></li>
+    <li><a class="dropdown-item" href="../articles/shap_key_drivers.html">SHAP Key Driver Genes</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -55,13 +56,13 @@
           <code><a href="AlertHeatmap.html">AlertHeatmap()</a></code>
 
         </dt>
-        <dd>AlertHeatmap: visualize pathway-level perturbation metrics as a heatmap</dd>
+        <dd>Plot paired Alert System pathway responses</dd>
       </dl><dl><dt>
 
           <code><a href="AlertSystemScore.html">AlertSystemScore()</a></code>
 
         </dt>
-        <dd>AlertSystem: score pathway gene sets for a given module perturbation</dd>
+        <dd>Score paired pathway responses after an in-silico perturbation</dd>
       </dl><dl><dt>
 
           <code><a href="ApplyPerturbation.html">ApplyPerturbation()</a></code>
@@ -103,7 +104,7 @@
           <code><a href="CombinePerturbAssays.html">CombinePerturbAssays()</a></code>
 
         </dt>
-        <dd>CombinePerturbAssays: create a composite perturb assay by delta superposition (sparse-safe; COUNTS-only)</dd>
+        <dd>Combine perturbation assays created by the mixed-layer workflow</dd>
       </dl><dl><dt>
 
           <code><a href="ComputeDistance.html">ComputeDistance()</a></code>
@@ -157,13 +158,13 @@
           <code><a href="LoadAlertSystem.html">LoadAlertSystem()</a></code>
 
         </dt>
-        <dd>Load a previously saved AlertSystem state into a Seurat object</dd>
+        <dd>Load an Alert System analysis state</dd>
       </dl><dl><dt>
 
           <code><a href="LoadAlertSystemPathways.html">LoadAlertSystemPathways()</a></code>
 
         </dt>
-        <dd>Load AlertSystem pathway gene sets (local or GitHub)</dd>
+        <dd>Load bundled or user-supplied Alert System pathways</dd>
       </dl><dl><dt>
 
           <code><a href="MacrostateTransitions.html">MacrostateTransitions()</a></code>
@@ -271,13 +272,7 @@
           <code><a href="SaveAlertSystem.html">SaveAlertSystem()</a></code>
 
         </dt>
-        <dd>Save the full AlertSystem state to disk</dd>
-      </dl><dl><dt>
-
-          <code><a href="StampPerturbProvenance.html">StampPerturbProvenance()</a></code>
-
-        </dt>
-        <dd>StampPerturbProvenance: record baseline provenance for a perturb assay</dd>
+        <dd>Save an Alert System analysis state</dd>
       </dl><dl><dt>
 
           <code><a href="TFPerturbation.html">TFPerturbation()</a></code>

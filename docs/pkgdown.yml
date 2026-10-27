@@ -5,8 +5,9 @@ articles:
   advanced_NSCLC: advanced_NSCLC.html
   distance_assessment: distance_assessment.html
   quickstart: quickstart.html
+  shap_key_drivers: shap_key_drivers.html
   simulation_tutorial: simulation_tutorial.html
-last_built: 2026-09-10T23:34Z
+last_built: 2026-10-27T05:18Z
 urls:
   reference: https://smorabit.github.io/compact/reference
   article: https://smorabit.github.io/compact/articles
