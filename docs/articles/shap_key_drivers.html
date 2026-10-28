@@ -43,6 +43,7 @@
     <li><h6 class="dropdown-header" data-toc-skip>Perturbation Assessment</h6></li>
     <li><a class="dropdown-item" href="../articles/distance_assessment.html">Distance-based State Similarity</a></li>
     <li><a class="dropdown-item" href="../articles/shap_key_drivers.html">SHAP Key Driver Genes</a></li>
+    <li><a class="dropdown-item" href="../articles/alertsystem_tutorial.html">Pathways Alert System</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
@@ -90,6 +91,30 @@ branches: the <strong>granulocyte-monocyte (GM) lineage</strong> and the
 <strong>megakaryocyte-erythroid (ME) lineage</strong>. Our goal is to
 find the genes that most strongly distinguish cells committing to the GM
 lineage from those committing to the ME lineage.</p>
+<div class="section level2">
+<h2 id="contents">Contents<a class="anchor" aria-label="anchor" href="#contents"></a>
+</h2>
+<ol style="list-style-type: decimal">
+<li><a href="#what-is-shap">What is SHAP?</a></li>
+<li><a href="#load-the-dataset">Load the dataset</a></li>
+<li><a href="#visualizing-the-two-lineages">Visualizing the two lineages
+(optional)</a></li>
+<li><a href="#define-the-groups-for-comparison">Define the groups for
+comparison</a></li>
+<li><a href="#identify-shap-key-driver-genes">Identify SHAP key driver
+genes</a></li>
+<li>
+<a href="#visualize-the-shap-results">Visualize the SHAP results</a>
+<ul>
+<li><a href="#bar-plot-of-top-driver-genes">Bar plot of top driver
+genes</a></li>
+<li><a href="#beeswarm-plot-of-shap-values">Beeswarm plot of SHAP
+values</a></li>
+</ul>
+</li>
+<li><a href="#interpretation">Interpretation</a></li>
+</ol>
+</div>
 <div class="section level2">
 <h2 id="what-is-shap">What is SHAP?<a href="#what-is-shap"></a><a class="anchor" aria-label="anchor" href="#what-is-shap"></a>
 </h2>

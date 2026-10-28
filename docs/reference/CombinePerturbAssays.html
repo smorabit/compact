@@ -32,6 +32,7 @@ layer."></head><body>
     <li><h6 class="dropdown-header" data-toc-skip>Perturbation Assessment</h6></li>
     <li><a class="dropdown-item" href="../articles/distance_assessment.html">Distance-based State Similarity</a></li>
     <li><a class="dropdown-item" href="../articles/shap_key_drivers.html">SHAP Key Driver Genes</a></li>
+    <li><a class="dropdown-item" href="../articles/alertsystem_tutorial.html">Pathways Alert System</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -113,7 +114,7 @@ has <code>abs(perturbed_count - baseline_count) &gt; direct_tolerance</code>.</p
 
 <dt id="arg-check-provenance">check_provenance<a class="anchor" aria-label="anchor" href="#arg-check-provenance"></a></dt>
 <dd><p>Logical; inspect <code>assay@misc$COMPACT</code> metadata
-written by <code>StampPerturbProvenance()</code> and verify that every available
+written by <code><a href="StampPerturbProvenance.html">StampPerturbProvenance()</a></code> and verify that every available
 stamp names <code>baseline_assay</code> and includes the <code>"counts"</code> layer.
 Missing stamps warn but do not stop unless <code>require_provenance = TRUE</code>.
 Default is <code>TRUE</code>.</p></dd>

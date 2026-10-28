@@ -37,6 +37,18 @@ CellOracle study), where cells differentiate along two branches: the
 distinguish cells committing to the GM lineage from those committing to
 the ME lineage.
 
+## Contents
+
+1. [What is SHAP?](#what-is-shap)
+2. [Load the dataset](#load-the-dataset)
+3. [Visualizing the two lineages (optional)](#visualizing-the-two-lineages)
+4. [Define the groups for comparison](#define-the-groups-for-comparison)
+5. [Identify SHAP key driver genes](#identify-shap-key-driver-genes)
+6. [Visualize the SHAP results](#visualize-the-shap-results)
+    - [Bar plot of top driver genes](#bar-plot-of-top-driver-genes)
+    - [Beeswarm plot of SHAP values](#beeswarm-plot-of-shap-values)
+7. [Interpretation](#interpretation)
+
 ## What is SHAP?[](#what-is-shap)
 
 To identify genes that contribute to distinguishing cellular states,

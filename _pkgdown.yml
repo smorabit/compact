@@ -48,6 +48,8 @@ navbar:
         href: articles/distance_assessment.html
       - text: SHAP Key Driver Genes
         href: articles/shap_key_drivers.html
+      - text: Pathways Alert System
+        href: articles/alertsystem_tutorial.html
       # - text: Alert System
       #   href: articles/alert_system.html
 
@@ -65,8 +67,5 @@ articles:
   desc: Analyses to run once a perturbed assay exists, for quantifying and interpreting its effect.
   contents:
   - distance_assessment
-- title: Perturbation Assessment
-  desc: Analyses to run once a perturbed assay exists, for quantifying and interpreting its effect.
-  contents:
-  - distance_assessment
   - shap_key_drivers
+  - alertsystem_tutorial
